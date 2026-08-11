@@ -37,7 +37,10 @@ use crate::types::{ProviderConnection, ProviderNode};
 use super::{ClientPool, TransportKind, UpstreamResponse};
 
 /// Default base URL for Antigravity's Cloud Code endpoint.
-pub const ANTIGRAVITY_BASE_URL: &str = "https://cloudcode-pa.googleapis.com";
+/// Chat traffic uses the daily host (bypasses prod 429); discovery
+/// (loadCodeAssist/onboardUser) stays on PROD — see oauth/antigravity.rs.
+/// Ported from 9router v0.5.45 (fix(gemini): daily-cloudcode host switch).
+pub const ANTIGRAVITY_BASE_URL: &str = "https://daily-cloudcode-pa.googleapis.com";
 
 /// Antigravity caps maxOutputTokens at 16k regardless of what the caller
 /// asks for; matches the upstream JS implementation.
@@ -435,6 +438,17 @@ impl AntigravityExecutor {
         body: &mut Value,
         credentials: &ProviderConnection,
     ) -> Result<String, AntigravityExecutorError> {
+        // OpenAI clients may include stream_options even for non-streaming calls.
+        // Google generateContent rejects that combination before processing the request.
+        // Ported from 9router v0.5.45 (fix(antigravity): strip stream_options from
+        // non-stream requests).
+        let stream = body.get("stream").and_then(Value::as_bool).unwrap_or(false);
+        if !stream {
+            if let Value::Object(map) = body {
+                map.remove("stream_options");
+            }
+        }
+
         // Pull out request.contents and rewrite role/parts as needed.
         if let Some(request_obj) = body.get_mut("request").and_then(|v| v.as_object_mut()) {
             // Rewrite contents.

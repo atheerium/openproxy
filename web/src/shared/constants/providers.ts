@@ -15,7 +15,7 @@ export const FREE_PROVIDERS: Record<string, Provider> = {
   "gemini-cli": { id: "gemini-cli", alias: "gc", name: "Gemini CLI", icon: "terminal", color: "#4285F4", deprecated: true, deprecationNotice: "Gemini CLI is designed exclusively for Gemini CLI. Using it with other tools (OpenClaw, Claude, Codex...) may result in account restrictions or bans.", website: "https://github.com/google-gemini/gemini-cli", notice: { signupUrl: "https://github.com/google-gemini/gemini-cli" } },
   // gitlab: { id: "gitlab", alias: "gl", name: "GitLab Duo", icon: "code", color: "#FC6D26" },
   // codebuddy: { id: "codebuddy", alias: "cb", name: "CodeBuddy", icon: "smart_toy", color: "#006EFF" },
-  qoder: { id: "qoder", alias: "qd", name: "Qoder AI", icon: "water_drop", color: "#EC4899" },
+  qoder: { id: "qoder", alias: "qd", name: "Qoder AI", icon: "water_drop", color: "#EC4899", website: "https://qoder.com", notice: { apiKeyUrl: "https://qoder.com/account/integrations", signupUrl: "https://qoder.com" }, authModes: ["oauth", "apikey"], hasOAuth: true, authHint: "Personal Access Token (pt-...) from https://qoder.com/account/integrations", serviceKinds: ["llm"] },
   iflow: { id: "iflow", alias: "if", name: "iFlow AI", icon: "water_drop", color: "#6366F1", website: "https://iflow.cn", notice: { signupUrl: "https://iflow.cn" } },
   opencode: { id: "opencode", alias: "oc", name: "OpenCode Free", icon: "terminal", color: "#E87040", textIcon: "OC", noAuth: true, passthroughModels: true, modelsFetcher: { url: "https://opencode.ai/zen/v1/models", type: "opencode-free" } },
 };
@@ -55,7 +55,8 @@ export const OAUTH_PROVIDERS: Record<string, Provider> = {
   codex: { id: "codex", alias: "cx", name: "OpenAI Codex", icon: "code", color: "#3B82F6", thinkingConfig: THINKING_CONFIG.effort, serviceKinds: ["llm", "image"], kindNotice: { image: "Requires a ChatGPT Plus (or higher) account. Free accounts are not supported for image generation." }, website: "https://chatgpt.com/codex", notice: { signupUrl: "https://chatgpt.com/codex" }, priority: 15 },
   github: { id: "github", alias: "gh", name: "GitHub Copilot", icon: "code", color: "#333333", serviceKinds: ["llm", "embedding"], embeddingConfig: { baseUrl: "https://models.github.ai/inference/embeddings", authType: "apikey", authHeader: "bearer", models: [{ id: "text-embedding-3-small", name: "Text Embedding 3 Small (GitHub)", dimensions: 1536 }, { id: "text-embedding-3-large", name: "Text Embedding 3 Large (GitHub)", dimensions: 3072 }] }, website: "https://github.com/features/copilot", notice: { signupUrl: "https://github.com/features/copilot" }, priority: 25 },
   cursor: { id: "cursor", alias: "cu", name: "Cursor IDE", icon: "edit_note", color: "#00D4AA", website: "https://cursor.com", notice: { signupUrl: "https://cursor.com" }, priority: 30 },
-  // "kimi-coding": { id: "kimi-coding", alias: "kmc", name: "Kimi Coding", icon: "psychology", color: "#1E40AF", textIcon: "KC" },
+  // Dual auth (OAuth device-code + API key) — merged in 68566f5; also under APIKEY_PROVIDERS.
+  kimi: { id: "kimi", alias: "kimi", name: "Kimi", icon: "psychology", color: "#1E3A8A", textIcon: "KM", website: "https://kimi.moonshot.cn", notice: { signupUrl: "https://www.kimi.com/code", apiKeyUrl: "https://platform.moonshot.ai/console/api-keys" }, serviceKinds: ["llm", "webSearch"], searchViaChat: { defaultModel: "kimi-k3", pricingUrl: "https://platform.moonshot.ai/docs/pricing/chat" }, authModes: ["oauth", "apikey"], hasOAuth: true, priority: 42 },
   kilocode: { id: "kilocode", alias: "kc", name: "Kilo Code", icon: "code", color: "#FF6B35", textIcon: "KC", website: "https://kilocode.ai", notice: { signupUrl: "https://kilocode.ai" }, priority: 40 },
   cline: { id: "cline", alias: "cl", name: "Cline", icon: "smart_toy", color: "#5B9BD5", textIcon: "CL", website: "https://cline.bot", notice: { signupUrl: "https://cline.bot" }, priority: 45 },
   // Dual auth (OAuth + API key) — also listed under APIKEY_PROVIDERS for key path.
@@ -83,7 +84,7 @@ export const OAUTH_PROVIDERS: Record<string, Provider> = {
 export const APIKEY_PROVIDERS: Record<string, Provider> = {
   glm: { id: "glm", alias: "glm", name: "GLM Coding", icon: "code", color: "#2563EB", textIcon: "GL", website: "https://open.bigmodel.cn", notice: { apiKeyUrl: "https://open.bigmodel.cn/usercenter/apikeys" } },
   "glm-cn": { id: "glm-cn", alias: "glm-cn", name: "GLM (China)", icon: "code", color: "#DC2626", textIcon: "GC", website: "https://open.bigmodel.cn", notice: { apiKeyUrl: "https://open.bigmodel.cn/usercenter/apikeys" } },
-  kimi: { id: "kimi", alias: "kimi", name: "Kimi", icon: "psychology", color: "#1E3A8A", textIcon: "KM", website: "https://kimi.moonshot.cn", notice: { apiKeyUrl: "https://platform.moonshot.ai/console/api-keys" }, serviceKinds: ["llm", "webSearch"], searchViaChat: { defaultModel: "kimi-k2.5", pricingUrl: "https://platform.moonshot.ai/docs/pricing/chat" } },
+  kimi: { id: "kimi", alias: "kimi", name: "Kimi", icon: "psychology", color: "#1E3A8A", textIcon: "KM", website: "https://kimi.moonshot.cn", notice: { apiKeyUrl: "https://platform.moonshot.ai/console/api-keys", signupUrl: "https://www.kimi.com/code" }, serviceKinds: ["llm", "webSearch"], searchViaChat: { defaultModel: "kimi-k3", pricingUrl: "https://platform.moonshot.ai/docs/pricing/chat" }, authModes: ["oauth", "apikey"], hasOAuth: true, oauth: { clientId: "17e5f671-d194-4dfb-9706-5516cb48c098", deviceCodeUrl: "https://auth.kimi.com/api/oauth/device_authorization", tokenUrl: "https://auth.kimi.com/api/oauth/token", refreshUrl: "https://auth.kimi.com/api/oauth/token" } },
   minimax: { id: "minimax", alias: "minimax", name: "Minimax Coding", icon: "memory", color: "#7C3AED", textIcon: "MM", website: "https://www.minimaxi.com", notice: { apiKeyUrl: "https://platform.minimaxi.com/user-center/basic-information/interface-key" }, serviceKinds: ["llm", "image", "imageToText", "webSearch", "tts"], searchViaChat: { defaultModel: "MiniMax-M2.7", pricingUrl: "https://www.minimaxi.com/document/price" }, ttsConfig: { baseUrl: "https://api.minimax.io/v1/t2a_v2", authType: "apikey", authHeader: "bearer", format: "minimax-tts", models: [{ id: "speech-2.8-hd", name: "Speech 2.8 HD" }, { id: "speech-2.8-turbo", name: "Speech 2.8 Turbo" }, { id: "speech-2.6-hd", name: "Speech 2.6 HD" }, { id: "speech-2.6-turbo", name: "Speech 2.6 Turbo" }] } },
   "minimax-cn": { id: "minimax-cn", alias: "minimax-cn", name: "Minimax (China)", icon: "memory", color: "#DC2626", textIcon: "MC", website: "https://www.minimaxi.com", notice: { apiKeyUrl: "https://platform.minimaxi.com/user-center/basic-information/interface-key" }, serviceKinds: ["llm", "tts"], ttsConfig: { baseUrl: "https://api.minimaxi.com/v1/t2a_v2", authType: "apikey", authHeader: "bearer", format: "minimax-tts", models: [{ id: "speech-2.8-hd", name: "Speech 2.8 HD" }, { id: "speech-2.8-turbo", name: "Speech 2.8 Turbo" }, { id: "speech-2.6-hd", name: "Speech 2.6 HD" }, { id: "speech-2.6-turbo", name: "Speech 2.6 Turbo" }] } },
   alicode: { id: "alicode", alias: "alicode", name: "Alibaba", icon: "cloud", color: "#FF6A00", textIcon: "ALi", website: "https://bailian.console.aliyun.com", notice: { apiKeyUrl: "https://bailian.console.aliyun.com/?apiKey=1" } },
@@ -147,7 +148,7 @@ export const APIKEY_PROVIDERS: Record<string, Provider> = {
   runwayml: { id: "runwayml", alias: "runway", name: "Runway ML", icon: "movie", color: "#000000", textIcon: "RW", website: "https://runwayml.com", notice: { apiKeyUrl: "https://dev.runwayml.com" }, serviceKinds: ["image", "video"], imageConfig: { baseUrl: "https://api.dev.runwayml.com/v1/organization", method: "GET", authType: "apikey", authHeader: "bearer", extraHeaders: { "X-Runway-Version": "2024-11-06" } } },
   "aws-polly": { id: "aws-polly", alias: "polly", name: "AWS Polly", icon: "record_voice_over", color: "#FF9900", textIcon: "PL", website: "https://aws.amazon.com/polly/", notice: { text: "Use AWS Secret Access Key as API key; set providerSpecificData.accessKeyId and optional region.", apiKeyUrl: "https://console.aws.amazon.com/iam/home#/security_credentials" }, serviceKinds: ["tts"], hasProviderSpecificData: true, ttsConfig: { baseUrl: "https://polly.{region}.amazonaws.com/v1/speech", authType: "apikey", authHeader: "aws-sigv4", format: "aws-polly", models: [{ id: "standard", name: "Standard" }, { id: "neural", name: "Neural" }, { id: "long-form", name: "Long-form" }, { id: "generative", name: "Generative" }] } },
   "jina-ai": { id: "jina-ai", alias: "jina", name: "Jina AI", icon: "blur_on", color: "#2563EB", textIcon: "JA", website: "https://jina.ai", notice: { text: "10M free tokens on signup (non-commercial), no credit card required.", apiKeyUrl: "https://jina.ai/?sui=apikey" }, serviceKinds: ["embedding"], embeddingConfig: { baseUrl: "https://api.jina.ai/v1/embeddings", authType: "apikey", authHeader: "bearer", models: [{ id: "jina-embeddings-v3", name: "Jina Embeddings v3", dimensions: 1024 }, { id: "jina-embeddings-v2-base-en", name: "Jina Embeddings v2 Base EN", dimensions: 768 }, { id: "jina-embeddings-v2-base-code", name: "Jina Embeddings v2 Base Code", dimensions: 768 }] } },
-  "jina-reader": { id: "jina-reader", alias: "jina", name: "Jina Reader", icon: "menu_book", color: "#000000", textIcon: "JR", website: "https://jina.ai/reader", notice: { apiKeyUrl: "https://jina.ai/?sui=apikey" }, serviceKinds: ["webFetch"], fetchConfig: { baseUrl: "https://r.jina.ai", method: "GET", authType: "apikey", authHeader: "bearer", costPerQuery: 0, freeMonthlyQuota: 1000000, formats: ["markdown", "text", "html"], maxCharacters: 200000, timeoutMs: 30000 } },
+  "jina-reader": { id: "jina-reader", alias: "jina", name: "Jina Reader", icon: "menu_book", color: "#000000", textIcon: "JR", website: "https://jina.ai/reader", notice: { apiKeyUrl: "https://jina.ai/?sui=apikey" }, serviceKinds: ["webFetch"], fetchConfig: { baseUrl: "https://r.jina.ai", method: "POST", authType: "apikey", authHeader: "bearer", costPerQuery: 0, freeMonthlyQuota: 1000000, formats: ["markdown", "text", "html"], maxCharacters: 200000, timeoutMs: 30000 } },
   agentrouter: { id: "agentrouter", alias: "ar", name: "AgentRouter", icon: "alt_route", color: "#6366F1", textIcon: "AR", website: "https://agentrouter.org", notice: { apiKeyUrl: "https://agentrouter.org" } },
   aimlapi: { id: "aimlapi", alias: "aiml", name: "AIML API", icon: "model_training", color: "#0EA5E9", textIcon: "AM", website: "https://aimlapi.com", notice: { apiKeyUrl: "https://aimlapi.com" } },
   modal: { id: "modal", alias: "modal", name: "Modal", icon: "cloud", color: "#22C55E", textIcon: "MD", website: "https://modal.com", notice: { apiKeyUrl: "https://modal.com" } },
@@ -171,7 +172,12 @@ export const APIKEY_PROVIDERS: Record<string, Provider> = {
   baseten: { id: "baseten", alias: "bt", name: "Baseten", icon: "hub", color: "#1D4ED8", textIcon: "BT", website: "https://baseten.co", notice: { apiKeyUrl: "https://app.baseten.co/settings/api-keys" } },
   publicai: { id: "publicai", alias: "pai", name: "PublicAI", icon: "public", color: "#10B981", textIcon: "PA", website: "https://publicai.co", notice: { apiKeyUrl: "https://publicai.co" } },
   "nous-research": { id: "nous-research", alias: "nous", name: "Nous Research", icon: "science", color: "#7C3AED", textIcon: "NR", website: "https://nousresearch.com", notice: { apiKeyUrl: "https://nousresearch.com" } },
-  glhf: { id: "glhf", alias: "glhf", name: "GLHF", icon: "sports_esports", color: "#EF4444", textIcon: "GH", website: "https://glhf.chat", notice: { apiKeyUrl: "https://glhf.chat" } },
+  "api-airforce": { id: "api-airforce", alias: "af", name: "API Airforce", icon: "air", color: "#6366F1", textIcon: "AF", website: "https://api.airforce", notice: { apiKeyUrl: "https://api.airforce" } },
+  "kilo-gateway": { id: "kilo-gateway", alias: "kgw", name: "Kilo Gateway", icon: "gateway", color: "#FF6B35", textIcon: "KG", website: "https://kilo.ai", notice: { apiKeyUrl: "https://kilo.ai" } },
+  bluesminds: { id: "bluesminds", alias: "bm", name: "Bluesminds", icon: "psychology", color: "#3B82F6", textIcon: "BM", website: "https://bluesminds.com", notice: { apiKeyUrl: "https://bluesminds.com" } },
+  poolside: { id: "poolside", alias: "poolside", name: "Poolside", icon: "pool", color: "#14B8A6", textIcon: "PO", website: "https://poolside.ai", notice: { apiKeyUrl: "https://poolside.ai" } },
+  tencent: { id: "tencent", alias: "hunyuan", name: "Tencent Hunyuan", icon: "cloud", color: "#06B6D4", textIcon: "TH", website: "https://cloud.tencent.com", notice: { apiKeyUrl: "https://console.cloud.tencent.com" } },
+  baidu: { id: "baidu", alias: "qianfan", name: "Baidu Qianfan", icon: "cloud", color: "#2563EB", textIcon: "BQ", website: "https://qianfan.cloud.baidu.com", notice: { apiKeyUrl: "https://console.bce.baidu.com" } },
 };
 
 // Web Cookie Providers (use browser session cookie instead of API key)
@@ -272,9 +278,12 @@ export const USAGE_SUPPORTED_PROVIDERS: string[] = [
   "kiro",
   "github",
   "codex",
+  "kimi",
   "kimi-coding",
+  "deepseek",
   "ollama",
   "gemini-cli",
+  "grok-cli",
   "glm",
   "glm-cn",
   "minimax",
@@ -287,4 +296,6 @@ export const USAGE_APIKEY_PROVIDERS: string[] = [
   "glm-cn",
   "minimax",
   "minimax-cn",
+  "kimi",
+  "deepseek",
 ];
