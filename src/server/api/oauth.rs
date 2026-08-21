@@ -4424,12 +4424,25 @@ pub async fn start_device_code(
     };
 
     // Kiro uses a special combined flow: register client + start device code
+    // KiloCode uses a custom device auth flow (initiateUrl + pollUrlBase)
     let (device_resp, kiro_credentials) = if provider == "kiro" {
         match device_code::kiro_start_device_flow().await {
             Ok(kiro_flow) => {
                 let creds = Some((kiro_flow.client_id.clone(), kiro_flow.client_secret.clone()));
                 (kiro_flow.device_code, creds)
             }
+            Err(e) => {
+                return make_error_response(
+                    StatusCode::BAD_REQUEST,
+                    &e.error_description.unwrap_or_else(|| e.error.clone()),
+                    &e.error,
+                    &provider,
+                );
+            }
+        }
+    } else if provider == "kilocode" {
+        match device_code::kilocode_start_device_flow(&provider_config).await {
+            Ok(resp) => (resp, None),
             Err(e) => {
                 return make_error_response(
                     StatusCode::BAD_REQUEST,
@@ -4591,13 +4604,39 @@ pub async fn poll_device_code(
         .and_then(|s| s.parse::<u64>().ok())
         .unwrap_or(5);
 
-    match device_code::poll_for_token(&provider_config, &device_code, &user_code, interval).await {
-        Ok(token_response) => {
-            state.pending_flows.remove(&device_code);
+    let token_response = if provider == "kilocode" {
+        match device_code::kilocode_poll_for_token(&provider_config, &device_code).await {
+            Ok(resp) => resp,
+            Err(e) => {
+                let pending = e.error == "authorization_pending" || e.error == "slow_down";
+                return Json(json!({
+                    "success": false,
+                    "error": e.error,
+                    "errorDescription": e.error_description,
+                    "pending": pending,
+                }))
+                .into_response();
+            }
+        }
+    } else {
+        match device_code::poll_for_token(&provider_config, &device_code, &user_code, interval).await {
+            Ok(resp) => resp,
+            Err(e) => {
+                let pending = e.error == "authorization_pending" || e.error == "slow_down";
+                return Json(json!({
+                    "success": false,
+                    "error": e.error,
+                    "errorDescription": e.error_description,
+                    "pending": pending,
+                }))
+                .into_response();
+            }
+        }
+    };
 
-            // GitHub special: exchange OAuth token for Copilot token
-            let final_token_response = if provider == "github" {
-                match device_code::exchange_github_copilot_token(&token_response.access_token).await
+    // GitHub special: exchange OAuth token for Copilot token
+    let final_token_response = if provider == "github" {
+        match device_code::exchange_github_copilot_token(&token_response.access_token).await
                 {
                     Ok(copilot_token) => copilot_token,
                     Err(e) => {
@@ -4642,34 +4681,6 @@ pub async fn poll_device_code(
                 message: Some("Authorization successful".to_string()),
             })
             .into_response()
-        }
-        Err(e) => {
-            if e.error == "authorization_pending" || e.error == "slow_down" {
-                let retry_after = provider_config
-                    .get_param("interval")
-                    .and_then(|s| s.parse::<u64>().ok())
-                    .unwrap_or(5);
-                return Json(PollResponse {
-                    success: false,
-                    provider: provider.clone(),
-                    expires_in: None,
-                    pending: Some(true),
-                    retry_after: Some(retry_after),
-                    message: Some("Pending authorization".to_string()),
-                })
-                .into_response();
-            }
-
-            state.pending_flows.remove(&device_code);
-
-            make_error_response(
-                StatusCode::BAD_REQUEST,
-                &e.error_description.unwrap_or_else(|| e.error.clone()),
-                &e.error,
-                &provider,
-            )
-        }
-    }
 }
 
 // POST /api/oauth/:provider/refresh
