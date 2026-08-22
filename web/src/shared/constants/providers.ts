@@ -352,4 +352,5 @@ export const SUPPORTS_MODELS_DISCOVERY: string[] = [
   "baseten",
   "nous-research",
   "glhf",
+  "kilocode",
 ];
