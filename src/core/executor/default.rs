@@ -1187,6 +1187,7 @@ impl DefaultExecutor {
 
         // Try primary then fallback URLs.
         let urls = self.resolve_urls(&request.model, request.stream, &request.credentials);
+        let mut last_gateway_status: Option<(http::StatusCode, String)> = None;
 
         for url in &urls {
             let use_hyper = self.use_hyper_transport(&request, url);
@@ -1256,18 +1257,21 @@ impl DefaultExecutor {
 
                 // 502 Bad Gateway: 3 retries x 3s
                 if status == http::StatusCode::BAD_GATEWAY {
+                    last_gateway_status = Some((status, url.clone()));
                     tokio::time::sleep(Duration::from_secs(3)).await;
                     continue;
                 }
 
                 // 503 Service Unavailable: 3 retries x 2s
                 if status == http::StatusCode::SERVICE_UNAVAILABLE {
+                    last_gateway_status = Some((status, url.clone()));
                     tokio::time::sleep(Duration::from_secs(2)).await;
                     continue;
                 }
 
                 // 504 Gateway Timeout: 2 retries x 3s
                 if status == http::StatusCode::GATEWAY_TIMEOUT {
+                    last_gateway_status = Some((status, url.clone()));
                     if retry < 1 {
                         tokio::time::sleep(Duration::from_secs(3)).await;
                         continue;
@@ -1284,6 +1288,16 @@ impl DefaultExecutor {
             }
         }
 
+        if let Some((status, url_str)) = last_gateway_status {
+            return Err(ExecutorError::UpstreamStatus(
+                status,
+                format!(
+                    "upstream returned {} for URL {} (all retries and fallback URLs exhausted)",
+                    status.as_u16(),
+                    url_str
+                ),
+            ));
+        }
         Err(ExecutorError::MaxRetriesExhausted(
             "all retries and fallback URLs exhausted".into(),
         ))

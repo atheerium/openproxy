@@ -1790,11 +1790,22 @@ async fn forward_with_provider_fallback(
                         proxy,
                     })
                     .await
-                    .map_err(|err| ComboAttemptError {
-                        status: 500,
-                        message: format!("Execution failed: {:?}", err),
-                        retry_after: None,
-                        upstream_body: None,
+                    .map_err(|err| {
+                        let (status, message) = match &err {
+                            crate::core::executor::ExecutorError::UpstreamStatus(s, msg) => {
+                                (s.as_u16(), msg.clone())
+                            }
+                            crate::core::executor::ExecutorError::MaxRetriesExhausted(msg) => {
+                                (502, format!("Upstream gateway retries exhausted: {msg}"))
+                            }
+                            other => (500, format!("Execution failed: {other:?}")),
+                        };
+                        ComboAttemptError {
+                            status,
+                            message,
+                            retry_after: None,
+                            upstream_body: None,
+                        }
                     })?;
                 Ok(KiroExecutorResponse {
                     response: result.response,
@@ -2017,13 +2028,14 @@ async fn forward_with_provider_fallback(
             }
             Err(error) => {
                 let message = format!("{:?}", error);
+                let status_code = error.status;
                 state
                     .usage_live
                     .finish_request(model, provider, Some(connection.id.as_str()), true)
                     .await;
                 let current_backoff = connection.backoff_level.unwrap_or(0);
-                let decision = check_fallback_error(502, &message, current_backoff);
-                let error_for_return = ComboAttemptError::new(502, message.clone());
+                let decision = check_fallback_error(status_code, &message, current_backoff);
+                let error_for_return = ComboAttemptError::new(status_code, message.clone());
                 last_error = Some(error);
 
                 if decision.should_fallback {
@@ -2031,7 +2043,7 @@ async fn forward_with_provider_fallback(
                         state,
                         &connection.id,
                         model,
-                        502,
+                        status_code,
                         &message,
                         decision.cooldown,
                         decision.new_backoff_level.unwrap_or(current_backoff + 1),
