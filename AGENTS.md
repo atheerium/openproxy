@@ -19,6 +19,36 @@ Parity work: epic `openproxy-9router-parity-v0550-pnc` (9router v0.5.50 → open
 ## Key References
 - `docs/parity-9router.md` — intentional divergences, pipeline order, executor dispatch
 - 9router reference: `/tmp/9router` (open-sse) — do NOT copy JS bugs blindly
+- **OmniRoute v3.8.50** (`/tmp/omniroute_v3850`, SHA `6cd4d38`) — authoritative reference for provider parity. When a provider behaves unexpectedly, compare against OmniRoute's `src/managed/` implementations, not the legacy JS `9router`. Key files: `credentialHealth.ts` (`HealthStatus`: 200/401/429/503/500), `healthCheck.ts`, `modelDiscovery.ts` (`discoverProviderModels` — GET `/v1/models` with provider-specific headers), `managedModelImport.ts` (merge/sync remote catalog → local config, `preserveRemovedCustomModelCompat`). Header-fidelity rules for parity: OpenRouter must send `HTTP-Referer` + `X-Title`; nvidia/llm7 omit `HTTP-Referer`; gemini sends `x-goog-api-key`; kiro/opencode/free-providers use the appropriate OAuth token flow. Always check `/tmp/omniroute_v3850` before making provider-specific decisions.
+
+## Dev Workflow — backend + dashboard rebuild
+
+Single smooth loop — backend and dashboard are **separate builds** served by the same binary:
+
+```bash
+./scripts/dev.sh              # incremental cargo build --bin openproxy + run on :4623 (foreground)
+./scripts/dev.sh detach       # build + run detached
+./scripts/dev.sh build        # only cargo build, don't run
+```
+
+**Dashboard is not live-reloaded.** `web/src` → `web/dist` (Astro) is what the Rust server serves.
+After any `web/src` change you **must** rebuild the dashboard or the feature will be invisible
+(past "feature not found" confusion was a missing rebuild, not a missing backend):
+
+```bash
+cd web && pnpm install        # once
+pnpm build                    # rebuild web/dist after every web/src change
+# or during iteration:
+pnpm dev                      # Astro dev on :4624 (proxy API to :4623)
+```
+
+Full loop for a feature touching both layers:
+
+```bash
+./scripts/dev.sh build && (cd web && pnpm build) && ./scripts/dev.sh detach
+curl -s http://127.0.0.1:4623/health
+open http://127.0.0.1:4623/dashboard/providers
+```
 
 ## Contributing & Git Hygiene
 
