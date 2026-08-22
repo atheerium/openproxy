@@ -43,6 +43,15 @@ For live dashboard iteration without rebuilding:
 pnpm --dir web dev               # Astro dev on :4624 (proxies API to :4623)
 ```
 
+## Contributing & Git Hygiene
+
+Systematic, not arbitrary — all contributions follow two documents linked from the intelligence brief:
+
+- **Workflow & expectations:** [`CONTRIBUTING.md`](CONTRIBUTING.md) — prerequisites, `scripts/dev.sh` quick/full, project layout, coding standards, testing matrix, beads parity workflow, secrets policy, releases.
+- **Enforceable git rules:** [`docs/git-conventions.md`](docs/git-conventions.md) — branch naming (`<type>/<kebab>`), Conventional Commits (`<type>(<scope>): <subject>`), atomic bisectable commits, verification before each commit (`cargo fmt --check` + `cargo clippy --all-targets --all-features`), history hygiene (rebase, no `git add .`), PR hygiene (template, ≤400 lines, CI `web` → `rust` must be green), issue/beads discipline, tagging.
+
+PRs use [`.github/pull_request_template.md`](.github/pull_request_template.md); bugs/features use [`.github/ISSUE_TEMPLATE/`](.github/ISSUE_TEMPLATE/). CI (`.github/workflows/ci.yml`) enforces `web: astro check + build → rust: fmt + clippy + tests` on `ubuntu` + `macos`. The checklist in `docs/git-conventions.md` §10 is the gate — all green means systematic.
+
 ## Status
 Active parity port. Run `cargo test -p openproxy --lib parity_tests stream_flags` for smoke.
 
