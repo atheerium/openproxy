@@ -3,7 +3,7 @@ use std::sync::Arc;
 
 use axum::body::Body;
 use axum::http::{Request, StatusCode};
-use hmac::{Hmac, Mac};
+use hmac::{Hmac, KeyInit, Mac};
 use openproxy::db::Db;
 use openproxy::server::state::AppState;
 use openproxy::types::{
