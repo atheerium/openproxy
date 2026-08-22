@@ -21,33 +21,26 @@ Parity work: epic `openproxy-9router-parity-v0550-pnc` (9router v0.5.50 → open
 - 9router reference: `/tmp/9router` (open-sse) — do NOT copy JS bugs blindly
 - **OmniRoute v3.8.50** (`/tmp/omniroute_v3850`, SHA `6cd4d38`) — authoritative reference for provider parity. When a provider behaves unexpectedly, compare against OmniRoute's `src/managed/` implementations, not the legacy JS `9router`. Key files: `credentialHealth.ts` (`HealthStatus`: 200/401/429/503/500), `healthCheck.ts`, `modelDiscovery.ts` (`discoverProviderModels` — GET `/v1/models` with provider-specific headers), `managedModelImport.ts` (merge/sync remote catalog → local config, `preserveRemovedCustomModelCompat`). Header-fidelity rules for parity: OpenRouter must send `HTTP-Referer` + `X-Title`; nvidia/llm7 omit `HTTP-Referer`; gemini sends `x-goog-api-key`; kiro/opencode/free-providers use the appropriate OAuth token flow. Always check `/tmp/omniroute_v3850` before making provider-specific decisions.
 
-## Dev Workflow — backend + dashboard rebuild
+## Dev Workflow — single script
 
-Single smooth loop — backend and dashboard are **separate builds** served by the same binary:
+One script builds, tests, and starts everything — **quick is the default** and it auto-starts the server:
 
 ```bash
-./scripts/dev.sh              # incremental cargo build --bin openproxy + run on :4623 (foreground)
-./scripts/dev.sh detach       # build + run detached
-./scripts/dev.sh build        # only cargo build, don't run
+./scripts/dev.sh                 # quick (default): cargo build + web build + quick tests + start detached on :4623
+./scripts/dev.sh --full          # + full lib suite (1690 tests, --test-threads=1)
+./scripts/dev.sh --no-web        # skip dashboard build
+./scripts/dev.sh --no-test       # skip tests
+./scripts/dev.sh --no-run        # build+test only, don't start server
+./scripts/dev.sh --foreground    # start foreground (Ctrl+C to stop) instead of detached
+PORT=4624 ./scripts/dev.sh       # custom port
 ```
 
-**Dashboard is not live-reloaded.** `web/src` → `web/dist` (Astro) is what the Rust server serves.
-After any `web/src` change you **must** rebuild the dashboard or the feature will be invisible
-(past "feature not found" confusion was a missing rebuild, not a missing backend):
+Backend (`cargo build --bin openproxy`) and dashboard (`web/src` → `web/dist` via Astro) are separate builds served by the same binary. The default `quick` tests run `provider_models` (13) + `import_catalog` (4) + `parity_tests`; `--full` runs the full `cargo test -p openproxy --lib --test-threads=1`. Dashboard `web/dist` is what the Rust server serves — `dev.sh` rebuilds it for you so features don't appear "missing" (past "feature not found" confusion was a missing `pnpm build`).
+
+For live dashboard iteration without rebuilding:
 
 ```bash
-cd web && pnpm install        # once
-pnpm build                    # rebuild web/dist after every web/src change
-# or during iteration:
-pnpm dev                      # Astro dev on :4624 (proxy API to :4623)
-```
-
-Full loop for a feature touching both layers:
-
-```bash
-./scripts/dev.sh build && (cd web && pnpm build) && ./scripts/dev.sh detach
-curl -s http://127.0.0.1:4623/health
-open http://127.0.0.1:4623/dashboard/providers
+pnpm --dir web dev               # Astro dev on :4624 (proxies API to :4623)
 ```
 
 ## Status
