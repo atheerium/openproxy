@@ -109,6 +109,40 @@ The Rust binary embeds `web/dist` via `rust-embed` at compile time — if you ch
 
 If dashboard changes appear "missing" at runtime, you forgot `pnpm --dir web run build` — `scripts/dev.sh` does it for you.
 
+## Disk Hygiene & Cleanup Automation
+
+A prior `ENOSPC` incident was caused by accumulated debug builds in `/tmp/op-*` (e.g. `op-head`) plus a multi-GB `target/` tree. `scripts/cleanup.sh` prunes only regenerable intermediates and temp debug outputs — **never** `src/`, `Cargo.lock`, `.git`, or artifacts newer than the safety window.
+
+```bash
+./scripts/cleanup.sh                 # prune files older than 7d; also prune if disk >= 80%
+./scripts/cleanup.sh --dry-run       # report only, delete nothing
+./scripts/cleanup.sh --aggressive    # tighten age to 1d + prune ~/.cargo/registry/cache
+./scripts/cleanup.sh --threshold=75  # custom disk-full percent
+```
+
+What it removes: `target/debug` intermediates (mtime-based), `target/tmp`, `/tmp/op-*`, `web/dist/.cache`, and (under space pressure) `~/.cargo/registry/cache`. It skips `target/` pruning if a `cargo build/test` is currently running, and logs timestamp + freed space to `.omo/cleanup.log`.
+
+`scripts/dev.sh` runs it automatically **before building** when the disk is `>= 80%`, and exposes an explicit `./scripts/dev.sh --cleanup` flag.
+
+**Schedule it locally** (recommended) so it runs without thinking:
+
+```bash
+# cron — weekly, Sundays 03:17
+17 3 * * 0  cd /path/to/openproxy && ./scripts/cleanup.sh >> .omo/cleanup.log 2>&1
+
+# or systemd user timer
+# ~/.config/systemd/user/openproxy-cleanup.timer
+# [Timer]
+# OnCalendar=weekly
+# ~/.config/systemd/user/openproxy-cleanup.service
+# [Service]
+# Type=oneshot
+# ExecStart=/path/to/openproxy/scripts/cleanup.sh
+# systemctl --user enable --now openproxy-cleanup.timer
+```
+
+CI: `.github/workflows/cleanup.yml` runs the script in `--dry-run` on Linux + macOS every Monday (portability/safety smoke test) and prunes GitHub Actions caches older than 7 days.
+
 ## Coding Standards
 
 ### Rust

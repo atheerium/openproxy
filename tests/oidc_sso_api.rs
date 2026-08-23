@@ -128,7 +128,9 @@ async fn oidc_client_discover_fetches_metadata() {
 async fn oidc_authorize_url_includes_required_params() {
     let server = MockServer::start().await;
     let client = client_for(&server);
-    let url = client.build_authorize_url("state-xyz", "nonce-abc", "challenge-123").unwrap();
+    let url = client
+        .build_authorize_url("state-xyz", "nonce-abc", "challenge-123")
+        .unwrap();
     assert!(url.contains("response_type=code"), "{url}");
     assert!(url.contains(&format!("client_id={CLIENT_ID}")), "{url}");
     assert!(url.contains("redirect_uri="), "{url}");
@@ -480,11 +482,10 @@ async fn auth_status_returns_oidc_identity_chip_fields() {
     let client = Arc::new(client_for(&server));
     let (app, _state) = boot_with_oidc(Some(client.clone())).await;
 
-    let cookies = format!(
-        "oidc_state=fixed-state-for-test; Path=/; HttpOnly; SameSite=Lax; \
+    let cookies = "oidc_state=fixed-state-for-test; Path=/; HttpOnly; SameSite=Lax; \
          oidc_nonce=fixed-nonce-for-test; Path=/; HttpOnly; SameSite=Lax; \
          oidc_verifier=fixed-verifier-for-test; Path=/; HttpOnly; SameSite=Lax"
-    );
+        .to_string();
     let mut query = HashMap::new();
     query.insert("code".to_string(), "test-auth-code".to_string());
     query.insert("state".to_string(), "fixed-state-for-test".to_string());

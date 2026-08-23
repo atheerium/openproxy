@@ -121,6 +121,7 @@ async fn test_state(connections: Vec<ProviderConnection>) -> AppState {
             is_active: Some(true),
             created_at: None,
             extra: BTreeMap::new(),
+            monthly_budget_usd: None,
         }];
     })
     .await
@@ -854,6 +855,7 @@ async fn test_client_info_provider_from_settings() {
             is_active: Some(true),
             created_at: None,
             extra: BTreeMap::new(),
+            monthly_budget_usd: None,
         }];
     })
     .await
@@ -1277,7 +1279,9 @@ async fn import_catalog_skips_pre_existing_models() {
         .unwrap();
 
     assert_eq!(response.status(), StatusCode::OK);
-    let body = axum::body::to_bytes(response.into_body(), 2048).await.unwrap();
+    let body = axum::body::to_bytes(response.into_body(), 2048)
+        .await
+        .unwrap();
     let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
 
     assert_eq!(json["imported"], 0);
@@ -1292,7 +1296,7 @@ async fn import_catalog_skips_pre_existing_models() {
         .expect("pre-seeded model should still exist");
     assert_eq!(seeded.provider_alias, alias);
     assert!(
-        seeded.extra.get("source").is_none(),
+        !seeded.extra.contains_key("source"),
         "pre-seeded entry must not be retagged"
     );
 }
@@ -1319,7 +1323,7 @@ async fn import_catalog_unknown_connection_returns_not_found() {
 
 #[tokio::test]
 async fn import_catalog_requires_authentication_when_login_required() {
-// Given require_login=true: a request with no bearer key or dashboard cookie hits the auth gate and is rejected 401 before handler runs.
+    // Given require_login=true: a request with no bearer key or dashboard cookie hits the auth gate and is rejected 401 before handler runs.
     let state = test_state(vec![]).await;
     state
         .db
@@ -1343,7 +1347,9 @@ async fn import_catalog_requires_authentication_when_login_required() {
         .unwrap();
 
     assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
-    let body = axum::body::to_bytes(response.into_body(), 2048).await.unwrap();
+    let body = axum::body::to_bytes(response.into_body(), 2048)
+        .await
+        .unwrap();
     let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
     assert!(json["error"].as_str().is_some());
 }

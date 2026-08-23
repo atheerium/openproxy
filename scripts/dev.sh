@@ -7,6 +7,7 @@
 #   ./scripts/dev.sh --no-test      # skip tests
 #   ./scripts/dev.sh --no-run       # build+test only, don't start server
 #   ./scripts/dev.sh --foreground   # start foreground instead of detached (Ctrl+C to stop)
+#   ./scripts/dev.sh --cleanup      # prune old build/debug artifacts before building
 #   PORT=4624 ./scripts/dev.sh      # custom port
 #   MODE=release ./scripts/dev.sh   # release build (also: --release)
 set -euo pipefail
@@ -25,6 +26,7 @@ DO_WEB=1
 DO_TEST=1
 DO_RUN=1
 FOREGROUND=0
+DO_CLEANUP=0
 
 for arg in "$@"; do
   case "$arg" in
@@ -35,6 +37,7 @@ for arg in "$@"; do
     --no-run) DO_RUN=0 ;;
     --foreground|--fg|foreground|run) FOREGROUND=1 ;;
     --release) BUILD_MODE="release" ;;
+    --cleanup) DO_CLEANUP=1 ;;
     --detach) ;; # default is detach, kept for compat
     -h|--help)
       sed -n '2,10p' "$0" | sed 's/^# //;s/^#//'
@@ -65,6 +68,29 @@ kill_port() {
   pkill -f "target/.*/openproxy.*${PORT}" 2>/dev/null || true
   sleep 0.5
 }
+
+# ── Disk-exhaustion guard ──────────────────────────────────────────────────
+# Prune old build/debug artifacts before building when the disk is tight, or
+# when --cleanup is requested explicitly. Prevents ENOSPC mid-build (the prior
+# incident was caused by /tmp/op-* debug builds + a 3GB+ target/ tree).
+run_cleanup() {
+  local mode="${1:-}"
+  if [[ -x scripts/cleanup.sh ]]; then
+    say "pruning old build/debug artifacts (scripts/cleanup.sh${mode:+ $mode})"
+    if [[ -n "$mode" ]]; then
+      ./scripts/cleanup.sh "$mode" || echo "(cleanup reported errors; continuing)"
+    else
+      ./scripts/cleanup.sh || echo "(cleanup reported errors; continuing)"
+    fi
+  fi
+}
+DISK_NOW="$(df -P . | awk 'NR==2 {gsub("%","",$5); print $5+0}')"
+if [[ "$DO_CLEANUP" == 1 ]]; then
+  run_cleanup
+elif [[ "${DISK_NOW:-0}" -ge 80 ]]; then
+  say "disk ${DISK_NOW}% >= 80% — auto-pruning before build"
+  run_cleanup --aggressive
+fi
 
 say "cargo ${CARGO_ARGS[*]} (incremental)"
 cargo "${CARGO_ARGS[@]}"

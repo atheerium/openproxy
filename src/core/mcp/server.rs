@@ -162,7 +162,10 @@ struct ToolHandler {
 fn validate_length(value: Option<&str>, field: &str) -> Result<(), String> {
     if let Some(v) = value {
         if v.len() > 255 {
-            return Err(format!("'{field}' exceeds maximum length of 255 characters (got {})", v.len()));
+            return Err(format!(
+                "'{field}' exceeds maximum length of 255 characters (got {})",
+                v.len()
+            ));
         }
     }
     Ok(())
@@ -392,6 +395,7 @@ fn tool_table() -> Vec<ToolHandler> {
                     machine_id: Some(machine_id),
                     is_active: Some(true),
                     created_at: Some(now),
+                    monthly_budget_usd: None,
                     extra: std::collections::BTreeMap::new(),
                 };
                 db_update_sync(&state.db, move |db| {

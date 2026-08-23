@@ -4619,7 +4619,9 @@ pub async fn poll_device_code(
             }
         }
     } else {
-        match device_code::poll_for_token(&provider_config, &device_code, &user_code, interval).await {
+        match device_code::poll_for_token(&provider_config, &device_code, &user_code, interval)
+            .await
+        {
             Ok(resp) => resp,
             Err(e) => {
                 let pending = e.error == "authorization_pending" || e.error == "slow_down";
@@ -4636,51 +4638,50 @@ pub async fn poll_device_code(
 
     // GitHub special: exchange OAuth token for Copilot token
     let final_token_response = if provider == "github" {
-        match device_code::exchange_github_copilot_token(&token_response.access_token).await
-                {
-                    Ok(copilot_token) => copilot_token,
-                    Err(e) => {
-                        return make_error_response(
-                            StatusCode::BAD_REQUEST,
-                            &format!(
-                                "Copilot token exchange failed: {}",
-                                e.error_description.unwrap_or_else(|| e.error.clone())
-                            ),
-                            "copilot_exchange_failed",
-                            &provider,
-                        );
-                    }
-                }
-            } else {
-                token_response
-            };
-
-            if let Err(e) = store_connection(
-                &state.db,
-                &flow.account_id,
-                &provider,
-                &final_token_response,
-                None,
-            )
-            .await
-            {
+        match device_code::exchange_github_copilot_token(&token_response.access_token).await {
+            Ok(copilot_token) => copilot_token,
+            Err(e) => {
                 return make_error_response(
-                    StatusCode::INTERNAL_SERVER_ERROR,
-                    &format!("Failed to store connection: {}", e),
-                    "storage_error",
+                    StatusCode::BAD_REQUEST,
+                    &format!(
+                        "Copilot token exchange failed: {}",
+                        e.error_description.unwrap_or_else(|| e.error.clone())
+                    ),
+                    "copilot_exchange_failed",
                     &provider,
                 );
             }
+        }
+    } else {
+        token_response
+    };
 
-            Json(PollResponse {
-                success: true,
-                provider: provider.clone(),
-                expires_in: final_token_response.expires_in.map(|e| e as u64),
-                pending: Some(false),
-                retry_after: None,
-                message: Some("Authorization successful".to_string()),
-            })
-            .into_response()
+    if let Err(e) = store_connection(
+        &state.db,
+        &flow.account_id,
+        &provider,
+        &final_token_response,
+        None,
+    )
+    .await
+    {
+        return make_error_response(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            &format!("Failed to store connection: {}", e),
+            "storage_error",
+            &provider,
+        );
+    }
+
+    Json(PollResponse {
+        success: true,
+        provider: provider.clone(),
+        expires_in: final_token_response.expires_in.map(|e| e as u64),
+        pending: Some(false),
+        retry_after: None,
+        message: Some("Authorization successful".to_string()),
+    })
+    .into_response()
 }
 
 // POST /api/oauth/:provider/refresh
