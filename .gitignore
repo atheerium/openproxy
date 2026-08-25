@@ -96,3 +96,5 @@ rustc-ice-*.txt
 # omo (session/loop artifacts)
 .omo/
 .claude.json
+.astro/
+opencode.json
