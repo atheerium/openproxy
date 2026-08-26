@@ -219,7 +219,7 @@ static PROVIDER_CONFIGS: Lazy<BTreeMap<&'static str, ProviderConfig>> = Lazy::ne
         ),
         (
             "tokenrouter",
-            ProviderConfig::openai("https://tokenrouter.com/chat/completions"),
+            ProviderConfig::openai("https://api.tokenrouter.com/v1/chat/completions"),
         ),
         (
             "venice",
