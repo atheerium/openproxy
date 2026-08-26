@@ -196,7 +196,7 @@ pub async fn update_scoring_weights(
 pub fn routes() -> Router<AppState> {
     Router::new()
         .route("/rankings", get(get_rankings))
-        .route("/rankings/:provider/:model", get(get_model_metrics))
+        .route("/rankings/{provider}/{model}", get(get_model_metrics))
         .route("/auto-pool", get(get_auto_pool))
         .route("/auto-pool", post(update_auto_pool))
         .route("/scoring-weights", get(get_scoring_weights))
