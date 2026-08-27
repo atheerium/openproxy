@@ -2,6 +2,7 @@
 
 import type {
   Provider,
+  FreeTierInfo,
   ThinkingConfig,
   ServiceKind,
   MediaProviderKind,
@@ -257,6 +258,217 @@ export function isCustomEmbeddingProvider(providerId: string): boolean {
 
 // All providers (combined)
 export const AI_PROVIDERS: Record<string, Provider> = { ...FREE_PROVIDERS, ...FREE_TIER_PROVIDERS, ...OAUTH_PROVIDERS, ...APIKEY_PROVIDERS, ...WEB_COOKIE_PROVIDERS };
+
+// Free-tier limitations per provider. Sourced from the awesome-freellm-apis
+// directory (github.com/open-free-llm-api) and freellmapi.co, verified
+// 2026-08-27. Rate limits are provider-reported and may change; treat as a
+// planning guide, not a contract. Attached to each provider below so the
+// dashboard can surface caps/caveats on the provider page.
+export const FREE_TIER_INFO: Record<string, FreeTierInfo> = {
+  nvidia: {
+    accessModel: "Permanent free tier",
+    creditCard: "phone",
+    rateLimit: "Up to 40 RPM (varies by model)",
+    maxContext: "1M tokens",
+    freeModels: 126,
+    productionAllowed: false,
+    caveats: [
+      "NVIDIA Developer Program membership required (phone verification).",
+      "Trial ToS scopes usage to evaluation/prototyping, not production.",
+      "Rate limit replaced depleting trial credits (verified June 2026).",
+    ],
+    lastVerified: "2026-08-27",
+    source: "https://github.com/open-free-llm-api/awesome-freellm-apis",
+  },
+  modelscope: {
+    accessModel: "Permanent free tier",
+    creditCard: "registration",
+    rateLimit: "2,000 RPD total; ≤500 RPD per model",
+    maxContext: "1M tokens",
+    freeModels: 58,
+    productionAllowed: true,
+    caveats: [
+      "Alibaba account or Chinese phone number required.",
+      "Per-model quota is ~500 RPD; total shared 2,000 RPD.",
+    ],
+    lastVerified: "2026-08-27",
+    source: "https://github.com/open-free-llm-api/awesome-freellm-apis",
+  },
+  "cloudflare-ai": {
+    accessModel: "Permanent free tier",
+    creditCard: "none",
+    rateLimit: "10K neurons/day (shared)",
+    maxContext: "10M tokens (varies by model)",
+    freeModels: 40,
+    productionAllowed: true,
+    caveats: [
+      "Requires a Cloudflare API token and Account ID.",
+      "Neuron-based metering is shared across your account, not per model.",
+    ],
+    lastVerified: "2026-08-27",
+    source: "https://github.com/open-free-llm-api/awesome-freellm-apis",
+  },
+  openrouter: {
+    accessModel: "Renewable credits",
+    creditCard: "registration",
+    rateLimit: "Free tier: ~200 RPD; +$10 top-up → 1,000 RPD",
+    maxContext: "1M tokens",
+    freeModels: 28,
+    productionAllowed: true,
+    caveats: [
+      "Free tier is rate-limited to ~200 requests/day.",
+      "Anthropic models need a one-time $10 top-up to unlock.",
+    ],
+    lastVerified: "2026-08-27",
+    source: "https://github.com/open-free-llm-api/awesome-freellm-apis",
+  },
+  gemini: {
+    accessModel: "Permanent free tier",
+    creditCard: "none",
+    rateLimit: "15 RPM, 1,500 RPD (gemini-3.6-flash)",
+    maxContext: "1M tokens",
+    freeModels: 17,
+    productionAllowed: true,
+    caveats: [
+      "Gemini 3.5 Flash-Lite is more generous: 30 RPM, 1,500 RPD.",
+      "Quotas apply per API key via AI Studio.",
+    ],
+    lastVerified: "2026-08-27",
+    source: "https://github.com/open-free-llm-api/awesome-freellm-apis",
+  },
+  ollama: {
+    accessModel: "Permanent free tier",
+    creditCard: "registration",
+    rateLimit: "Session/weekly limits (~5–10M tokens/mo)",
+    maxContext: "1M tokens",
+    freeModels: 13,
+    productionAllowed: false,
+    caveats: [
+      "1 cloud model at a time; limits reset every 5h & 7d.",
+      "Pro $20/mo · Max $100/mo for heavier use.",
+    ],
+    lastVerified: "2026-08-27",
+    source: "https://github.com/open-free-llm-api/awesome-freellm-apis",
+  },
+  vertex: {
+    accessModel: "Trial credits",
+    creditCard: "required",
+    rateLimit: "Limited by $300 new-account credit",
+    maxContext: "1M tokens",
+    productionAllowed: false,
+    caveats: [
+      "New Google Cloud accounts get $300 free credits (card required).",
+      "Needs GCP project + Service Account with Vertex AI API enabled.",
+    ],
+    lastVerified: "2026-08-27",
+    source: "https://github.com/open-free-llm-api/awesome-freellm-apis",
+  },
+  github: {
+    accessModel: "Permanent free tier",
+    creditCard: "none",
+    rateLimit: "Rate-limited (see GitHub Models)",
+    maxContext: "1M tokens",
+    freeModels: 16,
+    productionAllowed: true,
+    caveats: [
+      "Sign in with a GitHub account (no card).",
+      "Rate limits are applied per model family.",
+    ],
+    lastVerified: "2026-08-27",
+    source: "https://github.com/open-free-llm-api/awesome-freellm-apis",
+  },
+  "opencode-zen": {
+    accessModel: "Permanent free tier",
+    creditCard: "registration",
+    rateLimit: "Rate-limited (see OpenCode Zen)",
+    maxContext: "1M tokens",
+    freeModels: 12,
+    productionAllowed: true,
+    caveats: ["OpenCode account required (registration)."],
+    lastVerified: "2026-08-27",
+    source: "https://github.com/open-free-llm-api/awesome-freellm-apis",
+  },
+  kilocode: {
+    accessModel: "Permanent free tier",
+    creditCard: "none",
+    rateLimit: "~200 req/hr",
+    maxContext: "1M tokens",
+    freeModels: 12,
+    productionAllowed: true,
+    caveats: ["Kilo Code account (free) grants gateway access."],
+    lastVerified: "2026-08-27",
+    source: "https://github.com/open-free-llm-api/awesome-freellm-apis",
+  },
+  aion: {
+    accessModel: "Permanent free tier",
+    creditCard: "registration",
+    rateLimit: "15 RPM, 20K TPD",
+    maxContext: "131K tokens",
+    freeModels: 7,
+    productionAllowed: true,
+    caveats: [
+      "Aion Labs account required (registration, no card).",
+      "Daily token allowance resets each day.",
+    ],
+    lastVerified: "2026-08-27",
+    source: "https://github.com/open-free-llm-api/awesome-freellm-apis",
+  },
+  agnes: {
+    accessModel: "Permanent free tier",
+    creditCard: "registration",
+    rateLimit: "30 RPM",
+    maxContext: "256K tokens",
+    freeModels: 5,
+    productionAllowed: true,
+    caveats: [
+      "Registration required (platform.agnes-ai.com).",
+      "5 free models available; image model at 4K context.",
+    ],
+    lastVerified: "2026-08-27",
+    source: "https://github.com/open-free-llm-api/awesome-freellm-apis",
+  },
+  ai21: {
+    accessModel: "Trial credits",
+    creditCard: "registration",
+    rateLimit: "Limited by $10 / 3-month credit",
+    maxContext: "256K tokens",
+    freeModels: 2,
+    productionAllowed: false,
+    caveats: [
+      "$10 free credit for 3 months (expires after 3 months).",
+      "Jamba models with 256K context.",
+    ],
+    lastVerified: "2026-08-27",
+    source: "https://github.com/open-free-llm-api/awesome-freellm-apis",
+  },
+  ovhcloud: {
+    accessModel: "Permanent free tier",
+    creditCard: "registration",
+    rateLimit: "2 RPM anonymous · 400 RPM with auth",
+    maxContext: "262K tokens",
+    freeModels: 14,
+    productionAllowed: true,
+    caveats: [
+      "Registration required; anonymous access limited to 2 RPM.",
+      "Authenticated requests raise the limit to ~400 RPM.",
+    ],
+    lastVerified: "2026-08-27",
+    source: "https://github.com/open-free-llm-api/awesome-freellm-apis",
+  },
+};
+
+// Attach the free-tier flag + limitations to every provider that has limit data
+// (decoupled from FREE_TIER_PROVIDER_IDS so adding limits never changes the
+// dashboard's free-tier categorization / green-dot filter). AI_PROVIDERS
+// entries are the same object references as the source maps.
+for (const id of Object.keys(FREE_TIER_INFO)) {
+  const provider = AI_PROVIDERS[id];
+  const info = FREE_TIER_INFO[id];
+  if (provider && info) {
+    provider.freeTier = true;
+    provider.freeTierInfo = info;
+  }
+}
 
 // Auth methods
 export const AUTH_METHODS: Record<string, AuthMethod> = {

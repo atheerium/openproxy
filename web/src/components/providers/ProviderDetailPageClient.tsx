@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 // import { useParams, useRouter } from "next/navigation";  // ported: next.js -> Astro+React
 // import Link from "next/link";  // ported: next.js -> Astro+React
 // import Image from "next/image";  // ported: next.js -> Astro+React
-import { Card, Button, Badge, Input, Modal, CardSkeleton, OAuthModal, KiroOAuthWrapper, CursorAuthModal, IFlowCookieModal, GitLabAuthModal, Toggle, Select, EditConnectionModal, NoAuthProxyCard } from "@/shared/components";
+import { Card, Button, Badge, Input, Modal, CardSkeleton, OAuthModal, KiroOAuthWrapper, CursorAuthModal, IFlowCookieModal, GitLabAuthModal, Toggle, Select, EditConnectionModal, NoAuthProxyCard, FreeTierLimits } from "@/shared/components";
 import { ConfirmModal } from "@/shared/components/Modal";
 import { useNotificationStore } from "@/store/notificationStore";
 import { OAUTH_PROVIDERS, APIKEY_PROVIDERS, FREE_PROVIDERS, FREE_TIER_PROVIDERS, WEB_COOKIE_PROVIDERS, getProviderAlias, isOpenAICompatibleProvider, isAnthropicCompatibleProvider, AI_PROVIDERS, THINKING_CONFIG } from "@/shared/constants/providers";
@@ -1336,6 +1336,10 @@ export default function ProviderDetailPageClient() {
             </a>
           )}
         </div>
+      )}
+
+      {AI_PROVIDERS[providerId]?.freeTierInfo && (
+        <FreeTierLimits info={AI_PROVIDERS[providerId].freeTierInfo} />
       )}
 
       {isCompatible && providerNode && (

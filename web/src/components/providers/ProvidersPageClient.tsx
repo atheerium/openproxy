@@ -451,6 +451,38 @@ export default function ProvidersPageClient() {
     ),
     "oauth",
   );
+  const freeEntries = sortNoAuthFirst(
+    Object.entries(FREE_PROVIDERS).filter(
+      ([, info]) => !info.hidden && matchSearch(info.name),
+    ),
+  );
+  // Free-tier: registry priority first, then noAuth providers bubble up (9r parity).
+  const freeTierEntries = sortNoAuthFirst(
+    sortByPriority(
+      Object.entries(FREE_TIER_PROVIDERS).filter(
+        ([, info]) =>
+          !info.hidden &&
+          (info.serviceKinds ?? ["llm"]).includes("llm") &&
+          matchSearch(info.name),
+      ),
+      "apikey",
+    ),
+  );
+  // API Key: any connection (total > 0) first, then alphabetical by name.
+  // OAuth keeps sortByPriority; apikey intentionally uses total>0 not connected.
+  const apikeyEntries = Object.entries(APIKEY_PROVIDERS)
+    .filter(
+      ([, info]) =>
+        !info.hidden &&
+        (info.serviceKinds ?? ["llm"]).includes("llm") &&
+        matchSearch(info.name),
+    )
+    .sort(([ka, a], [kb, b]) => {
+      const ca = getProviderStats(ka, "apikey").total > 0 ? 0 : 1;
+      const cb = getProviderStats(kb, "apikey").total > 0 ? 0 : 1;
+      if (ca !== cb) return ca - cb;
+      return (a.name || "").localeCompare(b.name || "");
+    });
   const filteredFreeEntries = filterFreeOnly
     ? []
     : freeEntries;
@@ -593,7 +625,7 @@ export default function ProvidersPageClient() {
           </div>
         </div>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4 lg:grid-cols-3 xl:grid-cols-4">
-          {oauthEntries.map(([key, info]) => (
+          {filteredOAuthEntries.map(([key, info]) => (
             <ProviderCard
               key={key}
               providerId={key}
@@ -880,6 +912,11 @@ function ProviderCard({ providerId, provider, stats, authType, onToggle }) {
             </div>
             <div className="min-w-0">
               <h3 className="truncate font-semibold">{provider.name}</h3>
+              {AI_PROVIDERS[providerId]?.freeTierInfo?.rateLimit && (
+                <p className="truncate text-[11px] text-green-600 dark:text-green-400">
+                  {AI_PROVIDERS[providerId].freeTierInfo.rateLimit}
+                </p>
+              )}
               <div className="flex min-w-0 items-center gap-1.5 text-xs flex-wrap">
                 {allDisabled ? (
                   <Badge variant="default" size="sm">
@@ -1018,6 +1055,11 @@ function ApiKeyProviderCard({
             </div>
             <div className="min-w-0">
               <h3 className="truncate font-semibold">{provider.name}</h3>
+              {AI_PROVIDERS[providerId]?.freeTierInfo?.rateLimit && (
+                <p className="truncate text-[11px] text-green-600 dark:text-green-400">
+                  {AI_PROVIDERS[providerId].freeTierInfo.rateLimit}
+                </p>
+              )}
               <div className="flex min-w-0 items-center gap-1.5 text-xs flex-wrap">
                 {allDisabled ? (
                   <Badge variant="default" size="sm">
