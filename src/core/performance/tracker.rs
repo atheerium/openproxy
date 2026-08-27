@@ -179,7 +179,6 @@ impl ProviderPerformanceTracker {
         // First pass: collect min/max values for normalization
         let mut min_latency = u64::MAX;
         let mut max_latency = u64::MIN;
-        let mut max_token_efficiency = 0.0f64;
 
         for metrics in metrics_lock.values() {
             // Update latency bounds
@@ -188,11 +187,6 @@ impl ProviderPerformanceTracker {
             }
             if metrics.max_latency_ms > max_latency {
                 max_latency = metrics.max_latency_ms;
-            }
-
-            // Update token efficiency bounds
-            if metrics.token_efficiency_score > max_token_efficiency {
-                max_token_efficiency = metrics.token_efficiency_score;
             }
         }
 
@@ -203,9 +197,6 @@ impl ProviderPerformanceTracker {
         if max_latency == u64::MIN {
             max_latency = 1000;
         } // Default 1 second
-        if max_token_efficiency == 0.0 {
-            max_token_efficiency = 1.0;
-        }
 
         // Second pass: calculate normalized scores
         for metrics in metrics_lock.values_mut() {
