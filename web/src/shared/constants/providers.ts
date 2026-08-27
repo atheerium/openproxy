@@ -55,6 +55,11 @@ export const FREE_TIER_PROVIDER_IDS: string[] = [
   "agnes",
   "ai21",
   "ovhcloud",
+  "groq",
+  "mistral",
+  "llm7",
+  "sambanova",
+  "kiro",
 ];
 
 // O(1) membership lookup derived from the canonical ID list.
@@ -454,6 +459,75 @@ export const FREE_TIER_INFO: Record<string, FreeTierInfo> = {
     ],
     lastVerified: "2026-08-27",
     source: "https://github.com/open-free-llm-api/awesome-freellm-apis",
+  },
+  groq: {
+    accessModel: "Permanent free tier",
+    creditCard: "none",
+    rateLimit: "30 RPM, 14,400 RPD (varies by model)",
+    maxContext: "262K tokens",
+    freeModels: 12,
+    productionAllowed: true,
+    caveats: [
+      "No credit card required. Free, no-credit-card developer tier gated only by rate limits.",
+      "Llama models (incl. Llama 3.1 70B, Llama 4 Scout) plus Whisper. Qwen/Kimi on paid plans.",
+    ],
+    lastVerified: "2026-08-27",
+    source: "https://github.com/open-free-llm-api/awesome-freellm-apis",
+  },
+  mistral: {
+    accessModel: "Permanent free tier",
+    creditCard: "none",
+    rateLimit: "~30 RPM (varies by model); ~1 RPS on mistral-medium-3.5-128b",
+    maxContext: "256K tokens",
+    freeModels: 12,
+    productionAllowed: true,
+    caveats: [
+      "No credit card required. Includes open-mistral-7b, open-mixtral-8x7b, and the Mistral free tier.",
+    ],
+    lastVerified: "2026-08-27",
+    source: "https://github.com/open-free-llm-api/awesome-freellm-apis",
+  },
+  llm7: {
+    accessModel: "Permanent free tier",
+    creditCard: "none",
+    rateLimit: "30 RPM (120 RPM with token auth)",
+    maxContext: "1M tokens",
+    freeModels: 16,
+    productionAllowed: true,
+    caveats: [
+      "No credit card required. Free tier covers DeepSeek, GPT-OSS, Qwen, and GPT-4o Mini. Anonymous = 30 RPM; authenticated = 120 RPM.",
+    ],
+    lastVerified: "2026-08-27",
+    source: "https://github.com/open-free-llm-api/awesome-freellm-apis",
+  },
+  sambanova: {
+    accessModel: "Permanent free tier",
+    creditCard: "registration",
+    rateLimit: "20 RPM, 20 RPD, 200K TPD",
+    maxContext: "128K tokens",
+    freeModels: 4,
+    productionAllowed: true,
+    caveats: [
+      "Registration required (no card). Daily token allowance resets each day.",
+      "Models: DeepSeek-V3.1, DeepSeek-V3.2 Preview, MiniMax-M2.7, Llama-3.3 70B.",
+    ],
+    lastVerified: "2026-08-27",
+    source: "https://github.com/open-free-llm-api/awesome-freellm-apis",
+  },
+  kiro: {
+    accessModel: "Permanent free tier",
+    creditCard: "none",
+    rateLimit: "50 credits/month (open-weight models + Claude Sonnet 4.5); upgrades start at $20/mo",
+    maxContext: "1M tokens",
+    freeModels: 12,
+    productionAllowed: false,
+    caveats: [
+      "Free tier: 50 credits/month, no card for social/AWS Builder ID sign-up.",
+      "Access to open-weight models (Qwen3 Coder Next, DeepSeek 3.2, MiniMax M2.1) and Claude Sonnet 4.5, subject to rate limits.",
+      "Not available in AWS GovCloud (US).",
+    ],
+    lastVerified: "2026-08-27",
+    source: "https://kiro.dev/pricing/",
   },
 };
 
