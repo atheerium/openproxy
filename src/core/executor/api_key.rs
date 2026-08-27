@@ -262,6 +262,10 @@ static API_KEY_PROVIDERS: Lazy<BTreeMap<&'static str, (&'static str, &'static st
             ("xai", ("https://api.x.ai/v1", "Authorization")),
             ("ai21", ("https://api.ai21.com/v1", "Authorization")),
             (
+                "ovhcloud",
+                ("https://oai.endpoints.kepler.ai.cloud.ovh.net/v1", "Authorization"),
+            ),
+            (
                 "stability-ai",
                 ("https://api.stability.ai/v1", "Authorization"),
             ),

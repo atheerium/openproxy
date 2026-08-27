@@ -503,6 +503,10 @@ static PROVIDER_CONFIGS: Lazy<BTreeMap<&'static str, ProviderConfig>> = Lazy::ne
             "ai21",
             ProviderConfig::openai("https://api.ai21.com/studio/v1/chat/completions"),
         ),
+        (
+            "ovhcloud",
+            ProviderConfig::openai("https://oai.endpoints.kepler.ai.cloud.ovh.net/v1/chat/completions"),
+        ),
     ])
 });
 
