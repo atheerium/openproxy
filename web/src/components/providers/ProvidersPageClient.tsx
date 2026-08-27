@@ -108,6 +108,8 @@ export default function ProvidersPageClient() {
   const APIKEY_INITIAL_VISIBLE = 20;
   const [showAddAnthropicCompatibleModal, setShowAddAnthropicCompatibleModal] =
     useState(false);
+  const [showAddApiKeyModal, setShowAddApiKeyModal] = useState(false);
+  const [addProviderId, setAddProviderId] = useState(null);
   const [testingMode, setTestingMode] = useState(null);
   const [testResults, setTestResults] = useState(null);
   const [filterFreeOnly, setFilterFreeOnly] = useState(false);
