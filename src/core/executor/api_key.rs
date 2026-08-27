@@ -263,7 +263,10 @@ static API_KEY_PROVIDERS: Lazy<BTreeMap<&'static str, (&'static str, &'static st
             ("ai21", ("https://api.ai21.com/v1", "Authorization")),
             (
                 "ovhcloud",
-                ("https://oai.endpoints.kepler.ai.cloud.ovh.net/v1", "Authorization"),
+                (
+                    "https://oai.endpoints.kepler.ai.cloud.ovh.net/v1",
+                    "Authorization",
+                ),
             ),
             (
                 "stability-ai",
@@ -365,14 +368,8 @@ static API_KEY_PROVIDERS: Lazy<BTreeMap<&'static str, (&'static str, &'static st
                 "modelscope",
                 ("https://api-inference.modelscope.cn/v1", "Authorization"),
             ),
-            (
-                "aion",
-                ("https://api.aionlabs.ai/v1", "Authorization"),
-            ),
-            (
-                "agnes",
-                ("https://apihub.agnes-ai.com/v1", "Authorization"),
-            ),
+            ("aion", ("https://api.aionlabs.ai/v1", "Authorization")),
+            ("agnes", ("https://apihub.agnes-ai.com/v1", "Authorization")),
         ])
     });
 

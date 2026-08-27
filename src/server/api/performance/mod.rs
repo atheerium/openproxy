@@ -90,7 +90,7 @@ pub async fn get_rankings(State(_state): State<AppState>) -> impl IntoResponse {
     (StatusCode::OK, Json(response))
 }
 
-/// GET /api/performance/rankings/:provider/:model
+/// GET /api/performance/rankings/{provider}/{model}
 /// Returns detailed performance metrics for a specific model
 pub async fn get_model_metrics(
     State(_state): State<AppState>,
