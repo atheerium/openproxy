@@ -60,6 +60,7 @@ export const FREE_TIER_PROVIDER_IDS: string[] = [
   "llm7",
   "sambanova",
   "kiro",
+  "huggingface",
 ];
 
 // O(1) membership lookup derived from the canonical ID list.
@@ -528,6 +529,21 @@ export const FREE_TIER_INFO: Record<string, FreeTierInfo> = {
     ],
     lastVerified: "2026-08-27",
     source: "https://kiro.dev/pricing/",
+  },
+  huggingface: {
+    accessModel: "Permanent free tier",
+    creditCard: "none",
+    rateLimit: "~few hundred requests/hour (rate-limited; PRO $9/mo for higher limits)",
+    maxContext: "Varies by model",
+    freeModels: 7,
+    productionAllowed: false,
+    caveats: [
+      "No credit card required. Serverless Inference API is free, rate-limited per user.",
+      "Thousands of open models available; popular free models include Llama, Qwen, and Gemma variants.",
+      "Higher rate limits / longer contexts require a PRO subscription ($9/mo) or dedicated Inference Endpoints (paid).",
+    ],
+    lastVerified: "2026-08-27",
+    source: "https://github.com/open-free-llm-api/awesome-freellm-apis",
   },
 };
 
