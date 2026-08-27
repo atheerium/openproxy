@@ -357,6 +357,18 @@ static API_KEY_PROVIDERS: Lazy<BTreeMap<&'static str, (&'static str, &'static st
                 ),
             ),
             ("ollama-cloud", ("https://ollama.com/v1", "Authorization")),
+            (
+                "modelscope",
+                ("https://api-inference.modelscope.cn/v1", "Authorization"),
+            ),
+            (
+                "aion",
+                ("https://api.aionlabs.ai/v1", "Authorization"),
+            ),
+            (
+                "agnes",
+                ("https://apihub.agnes-ai.com/v1", "Authorization"),
+            ),
         ])
     });
 

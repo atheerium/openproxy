@@ -40,7 +40,7 @@ export const FREE_TIER_PROVIDERS: Record<string, Provider> = {
 };
 
 // Single source of truth for free-tier provider IDs (categorization shared
-// across backend + frontend). These are the 6 providers the dashboard treats
+// across backend + frontend). These are the providers the dashboard treats
 // as free tier. Keep in sync with FREE_TIER_PROVIDERS above.
 export const FREE_TIER_PROVIDER_IDS: string[] = [
   "nvidia",
@@ -49,6 +49,11 @@ export const FREE_TIER_PROVIDER_IDS: string[] = [
   "kilocode",
   "ollama",
   "gemini",
+  "modelscope",
+  "aion",
+  "agnes",
+  "ai21",
+  "ovhcloud",
 ];
 
 // O(1) membership lookup derived from the canonical ID list.
@@ -208,6 +213,11 @@ export const APIKEY_PROVIDERS: Record<string, Provider> = {
   poolside: { id: "poolside", alias: "poolside", name: "Poolside", icon: "pool", color: "#14B8A6", textIcon: "PO", website: "https://poolside.ai", notice: { apiKeyUrl: "https://poolside.ai" } },
   tencent: { id: "tencent", alias: "hunyuan", name: "Tencent Hunyuan", icon: "cloud", color: "#06B6D4", textIcon: "TH", website: "https://cloud.tencent.com", notice: { apiKeyUrl: "https://console.cloud.tencent.com" } },
   baidu: { id: "baidu", alias: "qianfan", name: "Baidu Qianfan", icon: "cloud", color: "#2563EB", textIcon: "BQ", website: "https://qianfan.cloud.baidu.com", notice: { apiKeyUrl: "https://console.bce.baidu.com" } },
+  modelscope: { id: "modelscope", alias: "ms", name: "ModelScope", icon: "hub", color: "#FF6A00", textIcon: "MS", website: "https://modelscope.cn", notice: { apiKeyUrl: "https://modelscope.cn/my/myaccesstoken", text: "Free tier: 500 RPD per model, 2,000 RPD total. Alibaba account or Chinese phone required." } },
+  aion: { id: "aion", alias: "aion", name: "Aion Labs", icon: "science", color: "#7C3AED", textIcon: "AL", website: "https://www.aionlabs.ai", notice: { apiKeyUrl: "https://www.aionlabs.ai/pricing", text: "Free tier: Daily token allowance. No credit card required." } },
+  agnes: { id: "agnes", alias: "agnes", name: "Agnes AI", icon: "favorite", color: "#EC4899", textIcon: "AG", website: "https://agnes-ai.com", notice: { apiKeyUrl: "https://apihub.agnes-ai.com", text: "Free tier: 5 free models available. Registration required." } },
+  ai21: { id: "ai21", alias: "ai21", name: "AI21 Labs", icon: "psychology", color: "#2563EB", textIcon: "AI", website: "https://www.ai21.com", notice: { apiKeyUrl: "https://studio.ai21.com", text: "$10 free credit for 3 months (3-month expiry). Jamba models with 256K context." } },
+  "ovhcloud": { id: "ovhcloud", alias: "ovh", name: "OVHcloud AI Endpoints", icon: "cloud", color: "#1289CD", textIcon: "OVH", website: "https://www.ovhcloud.com", notice: { apiKeyUrl: "https://endpoints.ai.cloud.ovh.net/", text: "Free tier: 2 RPM anonymous, 400 RPM with auth. Registration required." } },
 };
 
 // Web Cookie Providers (use browser session cookie instead of API key)
@@ -380,4 +390,9 @@ export const SUPPORTS_MODELS_DISCOVERY: string[] = [
   "nous-research",
   "glhf",
   "kilocode",
+  "modelscope",
+  "aion",
+  "agnes",
+  "ai21",
+  "ovhcloud",
 ];

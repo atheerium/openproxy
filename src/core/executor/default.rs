@@ -487,6 +487,22 @@ static PROVIDER_CONFIGS: Lazy<BTreeMap<&'static str, ProviderConfig>> = Lazy::ne
             "xiaomi-tokenplan",
             ProviderConfig::openai("https://tokenplan.xiaomi.com/v1/chat/completions"),
         ),
+        (
+            "modelscope",
+            ProviderConfig::openai("https://api-inference.modelscope.cn/v1/chat/completions"),
+        ),
+        (
+            "aion",
+            ProviderConfig::openai("https://api.aionlabs.ai/v1/chat/completions"),
+        ),
+        (
+            "agnes",
+            ProviderConfig::openai("https://apihub.agnes-ai.com/v1/chat/completions"),
+        ),
+        (
+            "ai21",
+            ProviderConfig::openai("https://api.ai21.com/studio/v1/chat/completions"),
+        ),
     ])
 });
 
