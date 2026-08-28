@@ -1,0 +1,33 @@
+#!/usr/bin/env bash
+# pre-commit: fmt check + secret scan
+set -euo pipefail
+
+# 1. cargo fmt check (only if Rust files staged)
+if git diff --cached --name-only | grep -qE '\.rs$'; then
+  echo "pre-commit: cargo fmt --check"
+  if ! cargo fmt --all -- --check 2>&1; then
+    echo "!! cargo fmt failed — run: cargo fmt --all"
+    exit 1
+  fi
+fi
+
+# 2. secret scan on staged diff (bare word refresh_token in docs is ok — only flag assignments)
+STAGED_DIFF=$(git diff --cached -U0 2>/dev/null || true)
+# pattern stored via variable to avoid self-match on the echo line
+SECRET_PAT='sk-[a-zA-Z0-9]{20,}|refresh_token\s*[:=]|BEGIN (RSA|EC) PRIVATE KEY'
+if echo "$STAGED_DIFF" | grep -qE "$SECRET_PAT"; then
+  echo "!! pre-commit: staged diff contains potential secret (sk-... / token assignment / private key)"
+  echo "$STAGED_DIFF" | grep -nE "$SECRET_PAT" | head -n 10
+  echo "Remove secrets before committing. If false positive, use: git commit --no-verify (then re-check immediately)"
+  exit 1
+fi
+
+# 3. block committing machine-local files
+if git diff --cached --name-only | grep -qE '(^opencode\.json$|\.env|admin\.key|db\.json)'; then
+  echo "!! pre-commit: staged file looks machine-local (opencode.json / .env / admin.key / db.json)"
+  git diff --cached --name-only | grep -E '(^opencode\.json$|\.env|admin\.key|db\.json)'
+  echo "Unstage with: git restore --staged <file>"
+  exit 1
+fi
+
+exit 0
