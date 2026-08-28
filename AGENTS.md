@@ -23,43 +23,74 @@ Parity work: epic `openproxy-9router-parity-v0550-pnc` (9router v0.5.50 → open
 
 ## Dev Workflow — backend + dashboard rebuild
 
-Single smooth loop — backend and dashboard are **separate builds** served by the same binary:
-
-```bash
-./scripts/dev.sh              # incremental cargo build --bin openproxy + run on :4623 (foreground)
-./scripts/dev.sh detach       # build + run detached
-./scripts/dev.sh build        # only cargo build, don't run
-```
+Single smooth loop — backend and dashboard are **separate builds** served by the same binary.
+`./scripts/dev.sh` is repo-root-aware (`BASH_SOURCE`+`REPO_ROOT` `cd`) — always run as `./scripts/dev.sh` from repo root or any cwd, never `cd scripts`.
 
 **Dashboard is not live-reloaded.** `web/src` → `web/dist` (Astro) is what the Rust server serves.
 After any `web/src` change you **must** rebuild the dashboard or the feature will be invisible
-(past "feature not found" confusion was a missing rebuild, not a missing backend):
+(past "feature not found" confusion was a missing rebuild, not a missing backend).
+
+### `scripts/dev.sh` presets — which to use when
+
+| Change you made | Command (from repo root) | What it does | When to use |
+|---|---|---|---|
+| **Only `web/src`** (dashboard/providers, Astro, Tailwind) | `./scripts/dev.sh --web-only` or `./scripts/dev.sh --fast detach` | Rebuilds `web/dist` only if stale (`web/src` newer than `web/dist`), skips cargo | Iterating on UI; fastest feedback |
+| **Only `src/`** (Rust: executors, translators, `src/db/`, `src/server/`) | `./scripts/dev.sh --backend-only detach` or `./scripts/dev.sh --fast detach` | `cargo build --bin openproxy` (debug) + restart on `:4623` | Iterating on backend |
+| **Both `web/src` + `src/`** | `./scripts/dev.sh --fast detach` | Stale-aware web + incremental cargo; `~10-20s` | Default daily loop |
+| **Before `git push` / PR** | `./scripts/dev.sh --full detach` | Always rebuilds web + cargo + runs `cargo fmt --check`, `cargo clippy`, `astro check`, tests; `~2-5m` | Required gate before push — catches stale `web/dist` + lint failures |
+| **Touched `provider_catalog.json` or `src/db/`** | `./scripts/dev.sh --full detach` | Same as above | Catalog/DB changes affect placeholder seeding (`GET /api/providers`) — needs full verification |
+| **"Can't find providers" / stale `web/dist` suspect** | `./scripts/dev.sh --full detach` or `./scripts/dev.sh --web-only` | Forces `pnpm build` (`web/dist/_astro/*.js` hash changes, e.g. `D0OBBUDN.js` stale) | User reports blank `/dashboard/providers` or `ReferenceError: freeEntries` |
+| **Lint without building** | `./scripts/dev.sh --check` | `fmt --check && clippy && astro check` (no build) | Pre-commit sanity |
+
+Full flag reference:
+
+```bash
+./scripts/dev.sh --help
+# --fast          Fast incremental build (default). Cargo debug + web only if stale. ~10-20s.
+# --full          Full rebuild + checks. Always rebuilds web, runs fmt/clippy/tests. ~2-5m.
+# --web-only      Only rebuild web/dist (pnpm build).
+# --backend-only  Only rebuild Rust binary (cargo build).
+# --release       Use release profile (implies slower optimized build).
+# --port PORT     Server port (default 4623, also $PORT).
+# --no-restart    Build only, don't start server (alias for MODE=build).
+# MODE (legacy positional, still supported): run | detach | build | check | check-stale
+```
+
+Examples:
+
+```bash
+./scripts/dev.sh --fast detach        # edit web/src → quick rebuild, skip checks (daily)
+./scripts/dev.sh --full detach        # before push: always web + full checks
+./scripts/dev.sh --web-only           # touched only dashboard
+./scripts/dev.sh --backend-only detach # touched only src/ Rust
+./scripts/dev.sh --check              # lint without building
+BUILD_MODE=release ./scripts/dev.sh --full  # optimized release build
+
+# Legacy still works (maps to presets):
+./scripts/dev.sh build                # → --fast --no-restart
+./scripts/dev.sh detach               # → --fast detach
+./scripts/dev.sh check                # → --check
+```
+
+**After ANY backend change, you MUST rebuild the binary and restart the server so the user can test it directly.** The running server does not hot-reload Rust. A common failure is leaving a stale binary running (an earlier build predating your fix) while reporting "done" — the user then tests the old behavior:
+
+```bash
+./scripts/dev.sh --fast detach        # fast path: incremental build + restart
+curl -s http://127.0.0.1:4623/health  # confirm it is up
+open http://127.0.0.1:4623/dashboard/providers
+# or explicitly:
+./scripts/dev.sh --backend-only detach && curl -s http://127.0.0.1:4623/health
+```
+
+If the change also touched `web/src`, the `--fast` preset already rebuilds `web/dist` when stale; use `--full` if you need to force it. Never report a fix as "done" or "ready to test" without completing this rebuild+restart. `scripts/dev.sh` (run/detach) warns on dirty `git status --porcelain` and on stale `web/dist`.
+
+Raw web rebuild (without `dev.sh`) if needed:
 
 ```bash
 cd web && pnpm install        # once
 pnpm build                    # rebuild web/dist after every web/src change
-# or during iteration:
-pnpm dev                      # Astro dev on :4624 (proxy API to :4623)
+pnpm dev                      # Astro dev on :4624 (proxy API to :4623) for iteration
 ```
-
-Full loop for a feature touching both layers:
-
-```bash
-./scripts/dev.sh build && (cd web && pnpm build) && ./scripts/dev.sh detach
-curl -s http://127.0.0.1:4623/health
-open http://127.0.0.1:4623/dashboard/providers
-```
-
-**After ANY backend change, you MUST rebuild the binary and restart the server so the user can test it directly.** The running server does not hot-reload Rust. A common failure is leaving a stale binary running (an earlier build predating your fix) while reporting "done" — the user then tests the old behavior. The mandatory loop for a Rust change:
-
-```bash
-./scripts/dev.sh build                 # compile the new binary
-pkill -f 'target/.*/openproxy' || true # stop the stale server
-./scripts/dev.sh detach                # start the freshly built binary
-curl -s http://127.0.0.1:4623/health   # confirm it is up
-```
-
-If the change also touched `web/src`, run `pnpm build` before restarting so the dashboard reflects it. Never report a fix as "done" or "ready to test" without completing this rebuild+restart.
 
 ## Contributing & Git Hygiene
 
