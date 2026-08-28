@@ -35,4 +35,17 @@ if [[ -d "web/src" && -d "web/dist" ]]; then
   fi
 fi
 
+# 4. fast astro check (advisory only, keeps push fast — <15s timeout)
+if git diff --name-only "$BASE"..HEAD 2>/dev/null | grep -qE '^web/'; then
+  if command -v pnpm >/dev/null 2>&1 && [[ -f "web/package.json" ]]; then
+    echo "-- pre-push: running fast astro check (advisory, 15s timeout)..."
+    if ! timeout 15 pnpm --prefix web exec astro check --minimumSeverity error >/tmp/openproxy-astro-check.log 2>&1; then
+      echo "!! pre-push: astro check failed or timed out — see /tmp/openproxy-astro-check.log (advisory, not blocking)"
+      tail -20 /tmp/openproxy-astro-check.log 2>/dev/null || true
+    else
+      echo "   astro check: ok"
+    fi
+  fi
+fi
+
 exit 0
