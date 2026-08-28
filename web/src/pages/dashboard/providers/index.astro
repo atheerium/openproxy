@@ -2,9 +2,12 @@
 import Layout from '@/layouts/Layout.astro';
 import ProvidersPageClient from '@/components/providers/ProvidersPageClient';
 import DashboardLayout from '@/shared/components/layouts/DashboardLayout';
+import ErrorBoundary from '@/shared/components/ErrorBoundary';
 ---
 <Layout>
   <DashboardLayout client:only="react">
-    <ProvidersPageClient client:only="react" />
+    <ErrorBoundary client:only="react" fallbackTitle="Failed to load providers page">
+      <ProvidersPageClient client:only="react" />
+    </ErrorBoundary>
   </DashboardLayout>
 </Layout>
