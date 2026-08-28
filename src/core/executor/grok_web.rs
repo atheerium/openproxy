@@ -430,7 +430,7 @@ impl GrokWebExecutor {
         // exactly like buildStreamingResponse / buildNonStreamingResponse.
         let cid = format!(
             "chatcmpl-grok-{}",
-            uuid::Uuid::new_v4().simple().to_string()[..12].to_string()
+            &uuid::Uuid::new_v4().simple().to_string()[..12]
         );
         let created = chrono::Utc::now().timestamp();
         let converted = convert_grok_response(
