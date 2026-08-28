@@ -16,6 +16,22 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
+  lint-branch-name:
+    name: Lint branch name
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check branch name
+        run: |
+          BRANCH="${GITHUB_HEAD_REF:-${GITHUB_REF_NAME}}"
+          echo "Branch: $BRANCH"
+          if [[ "$BRANCH" == "main" || "$BRANCH" == "dev" || "$BRANCH" == pr-* ]]; then exit 0; fi
+          if echo "$BRANCH" | grep -qE '^([a-z0-9._-]+/)?(feat|fix|docs|chore|refactor|test|build|ci|perf)/[a-z0-9._-]+$'; then
+            echo "branch name ok"
+          else
+            echo "::error::Branch '$BRANCH' violates <type>/<kebab> or <agent>/<type>/<kebab> (feat|fix|docs|chore|refactor|test|build|ci|perf)"
+            exit 1
+          fi
+
   # ──────────────────────────────────────────────────────────────────────
   # Web: lint + typecheck + build the Astro dashboard.
   #
@@ -51,6 +67,10 @@ jobs:
       - name: astro check (advisory)
         working-directory: web
         run: pnpm exec astro check || true
+
+      - name: Unit tests (Vitest)
+        working-directory: web
+        run: pnpm run test
 
       - name: Build dashboard
         working-directory: web
