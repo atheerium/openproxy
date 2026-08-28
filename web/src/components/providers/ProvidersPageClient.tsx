@@ -538,9 +538,9 @@ export default function ProvidersPageClient() {
       ([, info]) => !info.hidden && matchSearch(info.name),
     ).length;
   const hasAnyResult =
-    oauthEntries.length > 0 ||
-    freeEntries.length > 0 ||
-    freeTierEntries.length > 0 ||
+    filteredOAuthEntries.length > 0 ||
+    filteredFreeEntries.length > 0 ||
+    filteredFreeTierEntries.length > 0 ||
     filteredApikeyEntries.length > 0 ||
     compatibleProviders.length > 0 ||
     anthropicCompatibleProviders.length > 0 ||
