@@ -35,10 +35,51 @@ kill_port() {
   sleep 0.5
 }
 
+check_stale_dashboard() {
+  # Warn if web/src newer than web/dist (forgot pnpm build)
+  if [[ -d "web/src" && -d "web/dist" ]]; then
+    local src_newest dist_newest
+    src_newest=$(find web/src -type f -printf '%T@ %p\n' 2>/dev/null | sort -n | tail -1 | cut -d' ' -f1)
+    dist_newest=$(find web/dist -type f -printf '%T@ %p\n' 2>/dev/null | sort -n | tail -1 | cut -d' ' -f1)
+    if [[ -n "$src_newest" && -n "$dist_newest" ]] && awk "BEGIN{exit !($src_newest > $dist_newest)}"; then
+      echo "!! WARNING: web/src newer than web/dist — dashboard may be stale."
+      echo "   Run: (cd web && pnpm build)  or  ./scripts/dev.sh will rebuild via cargo build.rs"
+      # also hint if provider constants changed
+      if git diff --name-only HEAD 2>/dev/null | grep -q "web/src/shared/constants/providers"; then
+        echo "   Detected provider catalog change without rebuild — /dashboard/providers may show stale list."
+      fi
+    fi
+  elif [[ -d "web/src" && ! -d "web/dist" ]]; then
+    echo "!! web/dist missing — run: (cd web && pnpm build)"
+  fi
+}
+
+check_dirty_tree() {
+  if ! git diff --quiet || ! git diff --cached --quiet; then
+    echo "!! Dirty working tree detected:"
+    git status --porcelain | head -n 20
+    echo "   Commit or stash before switching worktrees/branches to avoid cross-agent conflicts."
+  fi
+}
+
+run_checks() {
+  echo "== checks: fmt, clippy, provider_models tests =="
+  cargo fmt --all -- --check
+  echo "fmt ok"
+  cargo clippy --all-targets --all-features -- -D warnings 2>&1 | tail -n 20
+  echo "clippy ok"
+  if [[ -d "web" ]]; then
+    pnpm --dir web exec astro check 2>&1 | tail -n 30 || echo "astro check advisory (fix new errors)"
+  fi
+  cargo test -p openproxy --lib provider_models -- --nocapture 2>&1 | tail -n 30
+  echo "checks passed"
+}
+
 build() {
   echo "== cargo ${CARGO_ARGS[*]} =="
   # incremental by default; only rebuilds crates that changed
   # --bin openproxy avoids building tests/examples
+  check_stale_dashboard
   cargo "${CARGO_ARGS[@]}"
   echo "== built $BIN =="
   ls -lh "$BIN" | awk '{print $9, $5, $6, $7, $8}'
@@ -49,7 +90,14 @@ case "$MODE" in
     build
     echo "Build done. Run ./scripts/dev.sh to start."
     ;;
+  check)
+    run_checks
+    ;;
+  check-stale)
+    check_stale_dashboard
+    ;;
   detach)
+    check_dirty_tree || true
     kill_port
     build
     echo "== starting $BIN server start --port $PORT --detach --no-open =="
@@ -60,6 +108,7 @@ case "$MODE" in
     echo "Stop: $BIN server stop  or  pkill -f openproxy  or  fuser -k ${PORT}/tcp"
     ;;
   run|restart|"")
+    check_dirty_tree || true
     kill_port
     build
     echo "== starting $BIN server start --port $PORT (foreground, Ctrl+C to stop) =="
@@ -69,7 +118,7 @@ case "$MODE" in
     ;;
   *)
     echo "Unknown mode: $MODE"
-    echo "Usage: $0 [run|build|detach]  (default: run)"
+    echo "Usage: $0 [run|build|detach|check|check-stale]  (default: run)"
     exit 1
     ;;
 esac
