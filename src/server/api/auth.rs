@@ -246,8 +246,6 @@ fn decode_dashboard_token(
 ///
 /// Start the OIDC Authorization Code + PKCE flow. Generates a fresh
 /// `state`, `nonce`, and PKCE verifier; stashes them in short-lived
-/// HttpOnly cookies; and 302-redirects to the IdP's `authorization_endpoint`.
-
 pub async fn oidc_login(headers: HeaderMap, State(state): State<AppState>) -> Response {
     // Apply login rate limiter to prevent DoS against the IdP redirect.
     let client_ip = client_ip_from_headers(&headers);

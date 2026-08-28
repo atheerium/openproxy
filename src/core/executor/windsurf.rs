@@ -668,7 +668,7 @@ impl WindsurfExecutor {
             });
         }
 
-        let proto_payload = build_get_chat_message_request(&api_key, &ws_model, &ws_messages);
+        let proto_payload = build_get_chat_message_request(api_key, &ws_model, &ws_messages);
         let framed_payload = grpc_web_frame(&proto_payload);
         let url = self.build_url();
         let headers = self.build_headers(&request.credentials)?;

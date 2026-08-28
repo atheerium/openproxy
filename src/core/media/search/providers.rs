@@ -250,10 +250,7 @@ impl SearchProvider for PerplexityProvider {
         "perplexity"
     }
     fn build_url(&self, request: &SearchRequest<'_>) -> Result<String, String> {
-        Ok(resolve_base_url(
-            "https://api.perplexity.ai/search",
-            request,
-        )?)
+        resolve_base_url("https://api.perplexity.ai/search", request)
     }
     fn build_headers(&self, request: &SearchRequest<'_>) -> Result<HeaderMap, String> {
         let token = require_token(request, "perplexity")?;
@@ -332,7 +329,7 @@ impl SearchProvider for ExaProvider {
         Some(10_000)
     }
     fn build_url(&self, request: &SearchRequest<'_>) -> Result<String, String> {
-        Ok(resolve_base_url("https://api.exa.ai/search", request)?)
+        resolve_base_url("https://api.exa.ai/search", request)
     }
     fn build_headers(&self, request: &SearchRequest<'_>) -> Result<HeaderMap, String> {
         let token = require_token(request, "exa")?;
@@ -429,7 +426,7 @@ impl SearchProvider for TavilyProvider {
         20
     }
     fn build_url(&self, request: &SearchRequest<'_>) -> Result<String, String> {
-        Ok(resolve_base_url("https://api.tavily.com/search", request)?)
+        resolve_base_url("https://api.tavily.com/search", request)
     }
     fn build_headers(&self, request: &SearchRequest<'_>) -> Result<HeaderMap, String> {
         let token = require_token(request, "tavily")?;
@@ -631,10 +628,7 @@ impl SearchProvider for LinkupProvider {
         50
     }
     fn build_url(&self, request: &SearchRequest<'_>) -> Result<String, String> {
-        Ok(resolve_base_url(
-            "https://api.linkup.so/v1/search",
-            request,
-        )?)
+        resolve_base_url("https://api.linkup.so/v1/search", request)
     }
     fn build_headers(&self, request: &SearchRequest<'_>) -> Result<HeaderMap, String> {
         let token = require_token(request, "linkup")?;

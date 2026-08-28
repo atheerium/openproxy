@@ -101,7 +101,7 @@ impl ScoringEngine {
         // Cap extreme values and normalize to [0,1]
         // Assuming ideal efficiency is around 1.0 (equal input/output)
         // But we allow for higher efficiency up to 2.0
-        let capped_efficiency = efficiency.min(2.0).max(0.0);
+        let capped_efficiency = efficiency.clamp(0.0, 2.0);
         capped_efficiency / 2.0
     }
 

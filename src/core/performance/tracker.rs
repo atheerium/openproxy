@@ -99,11 +99,7 @@ impl ProviderPerformanceTracker {
                 continue;
             }
 
-            let provider = entry
-                .provider
-                .as_ref()
-                .map(|s| s.as_str())
-                .unwrap_or("unknown");
+            let provider = entry.provider.as_deref().unwrap_or("unknown");
             let model = entry.model.clone();
             let key = format!("{}/{}", provider, model);
 
@@ -123,7 +119,7 @@ impl ProviderPerformanceTracker {
             let is_success = match &entry.status {
                 Some(status) => status
                     .parse::<i32>()
-                    .map(|s| s >= 200 && s < 300)
+                    .map(|s| (200..300).contains(&s))
                     .unwrap_or(false),
                 None => true, // No status typically means success
             };

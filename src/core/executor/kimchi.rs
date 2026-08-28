@@ -60,7 +60,7 @@ impl KimchiExecutor {
         // 9router kimchi.js:92 regex fallback (case-insensitive): "claude" or
         // "anthropic" as a whole segment delimited by start/end, '-', '_', or '/'.
         model
-            .split(|c| c == '-' || c == '_' || c == '/')
+            .split(['-', '_', '/'])
             .any(|seg| seg.eq_ignore_ascii_case("claude") || seg.eq_ignore_ascii_case("anthropic"))
     }
 
