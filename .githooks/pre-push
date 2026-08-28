@@ -1,0 +1,38 @@
+#!/usr/bin/env bash
+# pre-push: branch name lint + secret scan + stale dashboard warning
+set -euo pipefail
+
+BRANCH=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "")
+
+# 1. branch name lint — allow <type>/<kebab> or <agent>/<type>/<kebab>
+#    agent prefix is [a-z0-9._-]+, type is feat|fix|...
+BRANCH_RE='^([a-z0-9._-]+/)?(feat|fix|docs|chore|refactor|test|build|ci|perf)/[a-z0-9._-]+$'
+# also allow pr-* / main / dev for compatibility
+ALLOW_RE='^(main|dev|pr-[a-z0-9._-]+)$'
+if [[ -n "$BRANCH" ]] && ! echo "$BRANCH" | grep -qE "$BRANCH_RE" && ! echo "$BRANCH" | grep -qE "$ALLOW_RE"; then
+  echo "!! pre-push: branch name '$BRANCH' violates convention."
+  echo "   Expected: <type>/<kebab>  or  <agent>/<type>/<kebab>"
+  echo "   type: feat|fix|docs|chore|refactor|test|build|ci|perf"
+  echo "   Examples: feat/kilo-health  or  a1/feat/kilo-health"
+  echo "   To bypass (not recommended): git push --no-verify"
+  exit 1
+fi
+
+# 2. secret scan on outgoing diff vs origin/main or origin/HEAD
+BASE=$(git merge-base HEAD origin/main 2>/dev/null || git merge-base HEAD HEAD~1 2>/dev/null || echo "HEAD~1")
+DIFF=$(git diff "$BASE"..HEAD -U0 2>/dev/null || true)
+if echo "$DIFF" | grep -qE 'sk-[a-zA-Z0-9]{20,}|refresh_token|BEGIN (RSA|EC) PRIVATE KEY'; then
+  echo "!! pre-push: outgoing diff contains potential secret"
+  exit 1
+fi
+
+# 3. stale dashboard warning
+if [[ -d "web/src" && -d "web/dist" ]]; then
+  SRC_NEW=$(find web/src -type f -printf '%T@ %p\n' 2>/dev/null | sort -n | tail -1 | cut -d' ' -f1 || echo 0)
+  DIST_NEW=$(find web/dist -type f -printf '%T@ %p\n' 2>/dev/null | sort -n | tail -1 | cut -d' ' -f1 || echo 0)
+  if awk "BEGIN{exit !($SRC_NEW > $DIST_NEW)}" 2>/dev/null; then
+    echo "!! pre-push: web/src newer than web/dist — run: (cd web && pnpm build)"
+  fi
+fi
+
+exit 0

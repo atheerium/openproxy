@@ -1,0 +1,29 @@
+#!/usr/bin/env bash
+# commit-msg: enforce Conventional Commits
+set -euo pipefail
+MSG_FILE="$1"
+MSG=$(head -n1 "$MSG_FILE")
+
+# Allow merge/revert commits
+if echo "$MSG" | grep -qE '^Merge (branch|pull request)'; then exit 0; fi
+if echo "$MSG" | grep -qE '^Revert "'; then exit 0; fi
+
+PATTERN='^(feat|fix|docs|chore|refactor|test|build|ci|perf|revert)(\(.+\))?!?: .+'
+if ! echo "$MSG" | grep -qE "$PATTERN"; then
+  echo "!! commit-msg: message must match Conventional Commits:"
+  echo "   <type>(<scope>): <imperative subject>"
+  echo "   type: feat|fix|docs|chore|refactor|test|build|ci|perf|revert"
+  echo "Got: $MSG"
+  echo "Examples:"
+  echo "  feat(providers): add kilocode discovery"
+  echo "  fix(dashboard): show error banner for 401"
+  exit 1
+fi
+
+# subject <= 72 chars advisory (first line)
+if [[ ${#MSG} -gt 88 ]]; then
+  echo "!! commit-msg: first line > 88 chars (${#MSG}) — keep <= 72 ideally"
+  # not fatal, just warn
+fi
+
+exit 0
