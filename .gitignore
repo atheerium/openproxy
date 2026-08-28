@@ -56,6 +56,8 @@ source/*
 .cursor/*
 docs/*
 !docs/ARCHITECTURE.md
+!docs/agent-orchestration.md
+!docs/git-conventions.md
 !docs/integrations/
 !docs/parity-9router.md
 test/*
@@ -96,3 +98,4 @@ rustc-ice-*.txt
 # omo (session/loop artifacts)
 .omo/
 .claude.json
+.opencode/claims/
