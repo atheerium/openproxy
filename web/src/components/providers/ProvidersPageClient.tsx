@@ -114,8 +114,10 @@ export default function ProvidersPageClient() {
   const [testResults, setTestResults] = useState(null);
   const [filterFreeOnly, setFilterFreeOnly] = useState(false);
   const [proxyPools, setProxyPools] = useState([]);
+  const [fetchError, setFetchError] = useState(null);
   const notify = useNotificationStore();
   const searchQuery = useHeaderSearchStore((s) => s.query);
+  const setSearchQuery = useHeaderSearchStore((s) => s.setQuery);
   const registerSearch = useHeaderSearchStore((s) => s.register);
   const unregisterSearch = useHeaderSearchStore((s) => s.unregister);
 
@@ -128,28 +130,46 @@ export default function ProvidersPageClient() {
     !searchQuery.trim() ||
     name.toLowerCase().includes(searchQuery.trim().toLowerCase());
 
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const [connectionsRes, nodesRes, proxyPoolsRes] = await Promise.all([
-          fetch("/api/providers"),
-          fetch("/api/provider-nodes"),
-          fetch("/api/proxy-pools?isActive=true"),
-        ]);
-        const connectionsData = await connectionsRes.json();
-        const nodesData = await nodesRes.json();
-        const proxyPoolsData = await proxyPoolsRes.json().catch(() => ({}));
-        if (connectionsRes.ok)
-          setConnections(connectionsData.connections || []);
-        if (nodesRes.ok) setProviderNodes(nodesData.nodes || []);
-        if (proxyPoolsRes.ok)
-          setProxyPools(proxyPoolsData.proxyPools || []);
-      } catch (error) {
-        console.log("Error fetching data:", error);
-      } finally {
-        setLoading(false);
+  const fetchData = async () => {
+    setFetchError(null);
+    setLoading(true);
+    try {
+      const [connectionsRes, nodesRes, proxyPoolsRes] = await Promise.all([
+        fetch("/api/providers"),
+        fetch("/api/provider-nodes"),
+        fetch("/api/proxy-pools?isActive=true"),
+      ]);
+      const parseJsonSafe = async (res) => {
+        try {
+          return await res.json();
+        } catch {
+          return {};
+        }
+      };
+      const [connectionsData, nodesData, proxyPoolsData] = await Promise.all([
+        parseJsonSafe(connectionsRes),
+        parseJsonSafe(nodesRes),
+        parseJsonSafe(proxyPoolsRes),
+      ]);
+      if (connectionsRes.ok) {
+        setConnections(connectionsData.connections || []);
+      } else {
+        const msg = connectionsData?.error || `Failed to load providers (${connectionsRes.status})`;
+        setFetchError(msg);
+        setConnections([]);
       }
-    };
+      if (nodesRes.ok) setProviderNodes(nodesData.nodes || []);
+      else setProviderNodes([]);
+      if (proxyPoolsRes.ok) setProxyPools(proxyPoolsData.proxyPools || []);
+    } catch (error) {
+      console.log("Error fetching data:", error);
+      setFetchError(error?.message || "Network error loading providers");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
     fetchData();
   }, []);
 
@@ -528,12 +548,29 @@ export default function ProvidersPageClient() {
 
   return (
     <div className="flex min-w-0 flex-col gap-6 px-1 sm:px-0">
+      {fetchError && (
+        <div className="flex flex-col gap-2 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm dark:border-red-900 dark:bg-red-950/30">
+          <div className="flex items-center gap-2 font-medium text-red-700 dark:text-red-300">
+            <span className="material-symbols-outlined text-[18px]">error</span>
+            Failed to load providers: {fetchError}
+          </div>
+          <div className="flex gap-2">
+            <Button size="sm" variant="secondary" onClick={fetchData}>
+              Retry
+            </Button>
+            <span className="text-xs text-red-600/70 dark:text-red-400/70 self-center">Check /api/providers (401 means missing login/API key)</span>
+          </div>
+        </div>
+      )}
       {!hasAnyResult && (
         <div className="text-center py-8 border border-dashed border-border rounded-xl">
           <span className="material-symbols-outlined text-[32px] text-text-muted mb-2">
             search_off
           </span>
-          <p className="text-text-muted text-sm">No providers match your search</p>
+          <p className="text-text-muted text-sm">No providers match your search &ldquo;{searchQuery}&rdquo;</p>
+          <Button size="sm" variant="ghost" className="mt-3" onClick={() => setSearchQuery("")}>
+            Clear search
+          </Button>
         </div>
       )}
 
