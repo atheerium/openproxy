@@ -2692,8 +2692,14 @@ async fn start_device_code_compat(
 
         let client_id = provider_config
             .get_param("client_id")
-            .unwrap_or("openproxy")
-            .to_string();
+            .map(|s| s.to_string())
+            .unwrap_or_else(|| {
+                if provider_config.client_id.is_empty() {
+                    "openproxy".to_string()
+                } else {
+                    provider_config.client_id.to_string()
+                }
+            });
 
         let device_resp = match device_code::start_device_flow(&provider_config, &client_id).await {
             Ok(resp) => resp,
@@ -4595,10 +4601,22 @@ pub async fn start_device_code(
             }
         }
     } else {
+        // Prefer an explicit `client_id` in extra_params (e.g. KiloCode);
+        // otherwise use the provider's configured client_id field (e.g. the
+        // GitHub Copilot public client `Iv1.b507a08c87ecfe98`). Falling back
+        // to "openproxy" breaks GitHub's device flow which rejects unknown
+        // client IDs with `{"error":"Not Found"}` — see 9router#442.
         let client_id = provider_config
             .get_param("client_id")
-            .unwrap_or("openproxy")
-            .to_string();
+            .map(|s| s.to_string())
+            .or_else(|| {
+                if provider_config.client_id.is_empty() {
+                    None
+                } else {
+                    Some(provider_config.client_id.to_string())
+                }
+            })
+            .unwrap_or_else(|| "openproxy".to_string());
 
         match device_code::start_device_flow(&provider_config, &client_id).await {
             Ok(resp) => (resp, None),
