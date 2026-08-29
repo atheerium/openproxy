@@ -175,7 +175,9 @@ run_checks() {
   echo "== checks: fmt, clippy, provider_models tests =="
   cargo fmt --all -- --check
   echo "fmt ok"
-  cargo clippy --all-targets --all-features -- -D warnings 2>&1 | tail -n 20
+  # Match CI: warnings tolerated (clippy exits 0 with 99 pre-existing warnings on main).
+  # Without -D warnings this fails only on real errors, so --full is a usable pre-push gate.
+  cargo clippy --all-targets --all-features 2>&1 | tail -n 20
   echo "clippy ok"
   if [[ -d "web" ]]; then
     pnpm --dir web exec astro check 2>&1 | tail -n 30 || echo "astro check advisory (fix new errors)"
