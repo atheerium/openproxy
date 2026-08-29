@@ -67,7 +67,10 @@ async fn list_provider_filters(
         if alias.is_empty() {
             return Json(json!({ "filters": {} })).into_response();
         }
-        let alias_filtered = filters.get(alias).cloned().unwrap_or(Value::Object(Default::default()));
+        let alias_filtered = filters
+            .get(alias)
+            .cloned()
+            .unwrap_or(Value::Object(Default::default()));
         return Json(json!({ "filters": { alias: alias_filtered } })).into_response();
     }
 
@@ -103,9 +106,7 @@ async fn upsert_provider_filter(
 
     match result {
         Ok(_) => StatusCode::NO_CONTENT.into_response(),
-        Err(error) => {
-            Json(json!({ "success": false, "error": error.to_string() })).into_response()
-        }
+        Err(error) => Json(json!({ "success": false, "error": error.to_string() })).into_response(),
     }
 }
 
@@ -160,7 +161,9 @@ mod tests {
             .unwrap();
 
         // Assert it's gone from KV table.
-        let all = db.with_conn(|c| kv_repo::get_all(c, "providerFilters")).unwrap();
+        let all = db
+            .with_conn(|c| kv_repo::get_all(c, "providerFilters"))
+            .unwrap();
         assert_eq!(all.len(), 0);
     }
 
