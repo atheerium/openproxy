@@ -36,8 +36,13 @@ git commit -m "feat(providers): ..."
 git push -u origin a1/feat/kilo-health
 gh pr create --fill
 
-# 4. on done, remove worktree (keep branch until PR merged)
-git worktree remove ../wt-a1-kilo-health
+# 4. on done, merge to main and return there
+# Do NOT leave the repo parked on a feature branch. main is the integration branch.
+git checkout main && git pull --ff-only
+git merge --squash a1/feat/kilo-health   # atomic, reviewable single commit
+# resolve, run fmt/clippy/tests, commit, then:
+git push origin main
+git worktree remove ../wt-a1-kilo-health   # branch kept for traceability
 ```
 
 ## Naming
