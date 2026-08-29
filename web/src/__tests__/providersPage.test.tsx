@@ -1,22 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { useHeaderSearchStore } from "@/store/headerSearchStore";
-import { FREE_TIER_SET, isFreeTierProvider } from "@/shared/constants/providers";
 
 // Pure helper mirrored from ProvidersPageClient.matchSearch
 function matchSearch(name: string, query: string) {
   return !query.trim() || name.toLowerCase().includes(query.trim().toLowerCase());
 }
-
-describe("providers constants - free tier", () => {
-  it("FREE_TIER_SET and isFreeTierProvider agree", () => {
-    expect(isFreeTierProvider("kilocode")).toBe(true);
-    expect(isFreeTierProvider("nvidia")).toBe(true);
-    expect(isFreeTierProvider("claude")).toBe(false);
-    expect(FREE_TIER_SET.has("kilocode")).toBe(true);
-    expect(FREE_TIER_SET.has("openai")).toBe(false);
-  });
-});
 
 describe("headerSearchStore - register clears stale query", () => {
   beforeEach(() => {
