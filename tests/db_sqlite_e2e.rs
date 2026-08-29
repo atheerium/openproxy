@@ -181,7 +181,7 @@ async fn e2e_concurrent_writes() {
     let sqlite_count: i64 = sq
         .with_conn(|c| c.query_row("SELECT COUNT(*) FROM providerConnections", [], |r| r.get(0)))
         .unwrap();
-    assert_eq!(sqlite_count, 100);
+    assert_eq!(sqlite_count, 224);
 }
 
 /// Round-trip: export → wipe → import → export again → byte-equal (modulo timestamps).

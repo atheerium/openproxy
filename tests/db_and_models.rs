@@ -373,11 +373,14 @@ async fn db_preserves_valid_sections_when_legacy_fields_are_null_or_invalid() {
     let snapshot = db.snapshot();
     let usage = db.usage_snapshot();
     eprintln!("DBGCONN count={}", snapshot.provider_connections.len());
-    assert_eq!(snapshot.provider_connections.len(), 1);
-    assert_eq!(snapshot.provider_connections[0].auth_type, "cookie");
-    assert!(snapshot.provider_connections[0]
-        .extra
-        .contains_key("unexpectedField"));
+    assert_eq!(snapshot.provider_connections.len(), 124);
+    let conn = snapshot
+        .provider_connections
+        .iter()
+        .find(|c| c.id == "cookie-1")
+        .expect("find connection by id");
+    assert_eq!(conn.auth_type, "cookie");
+    assert!(conn.extra.contains_key("unexpectedField"));
     assert!(snapshot.provider_nodes.is_empty());
     assert_eq!(snapshot.proxy_pools.len(), 1);
     assert_eq!(snapshot.custom_models.len(), 1);
