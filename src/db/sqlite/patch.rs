@@ -43,8 +43,8 @@ pub fn apply_app_db_diff(conn: &Connection, old: &AppDb, new: &AppDb) -> rusqlit
         &old.provider_connections,
         &new.provider_connections,
         |c| &c.id,
-        |c, x| connection_repo::create(c, x),
-        |c, x| connection_repo::update(c, x),
+        connection_repo::create,
+        connection_repo::update,
         |c, id| connection_repo::delete(c, id),
     )?;
     diff_by_id(
@@ -52,8 +52,8 @@ pub fn apply_app_db_diff(conn: &Connection, old: &AppDb, new: &AppDb) -> rusqlit
         &old.provider_nodes,
         &new.provider_nodes,
         |n| &n.id,
-        |c, x| node_repo::create(c, x),
-        |c, x| node_repo::update(c, x),
+        node_repo::create,
+        node_repo::update,
         |c, id| node_repo::delete(c, id),
     )?;
     diff_by_id(
@@ -61,8 +61,8 @@ pub fn apply_app_db_diff(conn: &Connection, old: &AppDb, new: &AppDb) -> rusqlit
         &old.proxy_pools,
         &new.proxy_pools,
         |p| &p.id,
-        |c, x| pool_repo::create(c, x),
-        |c, x| pool_repo::update(c, x),
+        pool_repo::create,
+        pool_repo::update,
         |c, id| pool_repo::delete(c, id),
     )?;
     diff_by_id(
@@ -70,8 +70,8 @@ pub fn apply_app_db_diff(conn: &Connection, old: &AppDb, new: &AppDb) -> rusqlit
         &old.api_keys,
         &new.api_keys,
         |k| &k.id,
-        |c, x| api_key_repo::create(c, x),
-        |c, x| api_key_repo::update(c, x),
+        api_key_repo::create,
+        api_key_repo::update,
         |c, id| api_key_repo::delete(c, id),
     )?;
     diff_by_id(
@@ -79,8 +79,8 @@ pub fn apply_app_db_diff(conn: &Connection, old: &AppDb, new: &AppDb) -> rusqlit
         &old.combos,
         &new.combos,
         |c| &c.id,
-        |c, x| combo_repo::create(c, x),
-        |c, x| combo_repo::update(c, x),
+        combo_repo::create,
+        combo_repo::update,
         |c, id| combo_repo::delete(c, id),
     )?;
 
@@ -120,6 +120,18 @@ pub fn apply_app_db_diff(conn: &Connection, old: &AppDb, new: &AppDb) -> rusqlit
         .and_then(|v| serde_json::from_value(v.clone()).ok())
         .unwrap_or_default();
     diff_kv_scope(conn, "providerFilters", old_filters, new_filters)?;
+
+    let old_favorites: HashMap<String, Value> = old
+        .extra
+        .get("favoriteModels")
+        .and_then(|v| serde_json::from_value(v.clone()).ok())
+        .unwrap_or_default();
+    let new_favorites: HashMap<String, Value> = new
+        .extra
+        .get("favoriteModels")
+        .and_then(|v| serde_json::from_value(v.clone()).ok())
+        .unwrap_or_default();
+    diff_kv_scope(conn, "favoriteModels", old_favorites, new_favorites)?;
 
     diff_disabled_models(
         conn,
@@ -169,7 +181,7 @@ where
         }
     }
     // Rows removed.
-    for (k, _) in &old_by_key {
+    for k in old_by_key.keys() {
         if !new_by_key.contains_key(k) {
             delete(conn, k)?;
         }
@@ -690,13 +702,21 @@ mod tests {
         let mut actual = roundtripped;
         actual.normalize();
         // Benign export artifacts: `export_all` hardcodes schemaVersion=2,
-        // always emits a (possibly empty) disabledModels array, and sorts
-        // connections by (provider, priority) rather than insertion order.
-        // Normalize these away before diffing.
+        // always emits (possibly empty) disabledModels/providerFilters/
+        // favoriteModels, and sorts connections by (provider, priority)
+        // rather than insertion order. Normalize these away before diffing.
         actual.schema_version = expected.schema_version;
         for side in [&mut actual, &mut expected] {
             if matches!(side.extra.get("disabledModels"), Some(Value::Array(a)) if a.is_empty()) {
                 side.extra.remove("disabledModels");
+            }
+            if matches!(side.extra.get("disabledModels"), Some(Value::Object(m)) if m.is_empty()) {
+                side.extra.remove("disabledModels");
+            }
+            for k in ["providerFilters", "favoriteModels"] {
+                if matches!(side.extra.get(k), Some(Value::Object(m)) if m.is_empty()) {
+                    side.extra.remove(k);
+                }
             }
             side.provider_connections
                 .sort_by(|a, b| (&a.provider, &a.id).cmp(&(&b.provider, &b.id)));

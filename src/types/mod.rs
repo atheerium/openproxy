@@ -56,6 +56,24 @@ impl AppDb {
             }
         }
 
+        // Strip empty providerFilters/favoriteModels from extra so that
+        // export → from_json_value round-trips stay equal (empty scopes are
+        // stored as 0 KV rows and should not appear as `"providerFilters": {}`
+        // in the in-memory model). Also normalize legacy empty arrays.
+        for key in ["providerFilters", "favoriteModels"] {
+            if matches!(self.extra.get(key), Some(Value::Object(m)) if m.is_empty()) {
+                self.extra.remove(key);
+            }
+        }
+        if matches!(self.extra.get("disabledModels"), Some(Value::Array(a)) if a.is_empty()) {
+            self.extra.remove("disabledModels");
+        }
+        if let Some(Value::Object(obj)) = self.extra.get("disabledModels") {
+            if obj.is_empty() {
+                self.extra.remove("disabledModels");
+            }
+        }
+
         // Rebuild the HashMap index for O(1) API key lookup.
         self.api_key_map = self
             .api_keys
@@ -396,7 +414,7 @@ pub struct Combo {
     pub extra: BTreeMap<String, Value>,
 }
 
-#[derive(Default, Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Default, Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct ApiKey {
     pub id: String,
@@ -408,6 +426,11 @@ pub struct ApiKey {
     pub is_active: Option<bool>,
     #[serde(default)]
     pub created_at: Option<String>,
+    /// Per-key monthly spend cap in USD. When set, requests are hard-blocked
+    /// with HTTP 429 once the current calendar month's tracked spend reaches
+    /// it (free-tier Feature 3: budget caps & hard kill-switch).
+    #[serde(default)]
+    pub monthly_budget_usd: Option<f64>,
     #[serde(flatten)]
     pub extra: BTreeMap<String, Value>,
 }
@@ -415,6 +438,21 @@ pub struct ApiKey {
 impl ApiKey {
     pub fn is_active(&self) -> bool {
         self.is_active.unwrap_or(true)
+    }
+
+    /// Effective monthly budget in USD, resolving the typed field first and
+    /// then the `extra` fallbacks (`monthlyBudgetUsd`, `monthly_budget_usd`).
+    /// Returns `None` when no budget is configured.
+    pub fn monthly_budget(&self) -> Option<f64> {
+        if let Some(value) = self.monthly_budget_usd {
+            return Some(value);
+        }
+        for key in ["monthlyBudgetUsd", "monthly_budget_usd"] {
+            if let Some(value) = self.extra.get(key).and_then(|v| v.as_f64()) {
+                return Some(value);
+            }
+        }
+        None
     }
 }
 
@@ -803,6 +841,14 @@ pub struct UsageEntry {
     pub cost: Option<f64>,
     #[serde(default)]
     pub status: Option<String>,
+    #[serde(default)]
+    pub bytes_before: u64,
+    #[serde(default)]
+    pub bytes_after: u64,
+    #[serde(default)]
+    pub bytes_saved: u64,
+    #[serde(default)]
+    pub image_prompts: u64,
     #[serde(flatten)]
     pub extra: BTreeMap<String, Value>,
 }

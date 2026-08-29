@@ -1,11 +1,22 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { useHeaderSearchStore } from "@/store/headerSearchStore";
+import { FREE_TIER_SET, isFreeTierProvider } from "@/shared/constants/providers";
 
 // Pure helper mirrored from ProvidersPageClient.matchSearch
 function matchSearch(name: string, query: string) {
   return !query.trim() || name.toLowerCase().includes(query.trim().toLowerCase());
 }
+
+describe("providers constants - free tier", () => {
+  it("FREE_TIER_SET and isFreeTierProvider agree", () => {
+    expect(isFreeTierProvider("kilocode")).toBe(true);
+    expect(isFreeTierProvider("nvidia")).toBe(true);
+    expect(isFreeTierProvider("claude")).toBe(false);
+    expect(FREE_TIER_SET.has("kilocode")).toBe(true);
+    expect(FREE_TIER_SET.has("openai")).toBe(false);
+  });
+});
 
 describe("headerSearchStore - register clears stale query", () => {
   beforeEach(() => {
@@ -90,5 +101,47 @@ describe("ProvidersPageClient fetch error banner", () => {
     await waitFor(() => expect(screen.getByText(/No providers match your search/)).toBeInTheDocument());
     fireEvent.click(screen.getByText("Clear search"));
     expect(useHeaderSearchStore.getState().query).toBe("");
+  });
+});
+
+describe("ProvidersPageClient freeEntries regression (a0c12244)", () => {
+  beforeEach(() => {
+    vi.restoreAllMocks();
+    useHeaderSearchStore.setState({ query: "", placeholder: "", visible: false });
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => ({ ok: true, status: 200, json: async () => ({ connections: [], nodes: [], proxyPools: [] }) } as unknown as Response))
+    );
+  });
+
+  it("renders without ReferenceError: freeEntries is defined before use", async () => {
+    const { default: ProvidersPageClient } = await import("@/components/providers/ProvidersPageClient");
+    // Would throw ReferenceError if freeEntries TDZ bug regresses
+    expect(() => render(<ProvidersPageClient />)).not.toThrow();
+    await waitFor(() => expect(screen.getByText(/Free Tier Providers/)).toBeInTheDocument());
+  });
+
+  it("hasAnyResult uses filtered entries: Show only free tier hides non-free apikey provider", async () => {
+    const { default: ProvidersPageClient } = await import("@/components/providers/ProvidersPageClient");
+    render(<ProvidersPageClient />);
+    await waitFor(() => expect(screen.getByText(/Free Tier Providers/)).toBeInTheDocument());
+    // Show only free tier checkbox exists
+    const checkbox = screen.getByLabelText(/Show only free tier/) as HTMLInputElement;
+    expect(checkbox.checked).toBe(false);
+    // Initially Anthropic (non-free apikey, alphabetically early) should be visible
+    expect(screen.getByText("Anthropic")).toBeInTheDocument();
+    fireEvent.click(checkbox);
+    // After filter, Anthropic (not in FREE_TIER_SET) should be hidden
+    await waitFor(() => expect(screen.queryByText("Anthropic")).not.toBeInTheDocument());
+    // Free-tier provider should remain visible (e.g. Kilo Code appears in free sections)
+    expect(screen.getAllByText("Kilo Code").length).toBeGreaterThan(0);
+  });
+
+  it("filtered free tier set invariant: isFreeTierProvider matches FREE_TIER_SET", async () => {
+    // Guard against drift between filteredApikeyEntries filter and FREE_TIER_SET
+    const { FREE_TIER_SET: s, isFreeTierProvider: fn } = await import("@/shared/constants/providers");
+    for (const id of s) expect(fn(id)).toBe(true);
+    expect(fn("openai")).toBe(false);
+    expect(fn("anthropic")).toBe(false);
   });
 });

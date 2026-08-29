@@ -2,6 +2,7 @@
 
 import type {
   Provider,
+  FreeTierInfo,
   ThinkingConfig,
   ServiceKind,
   MediaProviderKind,
@@ -17,8 +18,7 @@ export const FREE_PROVIDERS: Record<string, Provider> = {
   // codebuddy: { id: "codebuddy", alias: "cb", name: "CodeBuddy", icon: "smart_toy", color: "#006EFF" },
   qoder: { id: "qoder", alias: "qd", name: "Qoder AI", icon: "water_drop", color: "#EC4899", website: "https://qoder.com", notice: { apiKeyUrl: "https://qoder.com/account/integrations", signupUrl: "https://qoder.com" }, authModes: ["oauth", "apikey"], hasOAuth: true, authHint: "Personal Access Token (pt-...) from https://qoder.com/account/integrations", serviceKinds: ["llm"] },
   iflow: { id: "iflow", alias: "if", name: "iFlow AI", icon: "water_drop", color: "#6366F1", website: "https://iflow.cn", notice: { signupUrl: "https://iflow.cn" } },
-  opencode: { id: "opencode", alias: "oc", name: "OpenCode Free", icon: "terminal", color: "#E87040", textIcon: "OC", noAuth: true, passthroughModels: true, modelsFetcher: { url: "https://opencode.ai/zen/v1/models", type: "opencode-free" } },
-  "opencode-zen": { id: "opencode-zen", alias: "opencode-zen", name: "OpenCode Zen", icon: "terminal", color: "#E87040", textIcon: "OC", noAuth: true, modelsFetcher: { url: "https://opencode.ai/zen/v1/models", type: "opencode-free" } },
+  "opencode-zen": { id: "opencode-zen", alias: "opencode-zen", name: "OpenCode Zen", icon: "terminal", color: "#E87040", textIcon: "OC", noAuth: true, passthroughModels: true, modelsFetcher: { url: "https://opencode.ai/zen/v1/models", type: "opencode-free" } },
 };
 
 // Free Tier Providers (has free access but may require account/API key)
@@ -30,7 +30,46 @@ export const FREE_TIER_PROVIDERS: Record<string, Provider> = {
   gemini: { id: "gemini", alias: "gemini", name: "Gemini", icon: "diamond", color: "#4285F4", textIcon: "GE", website: "https://ai.google.dev", notice: { apiKeyUrl: "https://aistudio.google.com/app/apikey" }, serviceKinds: ["llm", "embedding", "image", "imageToText", "webSearch", "stt"], searchViaChat: { defaultModel: "gemini-2.5-flash", pricingUrl: "https://ai.google.dev/pricing", freeTier: "Free tier: 15 RPM, 1M tokens/day on gemini-2.5-flash via AI Studio." }, embeddingConfig: { baseUrl: "https://generativelanguage.googleapis.com/v1beta/models", authType: "apikey", authHeader: "key", models: [{ id: "text-embedding-004", name: "Text Embedding 004", dimensions: 768 }, { id: "embedding-001", name: "Embedding 001", dimensions: 768 }] }, sttConfig: { baseUrl: "https://generativelanguage.googleapis.com/v1beta/models", authType: "apikey", authHeader: "key", format: "gemini-stt", models: [{ id: "gemini-2.5-pro", name: "Gemini 2.5 Pro (Best)" }, { id: "gemini-2.5-flash", name: "Gemini 2.5 Flash" }, { id: "gemini-2.5-flash-lite", name: "Gemini 2.5 Flash Lite (Cheapest)" }, { id: "gemini-2.0-flash", name: "Gemini 2.0 Flash" }] } },
   "cloudflare-ai": { id: "cloudflare-ai", alias: "cf", name: "Cloudflare", icon: "cloud", color: "#F38020", textIcon: "CF", website: "https://developers.cloudflare.com/workers-ai/", notice: { text: "Workers AI free tier. Requires a Cloudflare API token and Account ID.", apiKeyUrl: "https://dash.cloudflare.com/profile/api-tokens" }, serviceKinds: ["llm"], hasProviderSpecificData: true },
   byteplus: { id: "byteplus", alias: "bpm", name: "BytePlus ModelArk", icon: "cloud", color: "#2563EB", textIcon: "BP", website: "https://console.byteplus.com/ark", notice: { text: "Free credits for new accounts. Access to Seed 2.0, Kimi K2 Thinking, GLM 4.7, GPT-OSS-120B models.", apiKeyUrl: "https://console.byteplus.com/ark/region:ark+ap-southeast-1/apiKey" }, serviceKinds: ["llm"] },
+  tokenrouter: { id: "tokenrouter", alias: "tr", name: "TokenRouter", icon: "router", color: "#EF4444", textIcon: "TR", website: "https://tokenrouter.com", notice: { text: "Free promotional models: qwen/qwen3.8-max-free, moonshotai/kimi-k3-free. Requires Bearer token authentication.", apiKeyUrl: "https://tokenrouter.com/settings/api-keys" }, serviceKinds: ["llm"] },
+  // Free-tier providers whose canonical definitions live elsewhere
+  // (FREE_PROVIDERS / OAUTH_PROVIDERS / APIKEY_PROVIDERS). Duplicated here so
+  // the dashboard can categorize them as free tier without touching their
+  // auth behavior. AI_PROVIDERS spreads OAUTH_PROVIDERS after this, so
+  // kilocode's oauth+apikey authModes are preserved.
+  "opencode-zen": { id: "opencode-zen", alias: "opencode-zen", name: "OpenCode Zen", icon: "terminal", color: "#E87040", textIcon: "OC", noAuth: true, passthroughModels: true, modelsFetcher: { url: "https://opencode.ai/zen/v1/models", type: "opencode-free" } },
+  kilocode: { id: "kilocode", alias: "kc", name: "Kilo Code", icon: "code", color: "#FF6B35", textIcon: "KC", website: "https://kilocode.ai", notice: { signupUrl: "https://kilocode.ai", apiKeyUrl: "https://kilocode.ai" }, authModes: ["oauth", "apikey"], hasOAuth: true, priority: 40 },
 };
+
+// Single source of truth for free-tier provider IDs (categorization shared
+// across backend + frontend). These are the providers the dashboard treats
+// as free tier. Keep in sync with FREE_TIER_PROVIDERS above.
+export const FREE_TIER_PROVIDER_IDS: string[] = [
+  "nvidia",
+  "opencode-zen",
+  "openrouter",
+  "kilocode",
+  "ollama",
+  "gemini",
+  "modelscope",
+  "aion",
+  "agnes",
+  "ai21",
+  "ovhcloud",
+  "groq",
+  "mistral",
+  "llm7",
+  "sambanova",
+  "kiro",
+  "huggingface",
+];
+
+// O(1) membership lookup derived from the canonical ID list.
+export const FREE_TIER_SET: Set<string> = new Set(FREE_TIER_PROVIDER_IDS);
+
+// Helper: is the given provider id a free-tier provider?
+export function isFreeTierProvider(id: string): boolean {
+  return FREE_TIER_SET.has(id);
+}
 
 // Thinking config definitions
 // options: list of selectable modes ("auto" = no override from server)
@@ -58,7 +97,8 @@ export const OAUTH_PROVIDERS: Record<string, Provider> = {
   cursor: { id: "cursor", alias: "cu", name: "Cursor IDE", icon: "edit_note", color: "#00D4AA", website: "https://cursor.com", notice: { signupUrl: "https://cursor.com" }, priority: 30 },
   // Dual auth (OAuth device-code + API key) — merged in 68566f5; also under APIKEY_PROVIDERS.
   kimi: { id: "kimi", alias: "kimi", name: "Kimi", icon: "psychology", color: "#1E3A8A", textIcon: "KM", website: "https://kimi.moonshot.cn", notice: { signupUrl: "https://www.kimi.com/code", apiKeyUrl: "https://platform.moonshot.ai/console/api-keys" }, serviceKinds: ["llm", "webSearch"], searchViaChat: { defaultModel: "kimi-k3", pricingUrl: "https://platform.moonshot.ai/docs/pricing/chat" }, authModes: ["oauth", "apikey"], hasOAuth: true, priority: 42 },
-  kilocode: { id: "kilocode", alias: "kc", name: "Kilo Code", icon: "code", color: "#FF6B35", textIcon: "KC", website: "https://kilocode.ai", notice: { signupUrl: "https://kilocode.ai" }, priority: 40 },
+  // Dual auth (OAuth device-code + API key) — api key is primary; device flow kept for compat (ad51c2ce).
+  kilocode: { id: "kilocode", alias: "kc", name: "Kilo Code", icon: "code", color: "#FF6B35", textIcon: "KC", website: "https://kilocode.ai", notice: { signupUrl: "https://kilocode.ai", apiKeyUrl: "https://kilocode.ai" }, authModes: ["oauth", "apikey"], hasOAuth: true, priority: 40 },
   cline: { id: "cline", alias: "cl", name: "Cline", icon: "smart_toy", color: "#5B9BD5", textIcon: "CL", website: "https://cline.bot", notice: { signupUrl: "https://cline.bot" }, priority: 45 },
   // Dual auth (OAuth + API key) — also listed under APIKEY_PROVIDERS for key path.
   xai: { id: "xai", alias: "xai", name: "xAI (Grok)", icon: "auto_awesome", color: "#1DA1F2", textIcon: "XA", website: "https://x.ai", notice: { apiKeyUrl: "https://console.x.ai", signupUrl: "https://accounts.x.ai" }, serviceKinds: ["llm", "imageToText", "webSearch", "image", "video"], searchViaChat: { defaultModel: "grok-4.20-reasoning", pricingUrl: "https://x.ai/api#pricing" }, imageConfig: { baseUrl: "https://api.x.ai/v1/images/generations", method: "POST", authType: "apikey", authHeader: "bearer" }, videoConfig: { baseUrl: "https://api.x.ai/v1/videos" }, authModes: ["oauth", "apikey"], priority: 35 },
@@ -86,6 +126,7 @@ export const APIKEY_PROVIDERS: Record<string, Provider> = {
   glm: { id: "glm", alias: "glm", name: "GLM Coding", icon: "code", color: "#2563EB", textIcon: "GL", website: "https://open.bigmodel.cn", notice: { apiKeyUrl: "https://open.bigmodel.cn/usercenter/apikeys" } },
   "glm-cn": { id: "glm-cn", alias: "glm-cn", name: "GLM (China)", icon: "code", color: "#DC2626", textIcon: "GC", website: "https://open.bigmodel.cn", notice: { apiKeyUrl: "https://open.bigmodel.cn/usercenter/apikeys" } },
   kimi: { id: "kimi", alias: "kimi", name: "Kimi", icon: "psychology", color: "#1E3A8A", textIcon: "KM", website: "https://kimi.moonshot.cn", notice: { apiKeyUrl: "https://platform.moonshot.ai/console/api-keys", signupUrl: "https://www.kimi.com/code" }, serviceKinds: ["llm", "webSearch"], searchViaChat: { defaultModel: "kimi-k3", pricingUrl: "https://platform.moonshot.ai/docs/pricing/chat" }, authModes: ["oauth", "apikey"], hasOAuth: true, oauth: { clientId: "17e5f671-d194-4dfb-9706-5516cb48c098", deviceCodeUrl: "https://auth.kimi.com/api/oauth/device_authorization", tokenUrl: "https://auth.kimi.com/api/oauth/token", refreshUrl: "https://auth.kimi.com/api/oauth/token" } },
+  kilocode: { id: "kilocode", alias: "kc", name: "Kilo Code", icon: "code", color: "#FF6B35", textIcon: "KC", website: "https://kilocode.ai", notice: { apiKeyUrl: "https://kilocode.ai", signupUrl: "https://kilocode.ai" }, authModes: ["oauth", "apikey"], hasOAuth: true },
   minimax: { id: "minimax", alias: "minimax", name: "Minimax Coding", icon: "memory", color: "#7C3AED", textIcon: "MM", website: "https://www.minimaxi.com", notice: { apiKeyUrl: "https://platform.minimaxi.com/user-center/basic-information/interface-key" }, serviceKinds: ["llm", "image", "imageToText", "webSearch", "tts"], searchViaChat: { defaultModel: "MiniMax-M2.7", pricingUrl: "https://www.minimaxi.com/document/price" }, ttsConfig: { baseUrl: "https://api.minimax.io/v1/t2a_v2", authType: "apikey", authHeader: "bearer", format: "minimax-tts", models: [{ id: "speech-2.8-hd", name: "Speech 2.8 HD" }, { id: "speech-2.8-turbo", name: "Speech 2.8 Turbo" }, { id: "speech-2.6-hd", name: "Speech 2.6 HD" }, { id: "speech-2.6-turbo", name: "Speech 2.6 Turbo" }] } },
   "minimax-cn": { id: "minimax-cn", alias: "minimax-cn", name: "Minimax (China)", icon: "memory", color: "#DC2626", textIcon: "MC", website: "https://www.minimaxi.com", notice: { apiKeyUrl: "https://platform.minimaxi.com/user-center/basic-information/interface-key" }, serviceKinds: ["llm", "tts"], ttsConfig: { baseUrl: "https://api.minimaxi.com/v1/t2a_v2", authType: "apikey", authHeader: "bearer", format: "minimax-tts", models: [{ id: "speech-2.8-hd", name: "Speech 2.8 HD" }, { id: "speech-2.8-turbo", name: "Speech 2.8 Turbo" }, { id: "speech-2.6-hd", name: "Speech 2.6 HD" }, { id: "speech-2.6-turbo", name: "Speech 2.6 Turbo" }] } },
   alicode: { id: "alicode", alias: "alicode", name: "Alibaba", icon: "cloud", color: "#FF6A00", textIcon: "ALi", website: "https://bailian.console.aliyun.com", notice: { apiKeyUrl: "https://bailian.console.aliyun.com/?apiKey=1" } },
@@ -179,6 +220,11 @@ export const APIKEY_PROVIDERS: Record<string, Provider> = {
   poolside: { id: "poolside", alias: "poolside", name: "Poolside", icon: "pool", color: "#14B8A6", textIcon: "PO", website: "https://poolside.ai", notice: { apiKeyUrl: "https://poolside.ai" } },
   tencent: { id: "tencent", alias: "hunyuan", name: "Tencent Hunyuan", icon: "cloud", color: "#06B6D4", textIcon: "TH", website: "https://cloud.tencent.com", notice: { apiKeyUrl: "https://console.cloud.tencent.com" } },
   baidu: { id: "baidu", alias: "qianfan", name: "Baidu Qianfan", icon: "cloud", color: "#2563EB", textIcon: "BQ", website: "https://qianfan.cloud.baidu.com", notice: { apiKeyUrl: "https://console.bce.baidu.com" } },
+  modelscope: { id: "modelscope", alias: "ms", name: "ModelScope", icon: "hub", color: "#FF6A00", textIcon: "MS", website: "https://modelscope.cn", notice: { apiKeyUrl: "https://modelscope.cn/my/myaccesstoken", text: "Free tier: 500 RPD per model, 2,000 RPD total. Alibaba account or Chinese phone required." } },
+  aion: { id: "aion", alias: "aion", name: "Aion Labs", icon: "science", color: "#7C3AED", textIcon: "AL", website: "https://www.aionlabs.ai", notice: { apiKeyUrl: "https://www.aionlabs.ai/pricing", text: "Free tier: Daily token allowance. No credit card required." } },
+  agnes: { id: "agnes", alias: "agnes", name: "Agnes AI", icon: "favorite", color: "#EC4899", textIcon: "AG", website: "https://agnes-ai.com", notice: { apiKeyUrl: "https://apihub.agnes-ai.com", text: "Free tier: 5 free models available. Registration required." } },
+  ai21: { id: "ai21", alias: "ai21", name: "AI21 Labs", icon: "psychology", color: "#2563EB", textIcon: "AI", website: "https://www.ai21.com", notice: { apiKeyUrl: "https://studio.ai21.com", text: "$10 free credit for 3 months (3-month expiry). Jamba models with 256K context." } },
+  "ovhcloud": { id: "ovhcloud", alias: "ovh", name: "OVHcloud AI Endpoints", icon: "cloud", color: "#1289CD", textIcon: "OVH", website: "https://www.ovhcloud.com", notice: { apiKeyUrl: "https://endpoints.ai.cloud.ovh.net/", text: "Free tier: 2 RPM anonymous, 400 RPM with auth. Registration required." } },
 };
 
 // Web Cookie Providers (use browser session cookie instead of API key)
@@ -218,6 +264,301 @@ export function isCustomEmbeddingProvider(providerId: string): boolean {
 
 // All providers (combined)
 export const AI_PROVIDERS: Record<string, Provider> = { ...FREE_PROVIDERS, ...FREE_TIER_PROVIDERS, ...OAUTH_PROVIDERS, ...APIKEY_PROVIDERS, ...WEB_COOKIE_PROVIDERS };
+
+// Free-tier limitations per provider. Sourced from the awesome-freellm-apis
+// directory (github.com/open-free-llm-api) and freellmapi.co, verified
+// 2026-08-27. Rate limits are provider-reported and may change; treat as a
+// planning guide, not a contract. Attached to each provider below so the
+// dashboard can surface caps/caveats on the provider page.
+export const FREE_TIER_INFO: Record<string, FreeTierInfo> = {
+  nvidia: {
+    accessModel: "Permanent free tier",
+    creditCard: "phone",
+    rateLimit: "Up to 40 RPM (varies by model)",
+    maxContext: "1M tokens",
+    freeModels: 126,
+    productionAllowed: false,
+    caveats: [
+      "NVIDIA Developer Program membership required (phone verification).",
+      "Trial ToS scopes usage to evaluation/prototyping, not production.",
+      "Rate limit replaced depleting trial credits (verified June 2026).",
+    ],
+    lastVerified: "2026-08-27",
+    source: "https://github.com/open-free-llm-api/awesome-freellm-apis",
+  },
+  modelscope: {
+    accessModel: "Permanent free tier",
+    creditCard: "registration",
+    rateLimit: "2,000 RPD total; ≤500 RPD per model",
+    maxContext: "1M tokens",
+    freeModels: 58,
+    productionAllowed: true,
+    caveats: [
+      "Alibaba account or Chinese phone number required.",
+      "Per-model quota is ~500 RPD; total shared 2,000 RPD.",
+    ],
+    lastVerified: "2026-08-27",
+    source: "https://github.com/open-free-llm-api/awesome-freellm-apis",
+  },
+  "cloudflare-ai": {
+    accessModel: "Permanent free tier",
+    creditCard: "none",
+    rateLimit: "10K neurons/day (shared)",
+    maxContext: "10M tokens (varies by model)",
+    freeModels: 40,
+    productionAllowed: true,
+    caveats: [
+      "Requires a Cloudflare API token and Account ID.",
+      "Neuron-based metering is shared across your account, not per model.",
+    ],
+    lastVerified: "2026-08-27",
+    source: "https://github.com/open-free-llm-api/awesome-freellm-apis",
+  },
+  openrouter: {
+    accessModel: "Renewable credits",
+    creditCard: "registration",
+    rateLimit: "Free tier: ~200 RPD; +$10 top-up → 1,000 RPD",
+    maxContext: "1M tokens",
+    freeModels: 28,
+    productionAllowed: true,
+    caveats: [
+      "Free tier is rate-limited to ~200 requests/day.",
+      "Anthropic models need a one-time $10 top-up to unlock.",
+    ],
+    lastVerified: "2026-08-27",
+    source: "https://github.com/open-free-llm-api/awesome-freellm-apis",
+  },
+  gemini: {
+    accessModel: "Permanent free tier",
+    creditCard: "none",
+    rateLimit: "15 RPM, 1,500 RPD (gemini-3.6-flash)",
+    maxContext: "1M tokens",
+    freeModels: 17,
+    productionAllowed: true,
+    caveats: [
+      "Gemini 3.5 Flash-Lite is more generous: 30 RPM, 1,500 RPD.",
+      "Quotas apply per API key via AI Studio.",
+    ],
+    lastVerified: "2026-08-27",
+    source: "https://github.com/open-free-llm-api/awesome-freellm-apis",
+  },
+  ollama: {
+    accessModel: "Permanent free tier",
+    creditCard: "registration",
+    rateLimit: "Session/weekly limits (~5–10M tokens/mo)",
+    maxContext: "1M tokens",
+    freeModels: 13,
+    productionAllowed: false,
+    caveats: [
+      "1 cloud model at a time; limits reset every 5h & 7d.",
+      "Pro $20/mo · Max $100/mo for heavier use.",
+    ],
+    lastVerified: "2026-08-27",
+    source: "https://github.com/open-free-llm-api/awesome-freellm-apis",
+  },
+  vertex: {
+    accessModel: "Trial credits",
+    creditCard: "required",
+    rateLimit: "Limited by $300 new-account credit",
+    maxContext: "1M tokens",
+    productionAllowed: false,
+    caveats: [
+      "New Google Cloud accounts get $300 free credits (card required).",
+      "Needs GCP project + Service Account with Vertex AI API enabled.",
+    ],
+    lastVerified: "2026-08-27",
+    source: "https://github.com/open-free-llm-api/awesome-freellm-apis",
+  },
+  github: {
+    accessModel: "Permanent free tier",
+    creditCard: "none",
+    rateLimit: "Rate-limited (see GitHub Models)",
+    maxContext: "1M tokens",
+    freeModels: 16,
+    productionAllowed: true,
+    caveats: [
+      "Sign in with a GitHub account (no card).",
+      "Rate limits are applied per model family.",
+    ],
+    lastVerified: "2026-08-27",
+    source: "https://github.com/open-free-llm-api/awesome-freellm-apis",
+  },
+  "opencode-zen": {
+    accessModel: "Permanent free tier",
+    creditCard: "registration",
+    rateLimit: "Rate-limited (see OpenCode Zen)",
+    maxContext: "1M tokens",
+    freeModels: 12,
+    productionAllowed: true,
+    caveats: ["OpenCode account required (registration)."],
+    lastVerified: "2026-08-27",
+    source: "https://github.com/open-free-llm-api/awesome-freellm-apis",
+  },
+  kilocode: {
+    accessModel: "Permanent free tier",
+    creditCard: "none",
+    rateLimit: "~200 req/hr",
+    maxContext: "1M tokens",
+    freeModels: 12,
+    productionAllowed: true,
+    caveats: ["Kilo Code account (free) grants gateway access."],
+    lastVerified: "2026-08-27",
+    source: "https://github.com/open-free-llm-api/awesome-freellm-apis",
+  },
+  aion: {
+    accessModel: "Permanent free tier",
+    creditCard: "registration",
+    rateLimit: "15 RPM, 20K TPD",
+    maxContext: "131K tokens",
+    freeModels: 7,
+    productionAllowed: true,
+    caveats: [
+      "Aion Labs account required (registration, no card).",
+      "Daily token allowance resets each day.",
+    ],
+    lastVerified: "2026-08-27",
+    source: "https://github.com/open-free-llm-api/awesome-freellm-apis",
+  },
+  agnes: {
+    accessModel: "Permanent free tier",
+    creditCard: "registration",
+    rateLimit: "30 RPM",
+    maxContext: "256K tokens",
+    freeModels: 5,
+    productionAllowed: true,
+    caveats: [
+      "Registration required (platform.agnes-ai.com).",
+      "5 free models available; image model at 4K context.",
+    ],
+    lastVerified: "2026-08-27",
+    source: "https://github.com/open-free-llm-api/awesome-freellm-apis",
+  },
+  ai21: {
+    accessModel: "Trial credits",
+    creditCard: "registration",
+    rateLimit: "Limited by $10 / 3-month credit",
+    maxContext: "256K tokens",
+    freeModels: 2,
+    productionAllowed: false,
+    caveats: [
+      "$10 free credit for 3 months (expires after 3 months).",
+      "Jamba models with 256K context.",
+    ],
+    lastVerified: "2026-08-27",
+    source: "https://github.com/open-free-llm-api/awesome-freellm-apis",
+  },
+  ovhcloud: {
+    accessModel: "Permanent free tier",
+    creditCard: "registration",
+    rateLimit: "2 RPM anonymous · 400 RPM with auth",
+    maxContext: "262K tokens",
+    freeModels: 14,
+    productionAllowed: true,
+    caveats: [
+      "Registration required; anonymous access limited to 2 RPM.",
+      "Authenticated requests raise the limit to ~400 RPM.",
+    ],
+    lastVerified: "2026-08-27",
+    source: "https://github.com/open-free-llm-api/awesome-freellm-apis",
+  },
+  groq: {
+    accessModel: "Permanent free tier",
+    creditCard: "none",
+    rateLimit: "30 RPM, 14,400 RPD (varies by model)",
+    maxContext: "262K tokens",
+    freeModels: 12,
+    productionAllowed: true,
+    caveats: [
+      "No credit card required. Free, no-credit-card developer tier gated only by rate limits.",
+      "Llama models (incl. Llama 3.1 70B, Llama 4 Scout) plus Whisper. Qwen/Kimi on paid plans.",
+    ],
+    lastVerified: "2026-08-27",
+    source: "https://github.com/open-free-llm-api/awesome-freellm-apis",
+  },
+  mistral: {
+    accessModel: "Permanent free tier",
+    creditCard: "none",
+    rateLimit: "~30 RPM (varies by model); ~1 RPS on mistral-medium-3.5-128b",
+    maxContext: "256K tokens",
+    freeModels: 12,
+    productionAllowed: true,
+    caveats: [
+      "No credit card required. Includes open-mistral-7b, open-mixtral-8x7b, and the Mistral free tier.",
+    ],
+    lastVerified: "2026-08-27",
+    source: "https://github.com/open-free-llm-api/awesome-freellm-apis",
+  },
+  llm7: {
+    accessModel: "Permanent free tier",
+    creditCard: "none",
+    rateLimit: "30 RPM (120 RPM with token auth)",
+    maxContext: "1M tokens",
+    freeModels: 16,
+    productionAllowed: true,
+    caveats: [
+      "No credit card required. Free tier covers DeepSeek, GPT-OSS, Qwen, and GPT-4o Mini. Anonymous = 30 RPM; authenticated = 120 RPM.",
+    ],
+    lastVerified: "2026-08-27",
+    source: "https://github.com/open-free-llm-api/awesome-freellm-apis",
+  },
+  sambanova: {
+    accessModel: "Permanent free tier",
+    creditCard: "registration",
+    rateLimit: "20 RPM, 20 RPD, 200K TPD",
+    maxContext: "128K tokens",
+    freeModels: 4,
+    productionAllowed: true,
+    caveats: [
+      "Registration required (no card). Daily token allowance resets each day.",
+      "Models: DeepSeek-V3.1, DeepSeek-V3.2 Preview, MiniMax-M2.7, Llama-3.3 70B.",
+    ],
+    lastVerified: "2026-08-27",
+    source: "https://github.com/open-free-llm-api/awesome-freellm-apis",
+  },
+  kiro: {
+    accessModel: "Permanent free tier",
+    creditCard: "none",
+    rateLimit: "50 credits/month (open-weight models + Claude Sonnet 4.5); upgrades start at $20/mo",
+    maxContext: "1M tokens",
+    freeModels: 12,
+    productionAllowed: false,
+    caveats: [
+      "Free tier: 50 credits/month, no card for social/AWS Builder ID sign-up.",
+      "Access to open-weight models (Qwen3 Coder Next, DeepSeek 3.2, MiniMax M2.1) and Claude Sonnet 4.5, subject to rate limits.",
+      "Not available in AWS GovCloud (US).",
+    ],
+    lastVerified: "2026-08-27",
+    source: "https://kiro.dev/pricing/",
+  },
+  huggingface: {
+    accessModel: "Permanent free tier",
+    creditCard: "none",
+    rateLimit: "~few hundred requests/hour (rate-limited; PRO $9/mo for higher limits)",
+    maxContext: "Varies by model",
+    freeModels: 7,
+    productionAllowed: false,
+    caveats: [
+      "No credit card required. Serverless Inference API is free, rate-limited per user.",
+      "Thousands of open models available; popular free models include Llama, Qwen, and Gemma variants.",
+      "Higher rate limits / longer contexts require a PRO subscription ($9/mo) or dedicated Inference Endpoints (paid).",
+    ],
+    lastVerified: "2026-08-27",
+    source: "https://github.com/open-free-llm-api/awesome-freellm-apis",
+  },
+};
+
+// Attach the free-tier flag + limitations to every provider that has limit data
+// (decoupled from FREE_TIER_PROVIDER_IDS so adding limits never changes the
+// dashboard's free-tier categorization / green-dot filter). AI_PROVIDERS
+// entries are the same object references as the source maps.
+for (const id of Object.keys(FREE_TIER_INFO)) {
+  const provider = AI_PROVIDERS[id];
+  const info = FREE_TIER_INFO[id];
+  if (provider && info) {
+    provider.freeTier = true;
+    provider.freeTierInfo = info;
+  }
+}
 
 // Auth methods
 export const AUTH_METHODS: Record<string, AuthMethod> = {
@@ -299,4 +640,61 @@ export const USAGE_APIKEY_PROVIDERS: string[] = [
   "minimax-cn",
   "kimi",
   "deepseek",
+];
+
+// Providers whose dashboard exposes an "Import catalog" button — mirrors
+// src/server/api/provider_models.rs supports_models_discovery.
+export const SUPPORTS_MODELS_DISCOVERY: string[] = [
+  "openai",
+  "openrouter",
+  "anthropic",
+  "claude",
+  "gemini",
+  "gemini-cli",
+  "nvidia",
+  "llm7",
+  "deepseek",
+  "groq",
+  "xai",
+  "mistral",
+  "perplexity",
+  "together",
+  "fireworks",
+  "cerebras",
+  "cohere",
+  "nebius",
+  "siliconflow",
+  "hyperbolic",
+  "ollama",
+  "opencode-zen",
+  "codex",
+  "antigravity",
+  "github",
+  "qwen",
+  "qoder",
+  "alicode",
+  "alicode-intl",
+  "volcengine-ark",
+  "byteplus",
+  "nanobanana",
+  "chutes",
+  "assemblyai",
+  "aimlapi",
+  "modal",
+  "reka",
+  "kluster",
+  "morph",
+  "longcat",
+  "scaleway",
+  "sambanova",
+  "nscale",
+  "baseten",
+  "nous-research",
+  "glhf",
+  "kilocode",
+  "modelscope",
+  "aion",
+  "agnes",
+  "ai21",
+  "ovhcloud",
 ];

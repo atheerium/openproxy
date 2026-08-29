@@ -591,8 +591,12 @@ pub struct DeviceCodeResponse {
     pub device_code: String,
     pub user_code: String,
     pub verification_uri: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub verification_uri_complete: Option<String>,
     pub interval: u64,
     pub expires_in: u64,
+    #[serde(rename = "codeVerifier")]
+    pub code_verifier: String,
 }
 
 #[derive(Debug, Serialize)]
@@ -2657,14 +2661,92 @@ async fn kiro_social_exchange(
 
 async fn start_device_code_compat(
     Path(provider): Path<String>,
+    state: State<AppState>,
     Query(query): Query<DeviceCodeCompatQuery>,
 ) -> Response {
-    if provider != "kiro" {
-        return (
-            StatusCode::BAD_REQUEST,
-            Json(json!({ "error": "Provider does not support device code flow" })),
-        )
-            .into_response();
+    // Kiro with IDC config uses the special AWS SSO flow
+    let is_kiro = provider == "kiro" && query.start_url.is_some();
+
+    if !is_kiro {
+        // For all other device code providers (github, qwen, kilocode, etc.),
+        // use the standard device code flow (no API key required from browser)
+        if !is_device_code_provider(&provider) {
+            return (
+                StatusCode::BAD_REQUEST,
+                Json(json!({ "error": "Provider does not support device code flow" })),
+            )
+                .into_response();
+        }
+
+        let provider_config = match get_provider_config(&provider) {
+            Some(config) => config,
+            None => {
+                return make_error_response(
+                    StatusCode::BAD_REQUEST,
+                    "Unknown provider",
+                    "unknown_provider",
+                    &provider,
+                )
+            }
+        };
+
+        let client_id = provider_config
+            .get_param("client_id")
+            .map(|s| s.to_string())
+            .unwrap_or_else(|| {
+                if provider_config.client_id.is_empty() {
+                    "openproxy".to_string()
+                } else {
+                    provider_config.client_id.to_string()
+                }
+            });
+
+        let device_resp = match device_code::start_device_flow(&provider_config, &client_id).await {
+            Ok(resp) => resp,
+            Err(e) => {
+                return make_error_response(
+                    StatusCode::BAD_REQUEST,
+                    &e.error_description.unwrap_or_else(|| e.error.clone()),
+                    &e.error,
+                    &provider,
+                );
+            }
+        };
+
+        let now = now_secs();
+        let code_verifier = generate_code_verifier();
+        let flow = PendingOAuthFlow {
+            state: device_resp.device_code.clone(),
+            code_verifier: code_verifier.clone(),
+            provider: provider.clone(),
+            account_id: "browser".to_string(),
+            redirect_uri: None,
+            device_code: Some(device_resp.device_code.clone()),
+            user_code: Some(device_resp.user_code.clone()),
+            created_at: now,
+            expires_at: now + DEVICE_FLOW_TTL_SECS,
+            kiro_credentials: None,
+        };
+
+        if state.pending_flows.insert(flow).is_err() {
+            return make_error_response(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "Failed to store flow",
+                "internal_error",
+                &provider,
+            );
+        }
+
+        return Json(DeviceCodeResponse {
+            device_code: device_resp.device_code,
+            user_code: device_resp.user_code,
+            verification_uri: device_resp.verification_uri,
+            verification_uri_complete: device_resp.verification_uri_complete,
+            interval: device_resp.interval,
+            expires_in: device_resp.expires_in.unwrap_or(DEVICE_FLOW_TTL_SECS) as u64,
+            code_verifier,
+        })
+        .into_response();
     }
 
     let region = normalize_kiro_region(query.region.as_deref());
@@ -4490,6 +4572,7 @@ pub async fn start_device_code(
     };
 
     // Kiro uses a special combined flow: register client + start device code
+    // KiloCode uses a custom device auth flow (initiateUrl + pollUrlBase)
     let (device_resp, kiro_credentials) = if provider == "kiro" {
         match device_code::kiro_start_device_flow().await {
             Ok(kiro_flow) => {
@@ -4505,11 +4588,35 @@ pub async fn start_device_code(
                 );
             }
         }
+    } else if provider == "kilocode" {
+        match device_code::kilocode_start_device_flow(&provider_config).await {
+            Ok(resp) => (resp, None),
+            Err(e) => {
+                return make_error_response(
+                    StatusCode::BAD_REQUEST,
+                    &e.error_description.unwrap_or_else(|| e.error.clone()),
+                    &e.error,
+                    &provider,
+                );
+            }
+        }
     } else {
+        // Prefer an explicit `client_id` in extra_params (e.g. KiloCode);
+        // otherwise use the provider's configured client_id field (e.g. the
+        // GitHub Copilot public client `Iv1.b507a08c87ecfe98`). Falling back
+        // to "openproxy" breaks GitHub's device flow which rejects unknown
+        // client IDs with `{"error":"Not Found"}` — see 9router#442.
         let client_id = provider_config
             .get_param("client_id")
-            .unwrap_or("openproxy")
-            .to_string();
+            .map(|s| s.to_string())
+            .or_else(|| {
+                if provider_config.client_id.is_empty() {
+                    None
+                } else {
+                    Some(provider_config.client_id.to_string())
+                }
+            })
+            .unwrap_or_else(|| "openproxy".to_string());
 
         match device_code::start_device_flow(&provider_config, &client_id).await {
             Ok(resp) => (resp, None),
@@ -4525,9 +4632,10 @@ pub async fn start_device_code(
     };
 
     let now = now_secs();
+    let code_verifier = generate_code_verifier();
     let flow = PendingOAuthFlow {
         state: device_resp.device_code.clone(),
-        code_verifier: String::new(),
+        code_verifier: code_verifier.clone(),
         provider: provider.clone(),
         account_id: account_id.clone(),
         redirect_uri: None,
@@ -4556,8 +4664,10 @@ pub async fn start_device_code(
         device_code: device_resp.device_code,
         user_code: device_resp.user_code,
         verification_uri: device_resp.verification_uri,
+        verification_uri_complete: device_resp.verification_uri_complete,
         interval: device_resp.interval,
         expires_in: device_resp.expires_in.unwrap_or(DEVICE_FLOW_TTL_SECS) as u64,
+        code_verifier,
     })
     .into_response()
 }
@@ -4606,13 +4716,12 @@ pub async fn poll_device_code(
         return poll_kiro_device_code_compat(&state, body).await;
     }
 
-    let api_key = match require_api_key(&headers, &state.db) {
-        Ok(key) => key,
-        Err(e) => return crate::server::api::auth_error_response(e),
-    };
-    let account_id = api_key.id;
-
-    let device_code = match body.get("device_code").and_then(|v| v.as_str()) {
+    // Accept both device_code (snake_case, API-key flow) and deviceCode (camelCase, browser flow)
+    let device_code = match body
+        .get("device_code")
+        .or_else(|| body.get("deviceCode"))
+        .and_then(|v| v.as_str())
+    {
         Some(code) => code.trim().to_string(),
         None => {
             return make_error_response(
@@ -4622,6 +4731,19 @@ pub async fn poll_device_code(
                 &provider,
             );
         }
+    };
+
+    // Browser-initiated flows (via device-code compat endpoint) don't have an API key.
+    // Fall back to "browser" as the account_id for non-kiro providers.
+    let account_id = if presented_api_key.is_some() {
+        match require_api_key(&headers, &state.db) {
+            Ok(key) => key.id,
+            Err(e) => return crate::server::api::auth_error_response(e),
+        }
+    } else if provider != "kiro" {
+        "browser".to_string()
+    } else {
+        return crate::server::api::auth_error_response(crate::server::api::AuthError::Missing);
     };
 
     let _account_id = account_id;
@@ -4657,118 +4779,117 @@ pub async fn poll_device_code(
         .and_then(|s| s.parse::<u64>().ok())
         .unwrap_or(5);
 
-    match device_code::poll_for_token(&provider_config, &device_code, &user_code, interval).await {
-        Ok(token_response) => {
-            state.pending_flows.remove(&device_code);
-
-            // GitHub special: exchange OAuth token for Copilot token
-            let final_token_response = if provider == "github" {
-                match device_code::exchange_github_copilot_token(&token_response.access_token).await
-                {
-                    Ok(copilot_token) => copilot_token,
-                    Err(e) => {
-                        return make_error_response(
-                            StatusCode::BAD_REQUEST,
-                            &format!(
-                                "Copilot token exchange failed: {}",
-                                e.error_description.unwrap_or_else(|| e.error.clone())
-                            ),
-                            "copilot_exchange_failed",
-                            &provider,
-                        );
-                    }
-                }
-            } else {
-                token_response
-            };
-
-            // Kimi device-flow parity (kimi.js): mint a stable deviceId at
-            // login and persist it in providerSpecificData so refreshes and
-            // usage fetches keep the same X-Msh-Device-Id across restarts.
-            let mut extra_psd = std::collections::BTreeMap::new();
-            if provider == "kimi" || provider == "kimi-coding" {
-                let device_id = uuid::Uuid::new_v4().to_string();
-                extra_psd.insert("deviceId".to_string(), json!(device_id));
+    let token_response = if provider == "kilocode" {
+        match device_code::kilocode_poll_for_token(&provider_config, &device_code).await {
+            Ok(resp) => resp,
+            Err(e) => {
+                let pending = e.error == "authorization_pending" || e.error == "slow_down";
+                return Json(json!({
+                    "success": false,
+                    "error": e.error,
+                    "errorDescription": e.error_description,
+                    "pending": pending,
+                }))
+                .into_response();
             }
-
-            if let Err(e) = store_connection(
-                &state.db,
-                &flow.account_id,
-                &provider,
-                &final_token_response,
-                None,
-            )
+        }
+    } else {
+        match device_code::poll_for_token(&provider_config, &device_code, &user_code, interval)
             .await
-            {
+        {
+            Ok(resp) => resp,
+            Err(e) => {
+                let pending = e.error == "authorization_pending" || e.error == "slow_down";
+                return Json(json!({
+                    "success": false,
+                    "error": e.error,
+                    "errorDescription": e.error_description,
+                    "pending": pending,
+                }))
+                .into_response();
+            }
+        }
+    };
+
+    // GitHub special: exchange OAuth token for Copilot token
+    let final_token_response = if provider == "github" {
+        match device_code::exchange_github_copilot_token(&token_response.access_token).await {
+            Ok(copilot_token) => copilot_token,
+            Err(e) => {
                 return make_error_response(
-                    StatusCode::INTERNAL_SERVER_ERROR,
-                    &format!("Failed to store connection: {}", e),
-                    "storage_error",
+                    StatusCode::BAD_REQUEST,
+                    &format!(
+                        "Copilot token exchange failed: {}",
+                        e.error_description.unwrap_or_else(|| e.error.clone())
+                    ),
+                    "copilot_exchange_failed",
                     &provider,
                 );
             }
-
-            if !extra_psd.is_empty() {
-                if let Some(conn) = state
-                    .db
-                    .snapshot()
-                    .provider_connections
-                    .iter()
-                    .find(|c| c.provider == provider && c.id == flow.account_id)
-                    .cloned()
-                {
-                    let _ = state
-                        .db
-                        .update(move |db| {
-                            if let Some(target) =
-                                db.provider_connections.iter_mut().find(|c| c.id == conn.id)
-                            {
-                                for (k, v) in extra_psd {
-                                    target.provider_specific_data.insert(k, v);
-                                }
-                            }
-                        })
-                        .await;
-                }
-            }
-
-            Json(PollResponse {
-                success: true,
-                provider: provider.clone(),
-                expires_in: final_token_response.expires_in.map(|e| e as u64),
-                pending: Some(false),
-                retry_after: None,
-                message: Some("Authorization successful".to_string()),
-            })
-            .into_response()
         }
-        Err(e) => {
-            if e.error == "authorization_pending" || e.error == "slow_down" {
-                let retry_after = provider_config
-                    .get_param("interval")
-                    .and_then(|s| s.parse::<u64>().ok())
-                    .unwrap_or(5);
-                return Json(PollResponse {
-                    success: false,
-                    provider: provider.clone(),
-                    expires_in: None,
-                    pending: Some(true),
-                    retry_after: Some(retry_after),
-                    message: Some("Pending authorization".to_string()),
+    } else {
+        token_response
+    };
+
+    // Kimi device-flow parity (kimi.js): mint a stable deviceId at
+    // login and persist it in providerSpecificData so refreshes and
+    // usage fetches keep the same X-Msh-Device-Id across restarts.
+    let mut extra_psd = std::collections::BTreeMap::new();
+    if provider == "kimi" || provider == "kimi-coding" {
+        let device_id = uuid::Uuid::new_v4().to_string();
+        extra_psd.insert("deviceId".to_string(), json!(device_id));
+    }
+
+    if let Err(e) = store_connection(
+        &state.db,
+        &flow.account_id,
+        &provider,
+        &final_token_response,
+        None,
+    )
+    .await
+    {
+        return make_error_response(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            &format!("Failed to store connection: {}", e),
+            "storage_error",
+            &provider,
+        );
+    }
+
+    if !extra_psd.is_empty() {
+        if let Some(conn) = state
+            .db
+            .snapshot()
+            .provider_connections
+            .iter()
+            .find(|c| c.provider == provider && c.id == flow.account_id)
+            .cloned()
+        {
+            let _ = state
+                .db
+                .update(move |db| {
+                    if let Some(target) =
+                        db.provider_connections.iter_mut().find(|c| c.id == conn.id)
+                    {
+                        for (k, v) in extra_psd {
+                            target.provider_specific_data.insert(k, v);
+                        }
+                    }
                 })
-                .into_response();
-            }
-
-            state.pending_flows.remove(&device_code);
-
-            make_error_response(
-                StatusCode::BAD_REQUEST,
-                &e.error_description.unwrap_or_else(|| e.error.clone()),
-                &e.error,
-                &provider,
-            )
+                .await;
         }
     }
+
+    Json(PollResponse {
+        success: true,
+        provider: provider.clone(),
+        expires_in: final_token_response.expires_in.map(|e| e as u64),
+        pending: Some(false),
+        retry_after: None,
+        message: Some("Authorization successful".to_string()),
+    })
+    .into_response()
 }
 
 // POST /api/oauth/:provider/refresh
@@ -4871,7 +4992,7 @@ pub async fn refresh_token(
 
     let token_response = TokenResponse {
         access_token: refreshed.access_token,
-        expires_in: refreshed.expires_in.map(|s| s as i64),
+        expires_in: refreshed.expires_in,
         refresh_token: refreshed.refresh_token,
         id_token: None,
         token_type: None,

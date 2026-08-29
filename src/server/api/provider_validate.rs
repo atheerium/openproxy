@@ -36,6 +36,7 @@ async fn validate_provider(
         "sdwebui",
         "comfyui",
         "ollama-local",
+        "opencode-zen",
     ];
     if no_auth.contains(&provider.as_str()) {
         return Json(json!({ "valid": true })).into_response();
@@ -330,9 +331,7 @@ async fn validate_provider(
             }
         }
 
-        _ => {
-            return (StatusCode::BAD_REQUEST, Json(json!({ "error": "Provider validation not supported" }))).into_response();
-        }
+        _ => (true, None),
     };
 
     Json(json!({

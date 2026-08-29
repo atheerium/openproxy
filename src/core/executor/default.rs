@@ -11,6 +11,7 @@ use hyper::{Request as HyperRequest, Response as HyperResponse, Uri};
 use once_cell::sync::Lazy;
 use reqwest::header::{HeaderMap, HeaderValue, ACCEPT, AUTHORIZATION, CONTENT_TYPE};
 use serde_json::Value;
+use tokio::sync::{self, Semaphore};
 
 use crate::core::proxy::ProxyTarget;
 use crate::core::translator::helpers::openai_helper::normalize_developer_role;
@@ -145,6 +146,12 @@ static PROVIDER_CONFIGS: Lazy<BTreeMap<&'static str, ProviderConfig>> = Lazy::ne
             "opencode-go",
             ProviderConfig::openai("https://opencode.ai/zen/go/v1"),
         ),
+        // Zen answers 200 for unauthenticated POSTs, so auth is optional
+        // (`PROVIDER_OPTIONAL_AUTH`) and model ids pass through verbatim.
+        (
+            "opencode-zen",
+            ProviderConfig::openai("https://opencode.ai/zen/v1/chat/completions"),
+        ),
         (
             "glm-cn",
             ProviderConfig::openai("https://open.bigmodel.cn/api/coding/paas/v4/chat/completions"),
@@ -212,7 +219,6 @@ static PROVIDER_CONFIGS: Lazy<BTreeMap<&'static str, ProviderConfig>> = Lazy::ne
         ),
         (
             "tokenrouter",
-            // Chat endpoint only — embedding/image baseUrls belong to the media layer.
             ProviderConfig::openai("https://api.tokenrouter.com/v1/chat/completions"),
         ),
         (
@@ -481,8 +487,31 @@ static PROVIDER_CONFIGS: Lazy<BTreeMap<&'static str, ProviderConfig>> = Lazy::ne
             "xiaomi-tokenplan",
             ProviderConfig::openai("https://tokenplan.xiaomi.com/v1/chat/completions"),
         ),
+        (
+            "modelscope",
+            ProviderConfig::openai("https://api-inference.modelscope.cn/v1/chat/completions"),
+        ),
+        (
+            "aion",
+            ProviderConfig::openai("https://api.aionlabs.ai/v1/chat/completions"),
+        ),
+        (
+            "agnes",
+            ProviderConfig::openai("https://apihub.agnes-ai.com/v1/chat/completions"),
+        ),
+        (
+            "ai21",
+            ProviderConfig::openai("https://api.ai21.com/studio/v1/chat/completions"),
+        ),
+        (
+            "ovhcloud",
+            ProviderConfig::openai("https://oai.endpoints.kepler.ai.cloud.ovh.net/v1/chat/completions"),
+        ),
     ])
 });
+
+// Semaphore for tokenrouter free models to limit concurrent requests to 1
+static TOKENROUTER_SEMAPHORE: Lazy<Semaphore> = Lazy::new(|| Semaphore::new(1));
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ProviderConfig {
@@ -614,6 +643,7 @@ pub enum ExecutorError {
     HyperClientInit(io::Error),
     Hyper(hyper_util::client::legacy::Error),
     Request(reqwest::Error),
+    SemaphoreAcquisitionFailed,
     CredentialRefreshFailed(String),
     MaxRetriesExhausted(String),
     UpstreamStatus(http::StatusCode, String),
@@ -686,6 +716,12 @@ impl From<io::Error> for ExecutorError {
 impl From<hyper_util::client::legacy::Error> for ExecutorError {
     fn from(error: hyper_util::client::legacy::Error) -> Self {
         Self::Hyper(error)
+    }
+}
+
+impl From<tokio::sync::AcquireError> for ExecutorError {
+    fn from(_: tokio::sync::AcquireError) -> Self {
+        Self::SemaphoreAcquisitionFailed
     }
 }
 
@@ -1037,6 +1073,10 @@ impl DefaultExecutor {
             ] {
                 headers.remove(h);
             }
+        } else if provider_allows_missing_credentials(&self.provider)
+            && bearer_token(credentials).is_none()
+        {
+            // Intentionally no Authorization header: noAuth provider, no credential.
         } else {
             // Prefer access_token over api_key for Bearer (9router BaseExecutor)
             let token = credentials
@@ -1230,6 +1270,16 @@ impl DefaultExecutor {
         // Try primary then fallback URLs.
         let urls = self.resolve_urls(&request.model, request.stream, &request.credentials);
 
+        // Acquire semaphore for tokenrouter free models to limit concurrent requests to 1
+        let _tokenrouter_permit = if self.provider == "tokenrouter"
+            && (request.model == "qwen/qwen3.8-max-free"
+                || request.model == "moonshotai/kimi-k3-free")
+        {
+            Some(TOKENROUTER_SEMAPHORE.acquire().await?)
+        } else {
+            None
+        };
+
         for url in &urls {
             let use_hyper = self.use_hyper_transport(&request, url);
 
@@ -1291,18 +1341,25 @@ impl DefaultExecutor {
                     break;
                 }
 
-                // 429 (9router BaseExecutor.shouldRetry): retry only when
-                // another fallback URL exists; on the last URL return the raw
-                // response so the caller extracts retry-after and rotates
-                // accounts — masking it as 500 broke JS parity.
+                // 429: tokenrouter free models get exponential backoff; other 429/404
+                // follow 9router BaseExecutor.shouldRetry — retry only when another
+                // fallback URL exists, otherwise surface raw response for retry-after
+                // extraction and model-specific lock handling (404 modelLock_*).
                 if matches!(
                     status,
                     http::StatusCode::TOO_MANY_REQUESTS | http::StatusCode::NOT_FOUND
                 ) {
-                    // JS shouldRetry: only fall through when another fallback
-                    // URL exists; on the last URL the raw response reaches the
-                    // caller so retry-after extraction and model-specific lock
-                    // handling (404 modelLock_*) work as designed.
+                    let is_tokenrouter_free = self.provider == "tokenrouter"
+                        && (request.model == "qwen/qwen3.8-max-free"
+                            || request.model == "moonshotai/kimi-k3-free");
+                    if is_tokenrouter_free
+                        && status == http::StatusCode::TOO_MANY_REQUESTS
+                        && retry < 2
+                    {
+                        let delay_secs = 2u64.pow(retry as u32);
+                        tokio::time::sleep(Duration::from_secs(delay_secs)).await;
+                        continue;
+                    }
                     let has_next_url = urls.len() > 1 && url != urls.last().unwrap();
                     if !has_next_url {
                         return Ok(ExecutionResponse {
@@ -1547,6 +1604,18 @@ fn non_empty_option(value: Option<&str>) -> Option<&str> {
     value.map(str::trim).filter(|value| !value.is_empty())
 }
 
+fn bearer_token(credentials: &ProviderConnection) -> Option<&str> {
+    non_empty_option(credentials.access_token.as_deref())
+        .or_else(|| non_empty_option(credentials.api_key.as_deref()))
+}
+
+/// Providers whose upstream accepts unauthenticated requests (dashboard
+/// `noAuth: true`). They must reach the upstream without an Authorization
+/// header instead of failing with `MissingCredentials`.
+fn provider_allows_missing_credentials(provider: &str) -> bool {
+    matches!(provider, "opencode-zen")
+}
+
 /// 9router open-sse/executors/opencode-go.js MESSAGES_FORMAT_MODELS — these
 /// route to `${BASE}/messages` with `x-api-key` + `anthropic-version` headers.
 fn opencode_go_uses_claude_format(model: &str) -> bool {
@@ -1786,5 +1855,84 @@ mod tests {
             url, "https://opencode.ai/zen/go/v1/messages",
             "claude-format opencode-go URL must include /go"
         );
+    }
+
+    fn zen_executor() -> DefaultExecutor {
+        DefaultExecutor::new("opencode-zen", Arc::new(ClientPool::new()), None)
+            .expect("opencode-zen must be a supported provider")
+    }
+
+    #[test]
+    fn opencode_zen_posts_to_live_zen_chat_endpoint() {
+        // Live-verified: POST https://opencode.ai/zen/v1/chat/completions → 200.
+        let url = zen_executor()
+            .build_url("gpt-5.6-sol", false, &ProviderConnection::default())
+            .unwrap();
+        assert_eq!(url, "https://opencode.ai/zen/v1/chat/completions");
+    }
+
+    #[test]
+    fn opencode_zen_omits_authorization_without_credentials() {
+        // noAuth provider: an unauthenticated POST is accepted upstream, so a
+        // credential-less connection must not fail with MissingCredentials.
+        let headers = zen_executor()
+            .build_headers("hy3-free", &ProviderConnection::default(), false)
+            .expect("noAuth provider must build headers without credentials");
+        assert!(!headers.contains_key(AUTHORIZATION));
+    }
+
+    #[test]
+    fn opencode_zen_sends_bearer_when_credential_present() {
+        let credentials = ProviderConnection {
+            api_key: Some("zen-key".to_string()),
+            ..ProviderConnection::default()
+        };
+        let headers = zen_executor()
+            .build_headers("hy3-free", &credentials, false)
+            .unwrap();
+        assert_eq!(headers[AUTHORIZATION], "Bearer zen-key");
+    }
+
+    #[test]
+    fn openrouter_sends_attribution_headers_and_gateways_omit_them() {
+        let credentials = ProviderConnection {
+            api_key: Some("sk-or-test".to_string()),
+            ..ProviderConnection::default()
+        };
+        let openrouter =
+            DefaultExecutor::new("openrouter", Arc::new(ClientPool::new()), None).unwrap();
+        let headers = openrouter
+            .build_headers("meta/llama-3.1-8b-instruct:free", &credentials, false)
+            .unwrap();
+        assert_eq!(headers["HTTP-Referer"], "https://endpoint-proxy.local");
+        assert_eq!(headers["X-Title"], "Endpoint Proxy");
+
+        // OpenRouter-fronted gateways must not claim OpenRouter attribution.
+        for provider in ["kilocode", "nvidia"] {
+            let executor = DefaultExecutor::new(provider, Arc::new(ClientPool::new()), None);
+            if let Ok(executor) = executor {
+                let headers = executor
+                    .build_headers("tencent/hy3:free", &credentials, false)
+                    .unwrap();
+                assert!(
+                    !headers.contains_key("HTTP-Referer"),
+                    "{provider} must omit HTTP-Referer"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn kilocode_posts_to_live_openrouter_gateway_endpoint() {
+        // Live-verified: POST https://api.kilo.ai/api/openrouter/chat/completions → 200.
+        let executor = DefaultExecutor::new("kilocode", Arc::new(ClientPool::new()), None).unwrap();
+        let credentials = ProviderConnection {
+            api_key: Some("kc-test".to_string()),
+            ..ProviderConnection::default()
+        };
+        let url = executor
+            .build_url("tencent/hy3:free", false, &credentials)
+            .unwrap();
+        assert_eq!(url, "https://api.kilo.ai/api/openrouter/chat/completions");
     }
 }

@@ -22,6 +22,7 @@ async fn build_test_app() -> axum::Router {
             is_active: Some(true),
             created_at: None,
             extra: Default::default(),
+            monthly_budget_usd: None,
         }];
         state.settings.require_login = false;
     })
@@ -49,7 +50,22 @@ async fn api_health_returns_sidecar_compatible_payload() {
         .await
         .unwrap();
     let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
-    assert_eq!(json, serde_json::json!({ "ok": true }));
+    // The endpoint returns ok status and a providers summary object.
+    // In the test environment there are no provider connections,
+    // so the summary contains zero counts and empty arrays/objects.
+    assert_eq!(
+        json,
+        serde_json::json!({
+            "ok": true,
+            "providers": {
+                "byStatus": {},
+                "connections": 0,
+                "degraded": 0,
+                "healthy": 0,
+                "providers": []
+            }
+        })
+    );
 }
 
 #[tokio::test]

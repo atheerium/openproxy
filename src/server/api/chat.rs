@@ -25,7 +25,8 @@ use crate::core::combo::{
     },
     check_fallback_error, detect_required_capabilities, execute_combo_strategy_full,
     get_combo_models_from_data, get_disabled_members_for_combo, mark_combo_member_quarantined,
-    ComboAttemptError, ComboExecutionError, ComboStrategy, FusionConfig, ModelCapacity,
+    strategy_for_combo, ComboAttemptError, ComboExecutionError, ComboStrategy, FusionConfig,
+    ModelCapacity,
 };
 use crate::core::executor::UpstreamResponse;
 use crate::core::model::{get_model_info, ModelRouteKind};
@@ -38,6 +39,7 @@ use crate::core::translator::helpers::modality_helper::{
 };
 use crate::core::translator::registry::{self, Format};
 use crate::core::translator::response_transform::{transform_sse_stream, transformer_for_provider};
+use crate::core::usage::CompressionStats;
 use crate::core::utils::bypass_handler::{detect_bypass, BypassDecision, DEFAULT_BYPASS_TEXT};
 use crate::core::utils::claude_cloaking::{cloak_claude_tools, CloakedRequest};
 use crate::core::utils::client_detector::{detect_client_tool, is_native_passthrough, ClientTool};
@@ -369,7 +371,48 @@ async fn chat_completions_impl(
         }
         BypassDecision::Pass => {}
     }
-    match resolved.route_kind {
+
+    // Feature4: ResponseCache — consult before provider dispatch.
+    // Only non-streaming requests are cached: the cache stores a single JSON
+    // body, and a streaming client would misinterpret a cached non-SSE body.
+    let is_streaming = body.get("stream").and_then(Value::as_bool).unwrap_or(false);
+
+    if !is_streaming {
+        if let Some((cached, ttl_remaining)) = state.response_cache.get_with_ttl(&body) {
+            let mut resp = Response::new(Body::from(cached));
+            resp.headers_mut().insert(
+                header::CONTENT_TYPE,
+                HeaderValue::from_static("application/json"),
+            );
+            resp.headers_mut()
+                .insert("x-cache", HeaderValue::from_static("HIT"));
+
+            // Robot envelope: lets agents detect a cache hit and its remaining
+            // TTL without parsing the body. Carried as a header so the OpenAI-
+            // compatible JSON body stays untouched.
+            let envelope = json!({
+                "schema": "openproxy.v1.cache.hit",
+                "ok": true,
+                "data": {
+                    "cache_hit": true,
+                    "model": body.get("model").and_then(Value::as_str).unwrap_or(""),
+                    "provider": resolved.provider.as_deref().unwrap_or("unknown"),
+                    "ttl_remaining": ttl_remaining,
+                },
+                "meta": {},
+            });
+            if let Ok(value) = serde_json::to_string(&envelope) {
+                if let Ok(hv) = HeaderValue::from_str(&value) {
+                    resp.headers_mut().insert("x-cache-envelope", hv);
+                }
+            }
+            return resp;
+        }
+    }
+
+    let cache_provider = resolved.provider.as_deref().unwrap_or("unknown");
+
+    let response = match resolved.route_kind {
         ModelRouteKind::Combo => {
             let combo_name = resolved.model;
             let Some(combo_models) = get_combo_models_from_data(&combo_name, &snapshot.combos)
@@ -397,7 +440,7 @@ async fn chat_completions_impl(
                 .filter(|m| !combo_models.contains(m))
                 .cloned()
                 .collect();
-            let mut strategy = combo_strategy_for(&snapshot, &combo_name);
+            let mut strategy = strategy_for_combo(&snapshot, &combo_name);
             // Solo-augmented path: an adapter model was prepended to a
             // single-member combo — use the adapter pool's strategy.
             if !adapter_added.is_empty() && combo_models.len() == 1 {
@@ -588,6 +631,7 @@ async fn chat_completions_impl(
                     &disabled_members,
                     sticky_limit,
                     Some(&required_caps),
+                    &snapshot.pricing,
                     capacity_check,
                     move |combo_model| {
                         let state = combo_state.clone();
@@ -710,7 +754,13 @@ async fn chat_completions_impl(
                 Err(error) => attempt_error_response(error),
             }
         }
+    };
+
+    // Feature4: populate the cache on a successful non-streaming miss.
+    if !is_streaming {
+        return cache_miss_response(&state, &body, cache_provider, response).await;
     }
+    response
 }
 
 /// Inject provider-level thinking override onto the **source** body
@@ -807,6 +857,61 @@ async fn prefetch_images_in_messages(body: &mut Value) {
             }
         }
     }
+}
+
+/// Feature4: cache a successful response and tag it `X-Cache: MISS`.
+async fn cache_miss_response(
+    state: &AppState,
+    body: &Value,
+    provider: &str,
+    response: Response,
+) -> Response {
+    if !response.status().is_success() {
+        // Don't cache errors; just mark the miss.
+        let mut response = response;
+        response
+            .headers_mut()
+            .insert("x-cache", HeaderValue::from_static("MISS"));
+        return response;
+    }
+
+    let headers = response.headers().clone();
+    let bytes = match axum::body::to_bytes(response.into_body(), 64 * 1024 * 1024).await {
+        Ok(bytes) => bytes,
+        Err(_) => {
+            // Body unreadable (should not happen for non-streaming JSON).
+            let mut err = Response::new(Body::from(""));
+            *err.status_mut() = StatusCode::INTERNAL_SERVER_ERROR;
+            return err;
+        }
+    };
+
+    state
+        .response_cache
+        .set(body, bytes.to_vec(), provider, None);
+
+    let mut resp = Response::new(Body::from(bytes));
+    *resp.headers_mut() = headers;
+    resp.headers_mut()
+        .insert("x-cache", HeaderValue::from_static("MISS"));
+    resp
+}
+
+/// GET /api/cache/stats — response-cache hit-rate counters for the dashboard.
+///
+/// Returns the live `hits` / `misses` / `sets` / `entries` counts and the
+/// derived `hit_rate` (`hits / (hits + misses)`). Cheap: counters are atomic
+/// and the entry count is a single DashMap len.
+pub async fn cache_stats(State(state): State<AppState>) -> Response {
+    let stats = state.response_cache.stats();
+    Json(json!({
+        "hits": stats.hits,
+        "misses": stats.misses,
+        "sets": stats.sets,
+        "entries": stats.entries,
+        "hit_rate": stats.hit_rate,
+    }))
+    .into_response()
 }
 
 /// Apply 9router stream decision to a RequestPlan (mutates stream + sse_to_json).
@@ -1005,10 +1110,16 @@ async fn execute_single_model(
     );
 
     // 4. RTK tool-result compression (after translate — 9router parity)
-    compress_messages(
+    let compression_stats: Option<CompressionStats> = compress_messages(
         &mut body,
         token_saver_enabled && snapshot.settings.rtk_enabled,
-    );
+    )
+    .map(|rtk_stats| CompressionStats {
+        bytes_before: rtk_stats.bytes_before as u64,
+        bytes_after: rtk_stats.bytes_after as u64,
+        bytes_saved: rtk_stats.hits.iter().map(|h| h.saved as u64).sum(),
+        image_prompts: rtk_stats.image_prompts as u64,
+    });
 
     // 5. Headroom (after translate — 9router parity; format = final body shape)
     {
@@ -1126,6 +1237,7 @@ async fn execute_single_model(
         endpoint,
         plan,
         client_tool,
+        compression_stats,
     )
     .await
 }
@@ -1139,10 +1251,18 @@ async fn forward_with_provider_fallback(
     endpoint: Option<&'static str>,
     plan: &RequestPlan,
     client_tool: Option<ClientTool>,
+    compression: Option<CompressionStats>,
 ) -> Result<Response, ComboAttemptError> {
     let mut excluded = HashSet::new();
     let mut last_error: Option<ComboAttemptError> = None;
     let registry = &state.account_registry;
+
+    // Per-key monthly budget kill-switch (free-tier Feature 3): block the
+    // request with 429 before any provider dispatch when the cap is reached.
+    let budget_remaining = match crate::server::api::budget_guard::enforce_budget(state, api_key) {
+        Ok(remaining) => remaining,
+        Err(response) => return Ok(response),
+    };
 
     // Extract tool name map from body (set by Claude cloaking).
     // Remove from body before dispatch to avoid serializing it upstream.
@@ -2032,7 +2152,7 @@ async fn forward_with_provider_fallback(
                     }
                     clear_connection_error_for_model(state, &connection.id, Some(model)).await;
                     if dashboard_stream {
-                        return Ok(proxy_dashboard_sse_with_usage_tracking(
+                        let response = proxy_dashboard_sse_with_usage_tracking(
                             result.response,
                             state,
                             provider,
@@ -2040,8 +2160,13 @@ async fn forward_with_provider_fallback(
                             Some(connection.id.as_str()),
                             api_key,
                             endpoint,
+                            compression.clone(),
                         )
-                        .await);
+                        .await;
+                        return Ok(crate::server::api::budget_guard::with_budget_header(
+                            response,
+                            budget_remaining,
+                        ));
                     }
                     // forceStream + client non-stream → collect SSE → JSON (9router)
                     if plan.sse_to_json {
@@ -2051,7 +2176,7 @@ async fn forward_with_provider_fallback(
                             provider,
                             model
                         );
-                        return Ok(proxy_sse_to_json_response(
+                        let response = proxy_sse_to_json_response(
                             result.response,
                             state,
                             provider,
@@ -2060,11 +2185,16 @@ async fn forward_with_provider_fallback(
                             api_key,
                             endpoint,
                             plan,
+                            compression.clone(),
                         )
-                        .await);
+                        .await;
+                        return Ok(crate::server::api::budget_guard::with_budget_header(
+                            response,
+                            budget_remaining,
+                        ));
                     }
                     if !stream {
-                        return Ok(proxy_response_with_usage_tracking(
+                        let response = proxy_response_with_usage_tracking(
                             result.response,
                             state,
                             provider,
@@ -2074,12 +2204,17 @@ async fn forward_with_provider_fallback(
                             endpoint,
                             plan,
                             tool_name_map.as_ref(),
+                            compression.clone(),
                         )
-                        .await);
+                        .await;
+                        return Ok(crate::server::api::budget_guard::with_budget_header(
+                            response,
+                            budget_remaining,
+                        ));
                     }
                     let normalize_for_dashboard =
                         endpoint == Some("/api/dashboard/chat/completions");
-                    return Ok(proxy_response_with_pending_tracking(
+                    let response = proxy_response_with_pending_tracking(
                         result.response,
                         state.clone(),
                         provider.to_string(),
@@ -2090,8 +2225,13 @@ async fn forward_with_provider_fallback(
                         normalize_for_dashboard,
                         plan,
                         tool_name_map.as_ref(),
+                        compression.clone(),
                     )
-                    .await);
+                    .await;
+                    return Ok(crate::server::api::budget_guard::with_budget_header(
+                        response,
+                        budget_remaining,
+                    ));
                 }
 
                 // 9router parity: retryAfter may come from the Retry-After header
@@ -2269,6 +2409,7 @@ async fn proxy_dashboard_sse_with_usage_tracking(
     connection_id: Option<&str>,
     api_key: Option<&str>,
     endpoint: Option<&str>,
+    compression: Option<CompressionStats>,
 ) -> Response {
     let status = response.status();
     let headers = response.headers().clone();
@@ -2285,6 +2426,11 @@ async fn proxy_dashboard_sse_with_usage_tracking(
                 connection_id,
                 api_key,
                 endpoint,
+                compression,
+                None, // latency_ms
+                None, // ttft_ms
+                None, // status
+                None, // error_class
             )
             .await;
         state.usage_live.notify_update();
@@ -2594,30 +2740,6 @@ fn earliest_retry_after(
         .min()
 }
 
-fn combo_strategy_for(snapshot: &AppDb, combo_name: &str) -> ComboStrategy {
-    let value = snapshot
-        .settings
-        .combo_strategies
-        .get(combo_name)
-        .map(|e| e.strategy_name())
-        .unwrap_or(snapshot.settings.combo_strategy.as_str());
-
-    if value.eq_ignore_ascii_case("round-robin") {
-        ComboStrategy::RoundRobin
-    } else if value.eq_ignore_ascii_case("fusion") {
-        ComboStrategy::Fusion
-    } else if value.eq_ignore_ascii_case("hedging") {
-        // Documented: hedging module exists; dispatcher falls back until wired
-        ComboStrategy::Fallback
-    } else if value.eq_ignore_ascii_case("shadow") {
-        ComboStrategy::Fallback
-    } else if value.eq_ignore_ascii_case("auto-combo") || value.eq_ignore_ascii_case("autocombo") {
-        ComboStrategy::Fallback
-    } else {
-        ComboStrategy::Fallback
-    }
-}
-
 /// Merge 9router nested comboStrategies[name] (judgeModel / fusionTuning) into FusionConfig.
 fn fusion_config_for(snapshot: &AppDb, combo_name: &str, panel_count: usize) -> FusionConfig {
     let mut extra: serde_json::Map<String, Value> = snapshot
@@ -2762,6 +2884,7 @@ async fn proxy_sse_to_json_response(
     api_key: Option<&str>,
     endpoint: Option<&str>,
     plan: &RequestPlan,
+    compression: Option<CompressionStats>,
 ) -> Response {
     let status = response.status();
     let (body_bytes, body_complete) = collect_upstream_response_bytes(response).await;
@@ -2794,6 +2917,11 @@ async fn proxy_sse_to_json_response(
                 connection_id,
                 api_key,
                 endpoint,
+                compression,
+                None, // latency_ms
+                None, // ttft_ms
+                None, // status
+                None, // error_class
             )
             .await;
     }
@@ -2827,6 +2955,7 @@ async fn proxy_response_with_usage_tracking(
     endpoint: Option<&str>,
     plan: &RequestPlan,
     tool_name_map: Option<&std::collections::BTreeMap<String, String>>,
+    compression: Option<CompressionStats>,
 ) -> Response {
     let status = response.status();
     let headers = response.headers().clone();
@@ -2864,6 +2993,11 @@ async fn proxy_response_with_usage_tracking(
                 connection_id,
                 api_key,
                 endpoint,
+                compression,
+                None, // latency_ms
+                None, // ttft_ms
+                None, // status
+                None, // error_class
             )
             .await;
         state.usage_live.notify_update();
@@ -3010,6 +3144,7 @@ async fn proxy_response_with_pending_tracking(
     normalize_for_dashboard: bool,
     plan: &RequestPlan,
     tool_name_map: Option<&std::collections::BTreeMap<String, String>>,
+    compression: Option<CompressionStats>,
 ) -> Response {
     // Capture an owned copy of api_key for usage recording inside the stream
     // (the SSE stream requires 'static lifetimes; &str borrows can't escape).
@@ -3083,6 +3218,7 @@ async fn proxy_response_with_pending_tracking(
             let model = model.clone();
             let connection_id = connection_id.clone();
             let api_key = api_key.clone();
+            let compression = compression.clone();
             let mut transformer = transformer;
             let mut pending_text = String::new();
             let stream = async_stream::stream! {
@@ -3110,7 +3246,7 @@ async fn proxy_response_with_pending_tracking(
                                 "SSE stalled, closing stream"
                             );
                             record_streaming_usage(&state, &provider, &model,
-                                connection_id.as_deref(), api_key.as_deref(), endpoint, &last_data).await;
+                                connection_id.as_deref(), api_key.as_deref(), endpoint, &last_data, compression.clone()).await;
                             state
                                 .usage_live
                                 .finish_request(&model, &provider, connection_id.as_deref(), true)
@@ -3162,7 +3298,7 @@ async fn proxy_response_with_pending_tracking(
                         Ok(Ok(None)) => break,
                         Ok(Err(_)) => {
                             record_streaming_usage(&state, &provider, &model,
-                                connection_id.as_deref(), api_key.as_deref(), endpoint, &last_data).await;
+                                connection_id.as_deref(), api_key.as_deref(), endpoint, &last_data, compression.clone()).await;
                             state
                                 .usage_live
                                 .finish_request(&model, &provider, connection_id.as_deref(), true)
@@ -3196,7 +3332,7 @@ async fn proxy_response_with_pending_tracking(
                     }
                 }
                 record_streaming_usage(&state, &provider, &model,
-                    connection_id.as_deref(), api_key.as_deref(), endpoint, &last_data).await;
+                    connection_id.as_deref(), api_key.as_deref(), endpoint, &last_data, compression.clone()).await;
                 state
                     .usage_live
                     .finish_request(&model, &provider, connection_id.as_deref(), false)
@@ -3211,6 +3347,7 @@ async fn proxy_response_with_pending_tracking(
             let model = model.clone();
             let connection_id = connection_id.clone();
             let api_key = api_key.clone();
+            let compression = compression.clone();
             let mut transformer = transformer;
             let mut pending_text = String::new();
             let stream = async_stream::stream! {
@@ -3234,7 +3371,7 @@ async fn proxy_response_with_pending_tracking(
                                 "SSE stalled, closing stream"
                             );
                             record_streaming_usage(&state, &provider, &model,
-                                connection_id.as_deref(), api_key.as_deref(), endpoint, &last_data).await;
+                                connection_id.as_deref(), api_key.as_deref(), endpoint, &last_data, compression.clone()).await;
                             state
                                 .usage_live
                                 .finish_request(&model, &provider, connection_id.as_deref(), true)
@@ -3282,7 +3419,7 @@ async fn proxy_response_with_pending_tracking(
                         }
                         Err(_) => {
                             record_streaming_usage(&state, &provider, &model,
-                                connection_id.as_deref(), api_key.as_deref(), endpoint, &last_data).await;
+                                connection_id.as_deref(), api_key.as_deref(), endpoint, &last_data, compression.clone()).await;
                             state
                                 .usage_live
                                 .finish_request(&model, &provider, connection_id.as_deref(), true)
@@ -3316,7 +3453,7 @@ async fn proxy_response_with_pending_tracking(
                     }
                 }
                 record_streaming_usage(&state, &provider, &model,
-                    connection_id.as_deref(), api_key.as_deref(), endpoint, &last_data).await;
+                    connection_id.as_deref(), api_key.as_deref(), endpoint, &last_data, compression.clone()).await;
                 state
                     .usage_live
                     .finish_request(&model, &provider, connection_id.as_deref(), false)
@@ -3358,6 +3495,7 @@ async fn record_streaming_usage(
     api_key: Option<&str>,
     endpoint: Option<&'static str>,
     last_data: &Option<Bytes>,
+    compression: Option<CompressionStats>,
 ) {
     let usage = last_data
         .as_ref()
@@ -3371,6 +3509,11 @@ async fn record_streaming_usage(
             connection_id,
             api_key,
             endpoint,
+            compression,
+            None, // latency_ms
+            None, // ttft_ms
+            None, // status
+            None, // error_class
         )
         .await;
 }
@@ -3688,11 +3831,24 @@ fn strip_sse_data_prefix(body: &[u8]) -> &[u8] {
 }
 
 fn extract_token_usage_from_bytes(body: &[u8]) -> Option<TokenUsage> {
-    // Handle SSE data-prefixed chunks (e.g. "data: {"choices":[...],"usage":{...}}")
-    // by stripping the "data: " prefix before attempting JSON parse.
     let body = strip_sse_data_prefix(body);
     let value = serde_json::from_slice::<Value>(body).ok()?;
-    let usage = value.get("usage")?.as_object()?;
+
+    let usage_obj = value
+        .get("usage")
+        .and_then(Value::as_object)
+        .or_else(|| {
+            value
+                .get("data")
+                .and_then(|d| d.get("usage"))
+                .and_then(Value::as_object)
+        })
+        .or_else(|| {
+            value
+                .get("result")
+                .and_then(|d| d.get("usage"))
+                .and_then(Value::as_object)
+        });
 
     let known_fields = [
         "prompt_tokens",
@@ -3706,24 +3862,80 @@ fn extract_token_usage_from_bytes(body: &[u8]) -> Option<TokenUsage> {
         "cache_creation_input_tokens",
     ];
 
-    Some(TokenUsage {
-        prompt_tokens: usage.get("prompt_tokens").and_then(Value::as_u64),
-        input_tokens: usage.get("input_tokens").and_then(Value::as_u64),
-        completion_tokens: usage.get("completion_tokens").and_then(Value::as_u64),
-        output_tokens: usage.get("output_tokens").and_then(Value::as_u64),
-        total_tokens: usage.get("total_tokens").and_then(Value::as_u64),
-        reasoning_tokens: usage.get("reasoning_tokens").and_then(Value::as_u64),
-        cached_tokens: usage.get("cached_tokens").and_then(Value::as_u64),
-        cache_read_input_tokens: usage.get("cache_read_input_tokens").and_then(Value::as_u64),
-        cache_creation_input_tokens: usage
-            .get("cache_creation_input_tokens")
-            .and_then(Value::as_u64),
-        extra: usage
-            .iter()
-            .filter(|(key, _)| !known_fields.contains(&key.as_str()))
-            .map(|(key, value)| (key.clone(), value.clone()))
-            .collect::<BTreeMap<_, _>>(),
+    if let Some(usage) = usage_obj {
+        return Some(TokenUsage {
+            prompt_tokens: extract_u64(usage, "prompt_tokens"),
+            input_tokens: extract_u64(usage, "input_tokens"),
+            completion_tokens: extract_u64(usage, "completion_tokens"),
+            output_tokens: extract_u64(usage, "output_tokens"),
+            total_tokens: extract_u64(usage, "total_tokens"),
+            reasoning_tokens: extract_u64(usage, "reasoning_tokens"),
+            cached_tokens: extract_u64(usage, "cached_tokens"),
+            cache_read_input_tokens: extract_u64(usage, "cache_read_input_tokens"),
+            cache_creation_input_tokens: extract_u64(usage, "cache_creation_input_tokens"),
+            extra: usage
+                .iter()
+                .filter(|(key, _)| !known_fields.contains(&key.as_str()))
+                .map(|(key, value)| (key.clone(), value.clone()))
+                .collect::<BTreeMap<_, _>>(),
+        });
+    }
+
+    // Fallback: some providers put input_tokens/output_tokens directly at the
+    // top level (e.g. Anthropic, some proxies). Only use this when at least
+    // one token field is present to avoid creating a zero-filled entry for
+    // responses that have no usage data at all.
+    let input = extract_u64_from_value(&value, "input_tokens");
+    let prompt = extract_u64_from_value(&value, "prompt_tokens");
+    let output = extract_u64_from_value(&value, "output_tokens");
+    let completion = extract_u64_from_value(&value, "completion_tokens");
+    let total = extract_u64_from_value(&value, "total_tokens");
+    if input + prompt + output + completion + total > 0 {
+        return Some(TokenUsage {
+            prompt_tokens: opt(prompt).or(opt(input)),
+            input_tokens: opt(input).filter(|_| prompt == 0),
+            completion_tokens: opt(completion).or(opt(output)),
+            output_tokens: opt(output).filter(|_| completion == 0),
+            total_tokens: opt(total),
+            reasoning_tokens: opt(extract_u64_from_value(&value, "reasoning_tokens")),
+            cached_tokens: opt(extract_u64_from_value(&value, "cached_tokens")),
+            cache_read_input_tokens: opt(extract_u64_from_value(&value, "cache_read_input_tokens")),
+            cache_creation_input_tokens: opt(extract_u64_from_value(
+                &value,
+                "cache_creation_input_tokens",
+            )),
+            extra: BTreeMap::new(),
+        });
+    }
+
+    None
+}
+
+fn extract_u64(obj: &serde_json::Map<String, Value>, key: &str) -> Option<u64> {
+    obj.get(key).and_then(|v| match v {
+        Value::Number(n) => n.as_u64(),
+        Value::String(s) => s.parse().ok(),
+        _ => None,
     })
+}
+
+fn extract_u64_from_value(value: &Value, key: &str) -> u64 {
+    value
+        .get(key)
+        .and_then(|v| match v {
+            Value::Number(n) => n.as_u64(),
+            Value::String(s) => s.parse().ok(),
+            _ => None,
+        })
+        .unwrap_or(0)
+}
+
+fn opt(v: u64) -> Option<u64> {
+    if v > 0 {
+        Some(v)
+    } else {
+        None
+    }
 }
 
 /// Extract the error message AND raw body bytes from an upstream error response.

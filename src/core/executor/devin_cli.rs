@@ -307,8 +307,8 @@ impl DevinCliExecutor {
             });
             id_counter += 1;
             let line = format!("{}\n", serde_json::to_string(&msg).unwrap_or_default());
-            let _ = stdin.write_all(line.as_bytes());
-            let _ = stdin.flush();
+            std::mem::drop(stdin.write_all(line.as_bytes()));
+            std::mem::drop(stdin.flush());
         };
 
         let response_id = format!("chatcmpl-devin-{}", chrono::Utc::now().timestamp_millis());

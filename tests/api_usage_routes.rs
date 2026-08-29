@@ -25,6 +25,7 @@ async fn build_test_app() -> axum::Router {
             is_active: Some(true),
             created_at: None,
             extra: Default::default(),
+            monthly_budget_usd: None,
         }];
         state.settings.require_login = false;
         state.provider_nodes = vec![ProviderNode {
@@ -73,6 +74,10 @@ async fn build_test_app() -> axum::Router {
             endpoint: Some("/v1/chat/completions".to_string()),
             cost: Some(0.5),
             status: Some("success".to_string()),
+            bytes_before: 0,
+            bytes_after: 0,
+            bytes_saved: 0,
+            image_prompts: 0,
             extra,
         }];
         usage.total_requests_lifetime = 1;
