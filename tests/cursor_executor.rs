@@ -1,11 +1,11 @@
 use std::collections::BTreeMap;
 use std::sync::Arc;
 
-use openproxy::core::executor::{
+use cipherroute::core::executor::{
     parse_cursor_sse_events, ClientPool, CursorExecutionRequest, CursorExecutor,
     CursorExecutorError, SseEvent,
 };
-use openproxy::types::{ProviderConnection, ProviderNode};
+use cipherroute::types::{ProviderConnection, ProviderNode};
 
 fn cursor_connection() -> ProviderConnection {
     ProviderConnection {

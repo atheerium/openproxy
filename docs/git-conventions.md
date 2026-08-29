@@ -1,4 +1,4 @@
-# Git Conventions — OpenProxy
+# Git Conventions — CipherRoute
 
 Systematic git hygiene keeps `main` bisectable, revertible, and reviewable. This is the enforceable complement to [`CONTRIBUTING.md`](../CONTRIBUTING.md). If in doubt, follow this doc — not habit.
 
@@ -87,7 +87,7 @@ Bad → Good:
 
 ### Breaking changes
 
-If the `openproxy.v1.*` JSON envelope changes in a non-additive way, or a CLI flag is removed, mark it:
+If the `cipherroute.v1.*` JSON envelope changes in a non-additive way, or a CLI flag is removed, mark it:
 
 ```
 feat(api)!: rename /api/providers/:id/import-models response field
@@ -143,7 +143,7 @@ Run the same checks CI runs — locally, every commit:
 ```bash
 cargo fmt --all -- --check
 cargo clippy --all-targets --all-features
-cargo test -p openproxy --lib provider_models -- --nocapture   # quick smoke
+cargo test -p cipherroute --lib provider_models -- --nocapture   # quick smoke
 # or: ./scripts/dev.sh --no-run   # build+test without starting server
 ```
 
@@ -165,7 +165,7 @@ If CI fails, fix it in a new commit — don't amend pushed history (see below).
   git fetch origin
   git rebase origin/main
   # resolve conflicts, then:
-  cargo fmt && cargo clippy && cargo test -p openproxy --lib provider_models
+  cargo fmt && cargo clippy && cargo test -p cipherroute --lib provider_models
   git push --force-with-lease
   ```
 - **After push:** don't amend/rebase public history. Fix with a new commit.
@@ -183,7 +183,7 @@ PRs use `.github/pull_request_template.md` — fill in:
 - **Summary** — what changed, in 1–3 sentences
 - **Test plan** — exact commands run + evidence (e.g. `curl -sf http://127.0.0.1:4623/health` → `{"ok":true}`)
 - **Risk & rollback** — safe to revert? needs migration?
-- **Linked issues/beads** — `Fixes #123` or `beads: openproxy-xyz`
+- **Linked issues/beads** — `Fixes #123` or `beads: cipherroute-xyz`
 
 Rules:
 
@@ -199,8 +199,8 @@ Draft PRs for early feedback: `gh pr create --draft`.
 
 ## 7. Issues & Beads
 
-- **GitHub Issues:** search before creating (`gh search issues "kilocode"`). Use templates in `.github/ISSUE_TEMPLATE/` — Bug Report / Feature Request. Include repro steps, `openproxy --version`, and whether `./scripts/dev.sh --full` reproduces.
-- **Beads (parity work):** epics like `openproxy-9router-parity-v0550-pnc` live in `br` / `bv --robot-next`. For provider parity, check OmniRoute (`/tmp/omniroute_v3850/src/managed/`) before filing — link the relevant file in the issue.
+- **GitHub Issues:** search before creating (`gh search issues "kilocode"`). Use templates in `.github/ISSUE_TEMPLATE/` — Bug Report / Feature Request. Include repro steps, `cipherroute --version`, and whether `./scripts/dev.sh --full` reproduces.
+- **Beads (parity work):** epics like `cipherroute-9router-parity-v0550-pnc` live in `br` / `bv --robot-next`. For provider parity, check OmniRoute (`/tmp/omniroute_v3850/src/managed/`) before filing — link the relevant file in the issue.
 
 ---
 
@@ -210,7 +210,7 @@ Draft PRs for early feedback: `gh pr create --draft`.
 - Tag from green `main`:
   ```bash
   git checkout main && git pull
-  cargo test -p openproxy --lib -- --test-threads=1  # or ./scripts/dev.sh --full
+  cargo test -p cipherroute --lib -- --test-threads=1  # or ./scripts/dev.sh --full
   git tag -a v0.2.1 -m "v0.2.1 — short changelog"
   git push origin v0.2.1
   ```
@@ -220,7 +220,7 @@ Draft PRs for early feedback: `gh pr create --draft`.
 
 ## 9. Secrets — The Non-Negotiable
 
-- Never commit `opencode.json`, `.env*`, `*.pem`, `~/.openproxy/db.json`, `~/.openproxy/admin.key`, or any string matching `sk-`, `Bearer`, `refresh_token`.
+- Never commit `opencode.json`, `.env*`, `*.pem`, `~/.cipherroute/db.json`, `~/.cipherroute/admin.key`, or any string matching `sk-`, `Bearer`, `refresh_token`.
 - Before `git add`: `git status` → `git diff --cached` → `git restore --staged <file>` if needed → `git check-ignore -v <file>`.
 - If a secret lands in history: **rotate it immediately** and purge with `git filter-repo` or BFG — don't just revert.
 

@@ -3,9 +3,9 @@ use std::sync::Arc;
 
 use axum::body::Body;
 use axum::http::{Request, StatusCode};
-use openproxy::db::Db;
-use openproxy::server::state::AppState;
-use openproxy::types::{ApiKey, ProviderConnection, ProviderNode};
+use cipherroute::db::Db;
+use cipherroute::server::state::AppState;
+use cipherroute::types::{ApiKey, ProviderConnection, ProviderNode};
 use serde_json::json;
 use tempfile::tempdir;
 use tower::util::ServiceExt;
@@ -95,7 +95,7 @@ async fn seeded_state(nodes: Vec<ProviderNode>, connections: Vec<ProviderConnect
 
 #[tokio::test]
 async fn v1beta_models_options_and_list_are_available() {
-    let app = openproxy::build_app(
+    let app = cipherroute::build_app(
         seeded_state(
             vec![provider_node(
                 "node-openai",
@@ -180,7 +180,7 @@ async fn v1beta_generate_content_converts_request_and_response() {
         .mount(&upstream)
         .await;
 
-    let app = openproxy::build_app(
+    let app = cipherroute::build_app(
         seeded_state(
             vec![provider_node(
                 "node-openai",
@@ -250,7 +250,7 @@ async fn v1beta_stream_generate_content_converts_sse_chunks() {
         .mount(&upstream)
         .await;
 
-    let app = openproxy::build_app(
+    let app = cipherroute::build_app(
         seeded_state(
             vec![provider_node(
                 "node-openai",

@@ -1,4 +1,4 @@
-//! Cloud auth, credential refresh, and alias APIs that must match openproxy.
+//! Cloud auth, credential refresh, and alias APIs that must match cipherroute.
 
 use axum::{
     extract::State,

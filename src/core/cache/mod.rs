@@ -1,10 +1,10 @@
-//! Response cache for OpenProxy.
+//! Response cache for CipherRoute.
 //!
 //! Provides an exact-match response cache keyed by SHA-256 of the serialized
 //! request body. Non-streaming chat completions are cached with a configurable
 //! TTL (default 60 seconds). Upstream `Cache-Control` headers are respected.
 //!
-//! This is the equivalent of OmniRoute's response cache, ported to OpenProxy.
+//! This is the equivalent of OmniRoute's response cache, ported to CipherRoute.
 
 use std::collections::BTreeMap;
 use std::hash::Hash;
@@ -199,7 +199,7 @@ impl ResponseCache {
 
     /// Like [`ResponseCache::get`] but also returns the remaining TTL (seconds)
     /// of the served entry. Used by the HIT path to report `ttl_remaining` in
-    /// the `openproxy.v1.cache.hit` robot envelope.
+    /// the `cipherroute.v1.cache.hit` robot envelope.
     pub fn get_with_ttl(&self, body: &Value) -> Option<(Vec<u8>, u64)> {
         // Honor explicit Cache-Control: no-cache from the client request
         if has_no_cache_directive(body) {

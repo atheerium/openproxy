@@ -3,9 +3,9 @@ use std::sync::Arc;
 
 use axum::body::Body;
 use axum::http::{Request, StatusCode};
-use openproxy::db::Db;
-use openproxy::server::state::AppState;
-use openproxy::types::ApiKey;
+use cipherroute::db::Db;
+use cipherroute::server::state::AppState;
+use cipherroute::types::ApiKey;
 use serde_json::{json, Value};
 use tempfile::tempdir;
 use tower::util::ServiceExt;
@@ -43,7 +43,7 @@ async fn app_state() -> AppState {
 
 #[tokio::test]
 async fn get_payload_rules_requires_auth() {
-    let app = openproxy::build_app(app_state().await);
+    let app = cipherroute::build_app(app_state().await);
 
     let unauthenticated = app
         .oneshot(
@@ -59,7 +59,7 @@ async fn get_payload_rules_requires_auth() {
 
 #[tokio::test]
 async fn put_payload_rules_persists_and_normalizes() {
-    let app = openproxy::build_app(app_state().await);
+    let app = cipherroute::build_app(app_state().await);
 
     let put = app
         .clone()
@@ -136,7 +136,7 @@ async fn put_payload_rules_persists_and_normalizes() {
 
 #[tokio::test]
 async fn system_prompt_round_trip() {
-    let app = openproxy::build_app(app_state().await);
+    let app = cipherroute::build_app(app_state().await);
 
     let put = app
         .clone()

@@ -1,6 +1,6 @@
 //! M4 CLI integration tests.
 //!
-//! These exercise the *real* `openproxy` binary (via assert_cmd) against a
+//! These exercise the *real* `cipherroute` binary (via assert_cmd) against a
 //! local wiremock server, then compare the `--robot` stdout against golden
 //! JSON envelopes. They cover the happy path for every M4 subcommand:
 //! usage / logs / quota / chat / provider oauth.
@@ -33,10 +33,10 @@ async fn boot_server() -> MockServer {
 }
 
 fn op(server: &MockServer, args: &[&str]) -> std::process::Output {
-    Command::cargo_bin("openproxy")
-        .expect("locate openproxy binary")
-        .env("OPENPROXY_URL", server.uri())
-        .env("OPENPROXY_API_KEY", API_KEY)
+    Command::cargo_bin("cipherroute")
+        .expect("locate cipherroute binary")
+        .env("CIPHERROUTE_URL", server.uri())
+        .env("CIPHERROUTE_API_KEY", API_KEY)
         // Force a clean data dir so the CLI does not fall back to a real
         // local install on the test host.
         .env(
@@ -49,7 +49,7 @@ fn op(server: &MockServer, args: &[&str]) -> std::process::Output {
         )
         .args(args)
         .output()
-        .expect("run openproxy")
+        .expect("run cipherroute")
 }
 
 fn parse_robot(stdout: &[u8]) -> Value {
@@ -80,7 +80,7 @@ async fn usage_summary_emits_robot_envelope() {
         String::from_utf8_lossy(&out.stderr)
     );
     let env = parse_robot(&out.stdout);
-    assert_eq!(env["schema"], "openproxy.v1.usage.summary");
+    assert_eq!(env["schema"], "cipherroute.v1.usage.summary");
     assert_eq!(env["ok"], true);
     assert_eq!(env["data"]["total_requests"], 42);
     assert_eq!(env["data"]["total_cost"], 0.12345);
@@ -107,7 +107,7 @@ async fn usage_providers_emits_robot_envelope() {
         String::from_utf8_lossy(&out.stderr)
     );
     let env = parse_robot(&out.stdout);
-    assert_eq!(env["schema"], "openproxy.v1.usage.providers");
+    assert_eq!(env["schema"], "cipherroute.v1.usage.providers");
     assert_eq!(env["data"]["providers"].as_array().unwrap().len(), 2);
 }
 
@@ -131,7 +131,7 @@ async fn logs_stats_emits_robot_envelope() {
         String::from_utf8_lossy(&out.stderr)
     );
     let env = parse_robot(&out.stdout);
-    assert_eq!(env["schema"], "openproxy.v1.log.stats");
+    assert_eq!(env["schema"], "cipherroute.v1.log.stats");
     assert_eq!(env["data"]["logBufferLines"], 17);
 }
 
@@ -151,7 +151,7 @@ async fn logs_clear_posts_and_envelopes() {
         String::from_utf8_lossy(&out.stderr)
     );
     let env = parse_robot(&out.stdout);
-    assert_eq!(env["schema"], "openproxy.v1.log.clear");
+    assert_eq!(env["schema"], "cipherroute.v1.log.clear");
     assert_eq!(env["data"]["cleared"], true);
 }
 
@@ -175,7 +175,7 @@ async fn quota_list_uses_usage_providers() {
         String::from_utf8_lossy(&out.stderr)
     );
     let env = parse_robot(&out.stdout);
-    assert_eq!(env["schema"], "openproxy.v1.quota.list");
+    assert_eq!(env["schema"], "cipherroute.v1.quota.list");
     let quotas = env["data"]["quotas"].as_array().expect("quotas array");
     assert_eq!(quotas.len(), 1);
     assert_eq!(quotas[0]["provider"], "openai");
@@ -195,7 +195,7 @@ async fn quota_get_returns_not_found_for_missing_provider() {
     let out = op(&server, &["--robot", "quota", "get", "openai"]);
     assert!(!out.status.success(), "should fail with not_found");
     let env = parse_robot(&out.stdout);
-    assert_eq!(env["schema"], "openproxy.v1.error");
+    assert_eq!(env["schema"], "cipherroute.v1.error");
     assert_eq!(env["error"]["code"], "not_found");
 }
 
@@ -220,7 +220,7 @@ async fn chat_models_envelopes_v1_models() {
         String::from_utf8_lossy(&out.stderr)
     );
     let env = parse_robot(&out.stdout);
-    assert_eq!(env["schema"], "openproxy.v1.chat.models");
+    assert_eq!(env["schema"], "cipherroute.v1.chat.models");
     assert_eq!(env["data"]["data"].as_array().unwrap().len(), 2);
 }
 
@@ -248,7 +248,7 @@ async fn provider_oauth_status_envelopes() {
         String::from_utf8_lossy(&out.stderr)
     );
     let env = parse_robot(&out.stdout);
-    assert_eq!(env["schema"], "openproxy.v1.oauth.status");
+    assert_eq!(env["schema"], "cipherroute.v1.oauth.status");
     assert_eq!(env["data"]["status"], "linked");
     assert_eq!(env["data"]["provider"], "claude");
 }
@@ -256,15 +256,15 @@ async fn provider_oauth_status_envelopes() {
 #[tokio::test(flavor = "multi_thread")]
 async fn server_down_exits_with_code_6() {
     // Bind to an unused port and immediately drop the listener so connection
-    // is refused. `openproxy` must exit 6 with a `server_unreachable` envelope.
+    // is refused. `cipherroute` must exit 6 with a `server_unreachable` envelope.
     let listener = std::net::TcpListener::bind("127.0.0.1:0").expect("listen");
     let port = listener.local_addr().expect("addr").port();
     drop(listener);
 
-    let out = Command::cargo_bin("openproxy")
-        .expect("openproxy binary")
-        .env("OPENPROXY_URL", format!("http://127.0.0.1:{port}"))
-        .env("OPENPROXY_API_KEY", API_KEY)
+    let out = Command::cargo_bin("cipherroute")
+        .expect("cipherroute binary")
+        .env("CIPHERROUTE_URL", format!("http://127.0.0.1:{port}"))
+        .env("CIPHERROUTE_API_KEY", API_KEY)
         .env(
             "DATA_DIR",
             tempfile::tempdir()
@@ -275,7 +275,7 @@ async fn server_down_exits_with_code_6() {
         )
         .args(["--robot", "usage", "summary"])
         .output()
-        .expect("run openproxy");
+        .expect("run cipherroute");
 
     assert_eq!(
         out.status.code(),
@@ -284,14 +284,14 @@ async fn server_down_exits_with_code_6() {
         String::from_utf8_lossy(&out.stdout)
     );
     let env = parse_robot(&out.stdout);
-    assert_eq!(env["schema"], "openproxy.v1.error");
+    assert_eq!(env["schema"], "cipherroute.v1.error");
     assert_eq!(env["error"]["code"], "server_unreachable");
 }
 
 #[tokio::test(flavor = "multi_thread")]
 async fn schema_list_includes_m4_resources() {
-    let out = Command::cargo_bin("openproxy")
-        .expect("openproxy binary")
+    let out = Command::cargo_bin("cipherroute")
+        .expect("cipherroute binary")
         .env(
             "DATA_DIR",
             tempfile::tempdir()
@@ -302,7 +302,7 @@ async fn schema_list_includes_m4_resources() {
         )
         .args(["--robot", "schema", "list"])
         .output()
-        .expect("run openproxy");
+        .expect("run cipherroute");
     assert!(
         out.status.success(),
         "stderr: {}",

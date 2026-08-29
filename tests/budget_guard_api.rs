@@ -1,7 +1,7 @@
 //! Budget caps & hard kill-switch tests (free-tier Feature 3).
 //!
 //! Exercises `budget_guard::enforce_budget` directly:
-//! - over budget  → 429 with `X-Budget-Remaining: 0` + `openproxy.v1.budget.exceeded`
+//! - over budget  → 429 with `X-Budget-Remaining: 0` + `cipherroute.v1.budget.exceeded`
 //! - under budget → `Ok(Some(remaining))`
 //! - no budget     → `Ok(None)` (unlimited)
 //! - no key presented → `Ok(None)` (nothing to enforce)
@@ -12,12 +12,12 @@ use std::sync::Arc;
 use axum::body::to_bytes;
 use axum::http::{header::HeaderValue, StatusCode};
 use axum::response::IntoResponse;
-use openproxy::db::Db;
-use openproxy::server::api::budget_guard::{
+use cipherroute::db::Db;
+use cipherroute::server::api::budget_guard::{
     enforce_budget, with_budget_header, BUDGET_EXCEEDED_SCHEMA, BUDGET_REMAINING_HEADER,
 };
-use openproxy::server::state::AppState;
-use openproxy::types::{ApiKey, TokenUsage, UsageEntry};
+use cipherroute::server::state::AppState;
+use cipherroute::types::{ApiKey, TokenUsage, UsageEntry};
 use tempfile::tempdir;
 
 const BUDGET_KEY: &str = "budget-key";

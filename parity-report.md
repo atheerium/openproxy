@@ -1,7 +1,7 @@
-# Parity Report: openproxy (Rust) → 9router v0.5.50 (Node.js)
+# Parity Report: cipherroute (Rust) → 9router v0.5.50 (Node.js)
 
 > **Date:** 2026-08-12 · **Reference:** `.tmp/9router` = `decolua/9router` v0.5.50 (2026-08-05)
-> **Port:** `openproxy` v0.2.0 (Rust) — claims "9router v0.5.30 full parity" (2026-07-10)
+> **Port:** `cipherroute` v0.2.0 (Rust) — claims "9router v0.5.30 full parity" (2026-07-10)
 > **Gap window:** v0.5.30 → v0.5.50 (4 releases: .35, .40, .45, .50)
 
 > 📄 **Full implementation-ready report (122 specs):** see **[`docs/parity-9router-FULL.md`](docs/parity-9router-FULL.md)** — every spec has verbatim JS · current Rust · implementation steps · guard test · risks · cross-check.

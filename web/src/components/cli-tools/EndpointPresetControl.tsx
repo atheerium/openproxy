@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import type { ChangeEvent } from "react";
 
-const STORAGE_KEY = "openproxy.cliToolEndpointPresets";
+const STORAGE_KEY = "cipherroute.cliToolEndpointPresets";
 
 interface Preset {
   name: string;

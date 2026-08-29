@@ -7,8 +7,8 @@
 use std::collections::BTreeMap;
 use std::sync::Arc;
 
-use openproxy::core::executor::{provider_config_base_url, ClientPool, DefaultExecutor};
-use openproxy::types::ProviderConnection;
+use cipherroute::core::executor::{provider_config_base_url, ClientPool, DefaultExecutor};
+use cipherroute::types::ProviderConnection;
 
 fn conn(provider: &str) -> ProviderConnection {
     ProviderConnection {

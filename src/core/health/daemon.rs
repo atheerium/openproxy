@@ -94,7 +94,7 @@ async fn tick_inner(state: &AppState) -> Value {
             Ok(client) => client,
             Err(error) => {
                 warn!(
-                    target: "openproxy::health",
+                    target: "cipherroute::health",
                     connection_id = %conn.id,
                     error = %error,
                     "health probe: client pool unavailable"
@@ -140,7 +140,7 @@ async fn tick_inner(state: &AppState) -> Value {
     }
 
     debug!(
-        target: "openproxy::health",
+        target: "cipherroute::health",
         probed, degraded, "health tick complete"
     );
 

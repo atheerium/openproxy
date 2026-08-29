@@ -1,13 +1,13 @@
 use std::collections::BTreeMap;
 
 use chrono::{Duration, Utc};
-use openproxy::core::combo::{
+use cipherroute::core::combo::{
     check_fallback_error, clear_combo_member_quarantine, clear_combo_quarantine,
     execute_combo_strategy, execute_combo_strategy_with_capacity, get_combo_models_from_data,
     get_quota_cooldown, get_rotated_models, mark_combo_member_quarantined, reset_combo_rotation,
     rotation_index, ComboAttemptError, ComboStrategy, ModelCapacity,
 };
-use openproxy::types::Combo;
+use cipherroute::types::Combo;
 
 fn combo(name: &str, models: &[&str]) -> Combo {
     Combo {

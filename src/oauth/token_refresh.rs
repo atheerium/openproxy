@@ -417,7 +417,7 @@ pub async fn refresh_codex_token(refresh_token: &str) -> Result<RefreshResult, S
 
 /// Resolve the codex token URL (allows env-override).
 fn codex_token_url() -> String {
-    std::env::var("OPENPROXY_CODEX_TOKEN_URL")
+    std::env::var("CIPHERROUTE_CODEX_TOKEN_URL")
         .ok()
         .filter(|v| !v.trim().is_empty())
         .unwrap_or_else(|| CODEX_TOKEN_URL.to_string())
@@ -674,7 +674,7 @@ pub async fn refresh_xai_token(refresh_token: &str) -> Result<RefreshResult, Str
 
 /// Resolve xAI's token URL (env override or default).
 fn resolve_xai_token_url() -> String {
-    std::env::var("OPENPROXY_XAI_TOKEN_URL")
+    std::env::var("CIPHERROUTE_XAI_TOKEN_URL")
         .ok()
         .filter(|v| !v.trim().is_empty())
         .unwrap_or_else(|| "https://auth.x.ai/oauth2/token".to_string())
@@ -737,7 +737,7 @@ pub async fn refresh_kilocode_token(refresh_token: &str) -> Result<RefreshResult
         .form(&[
             ("grant_type", "refresh_token"),
             ("refresh_token", refresh_token),
-            ("client_id", "kilocode-openproxy"),
+            ("client_id", "kilocode-cipherroute"),
         ])
         .send()
         .await
@@ -797,7 +797,7 @@ pub async fn refresh_gitlab_token(refresh_token: &str) -> Result<RefreshResult, 
         vec![
             ("grant_type", "refresh_token"),
             ("refresh_token", refresh_token),
-            ("client_id", "openproxy"),
+            ("client_id", "cipherroute"),
         ],
     )
     .await
@@ -813,7 +813,7 @@ pub async fn refresh_codebuddy_token(refresh_token: &str) -> Result<RefreshResul
         .form(&[
             ("grant_type", "refresh_token"),
             ("refresh_token", refresh_token),
-            ("client_id", "codebuddy-openproxy"),
+            ("client_id", "codebuddy-cipherroute"),
         ])
         .send()
         .await

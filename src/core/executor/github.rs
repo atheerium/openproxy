@@ -476,7 +476,7 @@ impl GithubExecutor {
                 }
             }
             tracing::debug!(
-                target: "openproxy::github",
+                target: "cipherroute::github",
                 "Using /v1/messages route for {}",
                 request.model
             );
@@ -526,7 +526,7 @@ impl GithubExecutor {
                 && Self::supports_responses_endpoint(&request.model)
             {
                 tracing::warn!(
-                    target: "openproxy::github",
+                    target: "cipherroute::github",
                     "Model {} requires /responses — escalating",
                     request.model
                 );

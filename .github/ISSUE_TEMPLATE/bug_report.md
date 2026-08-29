@@ -19,13 +19,13 @@ labels: ["bug"]
 - Actual:
 
 ## Environment
-- `openproxy --version`:
+- `cipherroute --version`:
 - OS / arch:
 - `./scripts/dev.sh --full` reproduces? [ ] yes / [ ] no
 - Provider / model (e.g. `cc/claude-opus-4.6`, `kilocode/kc-xxx`):
 
 ## Logs / evidence
-<!-- `~/.openproxy/openproxy.log` excerpt, `curl` output, or `--robot` envelope. Redact secrets. -->
+<!-- `~/.cipherroute/cipherroute.log` excerpt, `curl` output, or `--robot` envelope. Redact secrets. -->
 ```
 ```
 

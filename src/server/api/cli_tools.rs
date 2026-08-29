@@ -261,7 +261,7 @@ fn build_tool_command(tool_name: &str, args: Vec<String>) -> (String, Vec<String
     // Map tool names to actual commands
     match tool_name {
         "provider-list" => (
-            "openproxy".to_string(),
+            "cipherroute".to_string(),
             vec![
                 "provider".to_string(),
                 "list".to_string(),
@@ -269,17 +269,17 @@ fn build_tool_command(tool_name: &str, args: Vec<String>) -> (String, Vec<String
             ],
         ),
         "key-list" => (
-            "openproxy".to_string(),
+            "cipherroute".to_string(),
             vec!["key".to_string(), "list".to_string(), "--json".to_string()],
         ),
         "pool-list" => (
-            "openproxy".to_string(),
+            "cipherroute".to_string(),
             vec!["pool".to_string(), "list".to_string(), "--json".to_string()],
         ),
         "pool-status" => {
             let pool_name = args.first().cloned().unwrap_or_default();
             (
-                "openproxy".to_string(),
+                "cipherroute".to_string(),
                 vec![
                     "pool".to_string(),
                     "status".to_string(),
@@ -352,11 +352,11 @@ async fn get_codex_settings(State(state): State<AppState>, headers: HeaderMap) -
 
     match read_codex_config().await {
         Ok(config) => {
-            let has_openproxy = config.as_deref().is_some_and(has_openproxy_codex_config);
+            let has_cipherroute = config.as_deref().is_some_and(has_cipherroute_codex_config);
             Json(json!({
                 "installed": true,
                 "config": config,
-                "hasOpenProxy": has_openproxy,
+                "hasCipherRoute": has_cipherroute,
                 "configPath": codex_config_path().to_string_lossy().to_string(),
             }))
             .into_response()
@@ -448,12 +448,12 @@ async fn get_copilot_settings(State(state): State<AppState>, headers: HeaderMap)
 
     match read_copilot_config().await {
         Ok(config) => {
-            let has_openproxy = config.as_ref().is_some_and(has_openproxy_copilot_config);
-            let entry = config.as_ref().and_then(get_openproxy_copilot_entry);
+            let has_cipherroute = config.as_ref().is_some_and(has_cipherroute_copilot_config);
+            let entry = config.as_ref().and_then(get_cipherroute_copilot_entry);
             Json(json!({
                 "installed": true,
                 "config": config,
-                "hasOpenProxy": has_openproxy,
+                "hasCipherRoute": has_cipherroute,
                 "configPath": copilot_config_path().to_string_lossy().to_string(),
                 "currentModel": entry
                     .and_then(|entry| entry.get("models"))
@@ -557,11 +557,11 @@ async fn get_droid_settings(State(state): State<AppState>, headers: HeaderMap) -
 
     match read_droid_settings().await {
         Ok(settings) => {
-            let has_openproxy = settings.as_ref().is_some_and(has_openproxy_droid_settings);
+            let has_cipherroute = settings.as_ref().is_some_and(has_cipherroute_droid_settings);
             Json(json!({
                 "installed": true,
                 "settings": settings,
-                "hasOpenProxy": has_openproxy,
+                "hasCipherRoute": has_cipherroute,
                 "settingsPath": droid_settings_path().to_string_lossy().to_string(),
             }))
             .into_response()
@@ -674,7 +674,7 @@ async fn get_opencode_settings(State(state): State<AppState>, headers: HeaderMap
             let provider_config = config
                 .as_ref()
                 .and_then(|config| config.get("provider"))
-                .and_then(|provider| provider.get("openproxy"));
+                .and_then(|provider| provider.get("cipherroute"));
             let model_map = provider_config.and_then(|provider| provider.get("models"));
             let models = model_map
                 .and_then(Value::as_object)
@@ -689,7 +689,7 @@ async fn get_opencode_settings(State(state): State<AppState>, headers: HeaderMap
             Json(json!({
                 "installed": true,
                 "config": config,
-                "hasOpenProxy": provider_config.is_some(),
+                "hasCipherRoute": provider_config.is_some(),
                 "configPath": opencode_config_path().to_string_lossy().to_string(),
                 "opencode": {
                     "models": models,
@@ -697,7 +697,7 @@ async fn get_opencode_settings(State(state): State<AppState>, headers: HeaderMap
                         .as_ref()
                         .and_then(|config| config.get("model"))
                         .and_then(Value::as_str)
-                        .and_then(|model| model.strip_prefix("openproxy/")),
+                        .and_then(|model| model.strip_prefix("cipherroute/")),
                     "baseURL": provider_config
                         .and_then(|provider| provider.get("options"))
                         .and_then(|options| options.get("baseURL"))
@@ -859,9 +859,9 @@ async fn get_openclaw_settings(State(state): State<AppState>, headers: HeaderMap
                 "installed": true,
                 "settings": settings,
                 "agents": enriched_agents,
-                "hasOpenProxy": settings
+                "hasCipherRoute": settings
                     .as_ref()
-                    .is_some_and(has_openproxy_openclaw_settings),
+                    .is_some_and(has_cipherroute_openclaw_settings),
                 "settingsPath": openclaw_settings_path().to_string_lossy().to_string(),
             }))
             .into_response()
@@ -951,15 +951,15 @@ async fn write_codex_settings(settings: &CodexSettings) -> anyhow::Result<String
     parsed.insert("model".to_string(), TomlValue::String(model));
     parsed.insert(
         "model_provider".to_string(),
-        TomlValue::String("openproxy".to_string()),
+        TomlValue::String("cipherroute".to_string()),
     );
     set_toml_section(
         &mut parsed,
-        &["model_providers", "openproxy"],
+        &["model_providers", "cipherroute"],
         TomlValue::Table(TomlMap::from_iter([
             (
                 "name".to_string(),
-                TomlValue::String("OpenProxy".to_string()),
+                TomlValue::String("CipherRoute".to_string()),
             ),
             (
                 "base_url".to_string(),
@@ -1014,11 +1014,11 @@ async fn reset_codex_settings() -> anyhow::Result<Value> {
     };
 
     let mut parsed = parse_toml_table(&existing_config)?;
-    if parsed.get("model_provider").and_then(TomlValue::as_str) == Some("openproxy") {
+    if parsed.get("model_provider").and_then(TomlValue::as_str) == Some("cipherroute") {
         parsed.remove("model");
         parsed.remove("model_provider");
     }
-    delete_toml_section(&mut parsed, &["model_providers", "openproxy"]);
+    delete_toml_section(&mut parsed, &["model_providers", "cipherroute"]);
     delete_toml_section(&mut parsed, &["agents", "subagent"]);
 
     let config_content = toml::to_string_pretty(&TomlValue::Table(parsed))?;
@@ -1049,7 +1049,7 @@ async fn reset_codex_settings() -> anyhow::Result<Value> {
 
     Ok(json!({
         "success": true,
-        "message": "OpenProxy settings removed successfully",
+        "message": "CipherRoute settings removed successfully",
     }))
 }
 
@@ -1061,9 +1061,9 @@ async fn read_string_optional(path: &FsPath) -> anyhow::Result<Option<String>> {
     }
 }
 
-fn has_openproxy_codex_config(config: &str) -> bool {
-    config.contains("model_provider = \"openproxy\"")
-        || config.contains("[model_providers.openproxy]")
+fn has_cipherroute_codex_config(config: &str) -> bool {
+    config.contains("model_provider = \"cipherroute\"")
+        || config.contains("[model_providers.cipherroute]")
 }
 
 fn parse_toml_table(content: &str) -> anyhow::Result<TomlMap<String, TomlValue>> {
@@ -1198,9 +1198,9 @@ async fn write_copilot_settings(req: &CopilotSettingsRequest) -> anyhow::Result<
         .api_key
         .clone()
         .filter(|value| !value.is_empty())
-        .unwrap_or_else(|| "sk_openproxy".to_string());
+        .unwrap_or_else(|| "sk_cipherroute".to_string());
     let new_entry = json!({
-        "name": "OpenProxy",
+        "name": "CipherRoute",
         "vendor": "azure",
         "apiKey": api_key,
         "models": req.models.iter().map(|id| {
@@ -1220,7 +1220,7 @@ async fn write_copilot_settings(req: &CopilotSettingsRequest) -> anyhow::Result<
         entry
             .get("name")
             .and_then(Value::as_str)
-            .is_some_and(|name| name == "OpenProxy")
+            .is_some_and(|name| name == "CipherRoute")
     }) {
         config[index] = new_entry;
     } else {
@@ -1252,7 +1252,7 @@ async fn reset_copilot_settings() -> anyhow::Result<Value> {
         entry
             .get("name")
             .and_then(Value::as_str)
-            .is_none_or(|name| name != "OpenProxy")
+            .is_none_or(|name| name != "CipherRoute")
     });
     fs::write(
         &config_path,
@@ -1262,7 +1262,7 @@ async fn reset_copilot_settings() -> anyhow::Result<Value> {
 
     Ok(json!({
         "success": true,
-        "message": "OpenProxy removed from Copilot config",
+        "message": "CipherRoute removed from Copilot config",
     }))
 }
 
@@ -1292,7 +1292,7 @@ async fn write_droid_settings(
         !entry
             .get("id")
             .and_then(Value::as_str)
-            .is_some_and(|id| id.starts_with("custom:OpenProxy"))
+            .is_some_and(|id| id.starts_with("custom:CipherRoute"))
     });
 
     let normalized_base_url = normalize_v1_base_url(&req.base_url);
@@ -1319,7 +1319,7 @@ async fn write_droid_settings(
         }
         custom_models.push(json!({
             "model": model,
-            "id": format!("custom:OpenProxy-{index}"),
+            "id": format!("custom:CipherRoute-{index}"),
             "index": index,
             "baseUrl": normalized_base_url,
             "apiKey": api_key,
@@ -1330,8 +1330,8 @@ async fn write_droid_settings(
         }));
     }
 
-    // Intentionally matches openproxy's whole-array reordering behavior, including
-    // pre-existing non-OpenProxy entries that may shift indexes.
+    // Intentionally matches cipherroute's whole-array reordering behavior, including
+    // pre-existing non-CipherRoute entries that may shift indexes.
     if let Some(default_index) = default_index {
         if default_index < custom_models.len() {
             let default_entry = custom_models.remove(default_index);
@@ -1378,7 +1378,7 @@ async fn reset_droid_settings() -> anyhow::Result<Value> {
             !entry
                 .get("id")
                 .and_then(Value::as_str)
-                .is_some_and(|id| id.starts_with("custom:OpenProxy"))
+                .is_some_and(|id| id.starts_with("custom:CipherRoute"))
         });
         if !custom_models.is_empty() {
             settings.insert("customModels".to_string(), Value::Array(custom_models));
@@ -1392,7 +1392,7 @@ async fn reset_droid_settings() -> anyhow::Result<Value> {
     .await?;
     Ok(json!({
         "success": true,
-        "message": "OpenProxy settings removed successfully",
+        "message": "CipherRoute settings removed successfully",
     }))
 }
 
@@ -1416,7 +1416,7 @@ async fn write_opencode_settings(
         .api_key
         .clone()
         .filter(|value| !value.is_empty())
-        .unwrap_or_else(|| "sk_openproxy".to_string());
+        .unwrap_or_else(|| "sk_cipherroute".to_string());
     let effective_subagent_model = req
         .subagent_model
         .clone()
@@ -1434,7 +1434,7 @@ async fn write_opencode_settings(
         .ok_or_else(|| anyhow::anyhow!("provider must be an object"))?;
 
     let existing_provider = provider_map
-        .entry("openproxy".to_string())
+        .entry("cipherroute".to_string())
         .or_insert_with(|| {
             json!({
                 "npm": "@ai-sdk/openai-compatible",
@@ -1451,7 +1451,7 @@ async fn write_opencode_settings(
     }
     let existing_provider_map = existing_provider
         .as_object_mut()
-        .ok_or_else(|| anyhow::anyhow!("provider.openproxy must be an object"))?;
+        .ok_or_else(|| anyhow::anyhow!("provider.cipherroute must be an object"))?;
 
     let options = existing_provider_map
         .entry("options".to_string())
@@ -1461,7 +1461,7 @@ async fn write_opencode_settings(
     }
     let options_map = options
         .as_object_mut()
-        .ok_or_else(|| anyhow::anyhow!("provider.openproxy.options must be an object"))?;
+        .ok_or_else(|| anyhow::anyhow!("provider.cipherroute.options must be an object"))?;
     options_map.insert("baseURL".to_string(), Value::String(normalized_base_url));
     options_map.insert("apiKey".to_string(), Value::String(api_key));
 
@@ -1473,7 +1473,7 @@ async fn write_opencode_settings(
     }
     let existing_models_map = existing_models
         .as_object_mut()
-        .ok_or_else(|| anyhow::anyhow!("provider.openproxy.models must be an object"))?;
+        .ok_or_else(|| anyhow::anyhow!("provider.cipherroute.models must be an object"))?;
     for model in models {
         if model.is_empty() {
             continue;
@@ -1493,7 +1493,7 @@ async fn write_opencode_settings(
                 .unwrap_or_else(|| models[0].clone());
             config.insert(
                 "model".to_string(),
-                Value::String(format!("openproxy/{final_active}")),
+                Value::String(format!("cipherroute/{final_active}")),
             );
         }
     }
@@ -1512,7 +1512,7 @@ async fn write_opencode_settings(
         json!({
             "description": "Fast explorer subagent for codebase exploration",
             "mode": "subagent",
-            "model": format!("openproxy/{effective_subagent_model}"),
+            "model": format!("cipherroute/{effective_subagent_model}"),
         }),
     );
 
@@ -1541,7 +1541,7 @@ async fn patch_opencode_config(req: &PatchOpenCodeSettingsRequest) -> anyhow::Re
         && config
             .get("model")
             .and_then(Value::as_str)
-            .is_some_and(|model| model.starts_with("openproxy/"))
+            .is_some_and(|model| model.starts_with("cipherroute/"))
     {
         config.insert("model".to_string(), Value::String(String::new()));
     }
@@ -1574,13 +1574,13 @@ async fn reset_opencode_settings(model_to_remove: Option<String>) -> anyhow::Res
         let active_model_matches = config
             .get("model")
             .and_then(Value::as_str)
-            .is_some_and(|model| model == format!("openproxy/{model_to_remove}"));
+            .is_some_and(|model| model == format!("cipherroute/{model_to_remove}"));
         let mut remove_provider = false;
         let mut next_model = None;
         if let Some(models_map) = config
             .get_mut("provider")
             .and_then(Value::as_object_mut)
-            .and_then(|provider| provider.get_mut("openproxy"))
+            .and_then(|provider| provider.get_mut("cipherroute"))
             .and_then(Value::as_object_mut)
             .and_then(|provider| provider.get_mut("models"))
             .and_then(Value::as_object_mut)
@@ -1594,29 +1594,29 @@ async fn reset_opencode_settings(model_to_remove: Option<String>) -> anyhow::Res
         }
         if remove_provider {
             if let Some(provider) = config.get_mut("provider").and_then(Value::as_object_mut) {
-                provider.remove("openproxy");
+                provider.remove("cipherroute");
             }
             if config
                 .get("model")
                 .and_then(Value::as_str)
-                .is_some_and(|model| model.starts_with("openproxy/"))
+                .is_some_and(|model| model.starts_with("cipherroute/"))
             {
                 config.remove("model");
             }
         } else if let Some(next_model) = next_model {
             config.insert(
                 "model".to_string(),
-                Value::String(format!("openproxy/{next_model}")),
+                Value::String(format!("cipherroute/{next_model}")),
             );
         }
     } else {
         if let Some(provider) = config.get_mut("provider").and_then(Value::as_object_mut) {
-            provider.remove("openproxy");
+            provider.remove("cipherroute");
         }
         if config
             .get("model")
             .and_then(Value::as_str)
-            .is_some_and(|model| model.starts_with("openproxy/"))
+            .is_some_and(|model| model.starts_with("cipherroute/"))
         {
             config.remove("model");
         }
@@ -1629,7 +1629,7 @@ async fn reset_opencode_settings(model_to_remove: Option<String>) -> anyhow::Res
         .and_then(Value::as_object)
         .and_then(|explorer| explorer.get("model"))
         .and_then(Value::as_str)
-        .is_some_and(|model| model.starts_with("openproxy/"));
+        .is_some_and(|model| model.starts_with("cipherroute/"));
     if should_remove_explorer {
         if let Some(agent) = config.get_mut("agent").and_then(Value::as_object_mut) {
             agent.remove("explorer");
@@ -1648,7 +1648,7 @@ async fn reset_opencode_settings(model_to_remove: Option<String>) -> anyhow::Res
         "success": true,
         "message": model_to_remove
             .map(|model| Value::String(format!("Model \"{model}\" removed")))
-            .unwrap_or_else(|| Value::String("OpenProxy settings removed from OpenCode".to_string())),
+            .unwrap_or_else(|| Value::String("CipherRoute settings removed from OpenCode".to_string())),
     }))
 }
 
@@ -1669,14 +1669,14 @@ async fn write_openclaw_settings(req: &OpenClawSettingsRequest) -> anyhow::Resul
     ensure_object_path(&mut settings, &["models", "providers"])?;
 
     let normalized_base_url = normalize_v1_base_url(&req.base_url);
-    let full_model_id = format!("openproxy/{}", req.model);
+    let full_model_id = format!("cipherroute/{}", req.model);
 
     if let Some(default_models) =
         get_nested_object_mut(&mut settings, &["agents", "defaults", "models"])
     {
         let keys_to_remove = default_models
             .keys()
-            .filter(|key| key.starts_with("openproxy/"))
+            .filter(|key| key.starts_with("cipherroute/"))
             .cloned()
             .collect::<Vec<_>>();
         for key in keys_to_remove {
@@ -1701,7 +1701,7 @@ async fn write_openclaw_settings(req: &OpenClawSettingsRequest) -> anyhow::Resul
         get_nested_object_mut(&mut settings, &["agents", "defaults", "models"])
     {
         for model in &all_model_ids {
-            default_models.insert(format!("openproxy/{model}"), json!({}));
+            default_models.insert(format!("cipherroute/{model}"), json!({}));
         }
     }
 
@@ -1709,7 +1709,7 @@ async fn write_openclaw_settings(req: &OpenClawSettingsRequest) -> anyhow::Resul
         for agent in agents_list.iter_mut() {
             // Normalize before `.starts_with` so we catch both the legacy
             // string form and OpenClaw 2026.5.x `{primary, fallbacks}` form.
-            if resolve_openclaw_agent_model_id(agent.get("model")).starts_with("openproxy/") {
+            if resolve_openclaw_agent_model_id(agent.get("model")).starts_with("cipherroute/") {
                 if let Some(agent_object) = agent.as_object_mut() {
                     agent_object.remove("model");
                 }
@@ -1719,7 +1719,7 @@ async fn write_openclaw_settings(req: &OpenClawSettingsRequest) -> anyhow::Resul
 
     if let Some(providers) = get_nested_object_mut(&mut settings, &["models", "providers"]) {
         providers.insert(
-            "openproxy".to_string(),
+            "cipherroute".to_string(),
             json!({
                 "baseUrl": normalized_base_url,
                 "apiKey": req.api_key.clone().unwrap_or_else(|| "your_api_key".to_string()),
@@ -1744,7 +1744,7 @@ async fn write_openclaw_settings(req: &OpenClawSettingsRequest) -> anyhow::Resul
                         // 2026.5.x stored the model as `{primary, fallbacks}`.
                         set_openclaw_agent_model_id(
                             agent_object,
-                            format!("openproxy/{agent_model}"),
+                            format!("cipherroute/{agent_model}"),
                         );
                     }
                 }
@@ -1793,7 +1793,7 @@ async fn reset_openclaw_settings() -> anyhow::Result<Value> {
     };
 
     if let Some(providers) = get_nested_object_mut(&mut settings, &["models", "providers"]) {
-        providers.remove("openproxy");
+        providers.remove("cipherroute");
         if providers.is_empty() {
             remove_nested_key(&mut settings, &["models", "providers"]);
         }
@@ -1804,7 +1804,7 @@ async fn reset_openclaw_settings() -> anyhow::Result<Value> {
     {
         let keys_to_remove = default_models
             .keys()
-            .filter(|key| key.starts_with("openproxy/"))
+            .filter(|key| key.starts_with("cipherroute/"))
             .cloned()
             .collect::<Vec<_>>();
         for key in keys_to_remove {
@@ -1821,7 +1821,7 @@ async fn reset_openclaw_settings() -> anyhow::Result<Value> {
         .and_then(|defaults| defaults.get("model"))
         .and_then(|model| model.get("primary"))
         .and_then(Value::as_str)
-        .is_some_and(|model| model.starts_with("openproxy/"))
+        .is_some_and(|model| model.starts_with("cipherroute/"))
     {
         remove_nested_key(&mut settings, &["agents", "defaults", "model", "primary"]);
     }
@@ -1833,7 +1833,7 @@ async fn reset_openclaw_settings() -> anyhow::Result<Value> {
     .await?;
     Ok(json!({
         "success": true,
-        "message": "OpenProxy settings removed successfully",
+        "message": "CipherRoute settings removed successfully",
     }))
 }
 
@@ -1842,7 +1842,7 @@ async fn read_openclaw_agent_model(agent_dir: &PathBuf) -> Option<String> {
     let content = fs::read_to_string(models_path).await.ok()?;
     let data = serde_json::from_str::<Value>(&content).ok()?;
     data.get("providers")
-        .and_then(|providers| providers.get("openproxy"))
+        .and_then(|providers| providers.get("cipherroute"))
         .and_then(|provider| provider.get("models"))
         .and_then(Value::as_array)
         .and_then(|models| models.first())
@@ -1875,7 +1875,7 @@ async fn write_openclaw_agent_models(
         .as_object_mut()
         .ok_or_else(|| anyhow::anyhow!("providers must be an object"))?;
     providers_map.insert(
-        "openproxy".to_string(),
+        "cipherroute".to_string(),
         json!({
             "baseUrl": base_url,
             "apiKey": api_key.unwrap_or("your_api_key"),
@@ -1985,11 +1985,11 @@ fn remove_nested_key(root: &mut serde_json::Map<String, Value>, path: &[&str]) {
     }
 }
 
-fn has_openproxy_copilot_config(config: &Value) -> bool {
-    get_openproxy_copilot_entry(config).is_some()
+fn has_cipherroute_copilot_config(config: &Value) -> bool {
+    get_cipherroute_copilot_entry(config).is_some()
 }
 
-fn has_openproxy_droid_settings(settings: &Value) -> bool {
+fn has_cipherroute_droid_settings(settings: &Value) -> bool {
     settings
         .get("customModels")
         .and_then(Value::as_array)
@@ -1998,16 +1998,16 @@ fn has_openproxy_droid_settings(settings: &Value) -> bool {
                 entry
                     .get("id")
                     .and_then(Value::as_str)
-                    .is_some_and(|id| id.starts_with("custom:OpenProxy"))
+                    .is_some_and(|id| id.starts_with("custom:CipherRoute"))
             })
         })
 }
 
-fn has_openproxy_openclaw_settings(settings: &Value) -> bool {
+fn has_cipherroute_openclaw_settings(settings: &Value) -> bool {
     settings
         .get("models")
         .and_then(|models| models.get("providers"))
-        .and_then(|providers| providers.get("openproxy"))
+        .and_then(|providers| providers.get("cipherroute"))
         .is_some()
 }
 
@@ -2040,11 +2040,11 @@ fn set_openclaw_agent_model_id(agent: &mut serde_json::Map<String, Value>, full_
     }
 }
 
-fn get_openproxy_copilot_entry(config: &Value) -> Option<&Value> {
+fn get_cipherroute_copilot_entry(config: &Value) -> Option<&Value> {
     config
         .as_array()?
         .iter()
-        .find(|entry| entry.get("name").and_then(Value::as_str) == Some("OpenProxy"))
+        .find(|entry| entry.get("name").and_then(Value::as_str) == Some("CipherRoute"))
 }
 
 fn copilot_config_path() -> PathBuf {
@@ -2772,7 +2772,7 @@ async fn probe_mcp_server(url: &str) -> Value {
             "params": {
                 "protocolVersion": "2025-06-18",
                 "capabilities": {},
-                "clientInfo": { "name": "openproxy", "version": "1" }
+                "clientInfo": { "name": "cipherroute", "version": "1" }
             }
         }))
         .send()
@@ -3084,20 +3084,20 @@ mod tests {
 
     #[test]
     fn test_parse_cli_command() {
-        let result = parse_cli_command("openproxy provider list", None);
+        let result = parse_cli_command("cipherroute provider list", None);
         assert!(result.is_some());
         let (program, args) = result.unwrap();
-        assert_eq!(program, "openproxy");
+        assert_eq!(program, "cipherroute");
         assert_eq!(args, vec!["provider", "list"]);
     }
 
     #[test]
     fn test_parse_cli_command_with_additional_args() {
         let additional_args = vec!["--json".to_string()];
-        let result = parse_cli_command("openproxy key list", Some(additional_args.as_slice()));
+        let result = parse_cli_command("cipherroute key list", Some(additional_args.as_slice()));
         assert!(result.is_some());
         let (program, args) = result.unwrap();
-        assert_eq!(program, "openproxy");
+        assert_eq!(program, "cipherroute");
         assert_eq!(args, vec!["key", "list", "--json"]);
     }
 
@@ -3110,14 +3110,14 @@ mod tests {
     #[test]
     fn test_build_tool_command_provider_list() {
         let (program, args) = build_tool_command("provider-list", vec![]);
-        assert_eq!(program, "openproxy");
+        assert_eq!(program, "cipherroute");
         assert_eq!(args, vec!["provider", "list", "--json"]);
     }
 
     #[test]
     fn test_build_tool_command_pool_status() {
         let (program, args) = build_tool_command("pool-status", vec!["my-pool".to_string()]);
-        assert_eq!(program, "openproxy");
+        assert_eq!(program, "cipherroute");
         assert_eq!(args, vec!["pool", "status", "--name", "my-pool", "--json"]);
     }
 
@@ -3174,7 +3174,7 @@ mod tests {
     #[tokio::test]
     async fn run_command_with_timeout_reports_failure_for_missing_binary() {
         let response =
-            run_command_with_timeout("/this/definitely/does/not/exist-openproxy-test", &[], 5)
+            run_command_with_timeout("/this/definitely/does/not/exist-cipherroute-test", &[], 5)
                 .await;
         assert!(!response.success);
         assert_eq!(response.exit_code, Some(-1));
@@ -3184,22 +3184,22 @@ mod tests {
 
     #[test]
     fn resolve_openclaw_agent_model_id_handles_string_form() {
-        let model = json!("openproxy/glm-4.6");
+        let model = json!("cipherroute/glm-4.6");
         assert_eq!(
             resolve_openclaw_agent_model_id(Some(&model)),
-            "openproxy/glm-4.6"
+            "cipherroute/glm-4.6"
         );
     }
 
     #[test]
     fn resolve_openclaw_agent_model_id_handles_object_form() {
         let model = json!({
-            "primary": "openproxy/claude-sonnet-4",
+            "primary": "cipherroute/claude-sonnet-4",
             "fallbacks": ["anthropic/claude-sonnet-4"]
         });
         assert_eq!(
             resolve_openclaw_agent_model_id(Some(&model)),
-            "openproxy/claude-sonnet-4"
+            "cipherroute/claude-sonnet-4"
         );
     }
 
@@ -3218,7 +3218,7 @@ mod tests {
     fn resolve_openclaw_agent_model_id_returns_empty_for_unexpected_type() {
         let null = Value::Null;
         let number = json!(42);
-        let array = json!(["openproxy/glm-4.6"]);
+        let array = json!(["cipherroute/glm-4.6"]);
         assert_eq!(resolve_openclaw_agent_model_id(Some(&null)), "");
         assert_eq!(resolve_openclaw_agent_model_id(Some(&number)), "");
         assert_eq!(resolve_openclaw_agent_model_id(Some(&array)), "");
@@ -3228,35 +3228,35 @@ mod tests {
     fn set_openclaw_agent_model_id_writes_string_when_missing() {
         let mut agent = serde_json::Map::new();
         agent.insert("id".to_string(), json!("planner"));
-        set_openclaw_agent_model_id(&mut agent, "openproxy/glm-4.6".to_string());
-        assert_eq!(agent.get("model"), Some(&json!("openproxy/glm-4.6")));
+        set_openclaw_agent_model_id(&mut agent, "cipherroute/glm-4.6".to_string());
+        assert_eq!(agent.get("model"), Some(&json!("cipherroute/glm-4.6")));
     }
 
     #[test]
     fn set_openclaw_agent_model_id_writes_string_when_legacy_string() {
         let mut agent = serde_json::Map::new();
-        agent.insert("model".to_string(), json!("openproxy/old"));
-        set_openclaw_agent_model_id(&mut agent, "openproxy/new".to_string());
-        assert_eq!(agent.get("model"), Some(&json!("openproxy/new")));
+        agent.insert("model".to_string(), json!("cipherroute/old"));
+        set_openclaw_agent_model_id(&mut agent, "cipherroute/new".to_string());
+        assert_eq!(agent.get("model"), Some(&json!("cipherroute/new")));
     }
 
     #[test]
     fn set_openclaw_agent_model_id_preserves_fallbacks_on_object_form() {
         // OpenClaw 2026.5.x: only the `primary` field should be rewritten —
-        // user-configured `fallbacks` must survive an OpenProxy save.
+        // user-configured `fallbacks` must survive an CipherRoute save.
         let mut agent = serde_json::Map::new();
         agent.insert(
             "model".to_string(),
             json!({
-                "primary": "openproxy/old",
+                "primary": "cipherroute/old",
                 "fallbacks": ["anthropic/claude-sonnet-4", "openai/gpt-4o"]
             }),
         );
-        set_openclaw_agent_model_id(&mut agent, "openproxy/new".to_string());
+        set_openclaw_agent_model_id(&mut agent, "cipherroute/new".to_string());
         assert_eq!(
             agent.get("model"),
             Some(&json!({
-                "primary": "openproxy/new",
+                "primary": "cipherroute/new",
                 "fallbacks": ["anthropic/claude-sonnet-4", "openai/gpt-4o"]
             }))
         );
@@ -3265,9 +3265,9 @@ mod tests {
     #[test]
     fn openclaw_starts_with_check_matches_object_form() {
         // Regression for upstream 9router #1216: agent.model in object form
-        // must still be recognized as starting with "openproxy/" so we can
+        // must still be recognized as starting with "cipherroute/" so we can
         // remove it on save without throwing a TypeError on `.startsWith`.
-        let model = json!({"primary": "openproxy/glm-4.6", "fallbacks": []});
-        assert!(resolve_openclaw_agent_model_id(Some(&model)).starts_with("openproxy/"));
+        let model = json!({"primary": "cipherroute/glm-4.6", "fallbacks": []});
+        assert!(resolve_openclaw_agent_model_id(Some(&model)).starts_with("cipherroute/"));
     }
 }

@@ -347,7 +347,7 @@ impl DevinCliExecutor {
             "initialize",
             json!({
                 "protocolVersion": "0.3",
-                "clientInfo": {"name": "openproxy", "version": "1.0"},
+                "clientInfo": {"name": "cipherroute", "version": "1.0"},
                 "capabilities": {},
             }),
         );

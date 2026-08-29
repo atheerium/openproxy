@@ -907,7 +907,7 @@ where
                 if !caps.is_empty() {
                     order = reorder_by_capabilities(&order, caps);
                     tracing::debug!(
-                        target: "openproxy::combo",
+                        target: "cipherroute::combo",
                         "COMBO_ORDER after_rr+caps sticky={} order={:?}",
                         sticky_limit,
                         order

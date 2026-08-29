@@ -5,8 +5,8 @@ use axum::body::Body;
 use axum::http::{Method, Request, StatusCode};
 use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine};
 use once_cell::sync::Lazy;
-use openproxy::db::Db;
-use openproxy::server::state::AppState;
+use cipherroute::db::Db;
+use cipherroute::server::state::AppState;
 use serde_json::json;
 use sha2::{Digest, Sha256};
 use tempfile::tempdir;
@@ -45,7 +45,7 @@ async fn app_state() -> AppState {
     db.update(|state| {
         // Management key: oauth routes sit in the admin tier now that
         // requireLogin defaults to true (9router parity).
-        state.api_keys.push(openproxy::types::ApiKey {
+        state.api_keys.push(cipherroute::types::ApiKey {
             id: "mgmt-1".into(),
             name: "Management".into(),
             key: TEST_MGMT_KEY.into(),
@@ -113,8 +113,8 @@ fn make_codex_id_token(email: &str, account_id: &str, plan_type: &str) -> String
 }
 
 #[tokio::test]
-async fn claude_authorize_matches_openproxy_response_shape() {
-    let app = openproxy::build_app(app_state().await);
+async fn claude_authorize_matches_cipherroute_response_shape() {
+    let app = cipherroute::build_app(app_state().await);
     let response = app
         .oneshot(get_request(
             "/api/oauth/claude/authorize?redirect_uri=http%3A%2F%2Flocalhost%3A4624%2Fcallback",
@@ -150,8 +150,8 @@ async fn claude_authorize_matches_openproxy_response_shape() {
 }
 
 #[tokio::test]
-async fn codex_authorize_matches_openproxy_response_shape() {
-    let app = openproxy::build_app(app_state().await);
+async fn codex_authorize_matches_cipherroute_response_shape() {
+    let app = cipherroute::build_app(app_state().await);
     let response = app
         .oneshot(get_request(
             "/api/oauth/codex/authorize?redirect_uri=http%3A%2F%2Flocalhost%3A1455%2Fauth%2Fcallback",
@@ -181,7 +181,7 @@ async fn codex_authorize_matches_openproxy_response_shape() {
 
 #[tokio::test]
 async fn exchange_compat_rejects_missing_required_fields() {
-    let app = openproxy::build_app(app_state().await);
+    let app = cipherroute::build_app(app_state().await);
     let response = app
         .oneshot(post_request("/api/oauth/claude/exchange", json!({})))
         .await
@@ -193,11 +193,11 @@ async fn exchange_compat_rejects_missing_required_fields() {
 }
 
 #[tokio::test]
-async fn claude_exchange_matches_openproxy_and_saves_connection() {
+async fn claude_exchange_matches_cipherroute_and_saves_connection() {
     let _lock = ENV_LOCK.lock().unwrap();
     let server = MockServer::start().await;
     let _token_url = EnvVarGuard::set(
-        "OPENPROXY_CLAUDE_TOKEN_URL",
+        "CIPHERROUTE_CLAUDE_TOKEN_URL",
         &format!("{}/v1/oauth/token", server.uri()),
     );
 
@@ -221,7 +221,7 @@ async fn claude_exchange_matches_openproxy_and_saves_connection() {
         .await;
 
     let state = app_state().await;
-    let app = openproxy::build_app(state.clone());
+    let app = cipherroute::build_app(state.clone());
     let response = app
         .oneshot(post_request(
             "/api/oauth/claude/exchange",
@@ -258,11 +258,11 @@ async fn claude_exchange_matches_openproxy_and_saves_connection() {
 }
 
 #[tokio::test]
-async fn codex_exchange_matches_openproxy_and_maps_id_token() {
+async fn codex_exchange_matches_cipherroute_and_maps_id_token() {
     let _lock = ENV_LOCK.lock().unwrap();
     let server = MockServer::start().await;
     let _token_url = EnvVarGuard::set(
-        "OPENPROXY_CODEX_TOKEN_URL",
+        "CIPHERROUTE_CODEX_TOKEN_URL",
         &format!("{}/oauth/token", server.uri()),
     );
     let id_token = make_codex_id_token("me@example.com", "acct_123", "plus");
@@ -288,7 +288,7 @@ async fn codex_exchange_matches_openproxy_and_maps_id_token() {
         .await;
 
     let state = app_state().await;
-    let app = openproxy::build_app(state.clone());
+    let app = cipherroute::build_app(state.clone());
     let response = app
         .oneshot(post_request(
             "/api/oauth/codex/exchange",

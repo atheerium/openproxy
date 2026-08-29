@@ -1,4 +1,4 @@
-//! `openproxy quota *` — per-provider quota tracking and reset.
+//! `cipherroute quota *` — per-provider quota tracking and reset.
 //!
 //! Built on top of the existing usage providers endpoint
 //! (`/api/usage/providers`) and the local `db.json` for reset/refresh. The
@@ -54,7 +54,7 @@ async fn run_list(rt: &Runtime, ctx: OutputCtx) -> anyhow::Result<i32> {
     match fetch_quotas(rt).await {
         Ok(rows) => {
             if ctx.is_robot() {
-                emit_robot("openproxy.v1.quota.list", json!({"quotas": rows}))?;
+                emit_robot("cipherroute.v1.quota.list", json!({"quotas": rows}))?;
             } else {
                 for row in &rows {
                     humanln(
@@ -87,7 +87,7 @@ async fn run_get(rt: &Runtime, ctx: OutputCtx, provider: &str) -> anyhow::Result
     match matching {
         Some(row) => {
             if ctx.is_robot() {
-                emit_robot("openproxy.v1.quota.get", row.clone())?;
+                emit_robot("cipherroute.v1.quota.get", row.clone())?;
             } else {
                 let pretty = serde_json::to_string_pretty(row).unwrap_or_default();
                 humanln(ctx, pretty);
@@ -115,7 +115,7 @@ async fn run_reset(rt: &Runtime, ctx: OutputCtx, yes: bool) -> anyhow::Result<i3
         Ok(_) => {
             if ctx.is_robot() {
                 emit_robot(
-                    "openproxy.v1.quota.reset",
+                    "cipherroute.v1.quota.reset",
                     json!({"ok": true, "cleared": "usage history (process memory)"}),
                 )?;
             } else {
@@ -132,7 +132,7 @@ async fn run_refresh(rt: &Runtime, ctx: OutputCtx) -> anyhow::Result<i32> {
         Ok(rows) => {
             if ctx.is_robot() {
                 emit_robot(
-                    "openproxy.v1.quota.refresh",
+                    "cipherroute.v1.quota.refresh",
                     json!({"refreshed": rows.len(), "quotas": rows}),
                 )?;
             } else {

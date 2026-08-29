@@ -17,7 +17,7 @@ use tokio::{fs, process::Command};
 
 use crate::server::state::AppState;
 
-const PROVIDER_NAME: &str = "openproxy";
+const PROVIDER_NAME: &str = "cipherroute";
 const API_KEY_ENV: &str = "OPENAI_API_KEY";
 
 static MODEL_BLOCK_RE: Lazy<Regex> =
@@ -63,7 +63,7 @@ pub(super) async fn get_hermes_settings(
             Json(json!({
                 "installed": true,
                 "settings": { "model": model.clone() },
-                "hasOpenProxy": has_openproxy_config(model.as_ref()),
+                "hasCipherRoute": has_cipherroute_config(model.as_ref()),
                 "configPath": hermes_config_path().to_string_lossy().to_string(),
             }))
             .into_response()
@@ -247,7 +247,7 @@ fn extract_model_field(body: &str, key: &str) -> Option<String> {
         .map(|value| value.as_str().trim().to_string())
 }
 
-fn has_openproxy_config(model: Option<&Value>) -> bool {
+fn has_cipherroute_config(model: Option<&Value>) -> bool {
     let Some(model) = model else {
         return false;
     };

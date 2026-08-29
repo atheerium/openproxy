@@ -1,4 +1,4 @@
-//! End-to-end tests for `openproxy sync`. These exercise the binary against
+//! End-to-end tests for `cipherroute sync`. These exercise the binary against
 //! a real `DATA_DIR` and parse the `--robot` envelope, mirroring the style
 //! of the M4/M5 CLI tests.
 
@@ -19,16 +19,16 @@ fn write_fixture(dir: &std::path::Path, name: &str, body: &str) -> std::path::Pa
 }
 
 fn op(data_dir: &std::path::Path, args: &[&str]) -> Output {
-    Command::cargo_bin("openproxy")
-        .expect("locate openproxy binary")
+    Command::cargo_bin("cipherroute")
+        .expect("locate cipherroute binary")
         .env("DATA_DIR", data_dir)
-        // Isolate from the developer shell — ambient OPENPROXY_URL/API_KEY
+        // Isolate from the developer shell — ambient CIPHERROUTE_URL/API_KEY
         // would flip `db export` into remote mode against a live server.
-        .env_remove("OPENPROXY_URL")
-        .env_remove("OPENPROXY_API_KEY")
+        .env_remove("CIPHERROUTE_URL")
+        .env_remove("CIPHERROUTE_API_KEY")
         .args(args)
         .output()
-        .expect("spawn openproxy")
+        .expect("spawn cipherroute")
 }
 
 /// Minimal fixture mimicking the schema emitted by
@@ -68,7 +68,7 @@ fn parse_robot_envelope(stdout: &[u8]) -> Value {
     let s = std::str::from_utf8(stdout).expect("utf8 stdout");
     let line = s
         .lines()
-        .find(|l| l.contains("openproxy.v1.sync.apply"))
+        .find(|l| l.contains("cipherroute.v1.sync.apply"))
         .unwrap_or_else(|| panic!("no sync envelope found in stdout:\n{s}"));
     serde_json::from_str(line).expect("envelope is valid JSON")
 }
@@ -99,7 +99,7 @@ fn sync_dry_run_emits_envelope_and_does_not_write() {
         String::from_utf8_lossy(&out.stderr)
     );
     let env = parse_robot_envelope(&out.stdout);
-    assert_eq!(env["schema"], "openproxy.v1.sync.apply");
+    assert_eq!(env["schema"], "cipherroute.v1.sync.apply");
     let data = &env["data"];
     assert_eq!(data["source"], "9router");
     assert_eq!(data["ref"], "v0.0.1");
@@ -149,7 +149,7 @@ fn sync_apply_then_reapply_is_idempotent() {
 
     // Persistence proof: the second apply reports all-unchanged, which is
     // only possible if the first apply persisted to SQLite.
-    if !fs::metadata(dir.path().join("openproxy.sqlite")).is_ok() {
+    if !fs::metadata(dir.path().join("cipherroute.sqlite")).is_ok() {
         panic!("SQLite store should exist after apply");
     }
 
@@ -236,7 +236,7 @@ fn sync_prune_removes_only_same_source_entries() {
     // Re-read db.
     // SQLite is the sole runtime store — the second apply reporting all
     // models as unchanged proves both entries persisted.
-    if !dir.path().join("openproxy.sqlite").exists() {
+    if !dir.path().join("cipherroute.sqlite").exists() {
         panic!("SQLite store should exist after sync");
     }
     // Persistence proof: the prune apply's diff reports the surviving set.

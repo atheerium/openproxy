@@ -1,7 +1,7 @@
-# 9router → OpenProxy logic parity
+# 9router → CipherRoute logic parity
 
 Evidence-based parity against 9router v0.5.55 (`decolua/9router` @ 699edac). Beads:
-`openproxy-9router-parity-mj1*`, epic `openproxy-9router-parity-v0550-pnc`.
+`cipherroute-9router-parity-mj1*`, epic `cipherroute-9router-parity-v0550-pnc`.
 
 ## 2026-08-22 deep-audit pass (8-agent swarm vs v0.5.55)
 
@@ -43,14 +43,14 @@ cloudflare multipart, antigravity image adapter, TTS binary audio).
 ```bash
 ./scripts/parity-smoke.sh
 # or:
-cargo test -p openproxy --lib stream_flags
-cargo test -p openproxy --lib parity_tests
-cargo test -p openproxy --lib claude_format
-cargo test -p openproxy --lib combo
-cargo test -p openproxy --lib chat::
+cargo test -p cipherroute --lib stream_flags
+cargo test -p cipherroute --lib parity_tests
+cargo test -p cipherroute --lib claude_format
+cargo test -p cipherroute --lib combo
+cargo test -p cipherroute --lib chat::
 ```
 
-Decision logs: `target: openproxy::chat|translator|combo|fusion|github`.
+Decision logs: `target: cipherroute::chat|translator|combo|fusion|github`.
 
 ## Intentional Rust differences (do not “fix”)
 
@@ -63,7 +63,7 @@ Decision logs: `target: openproxy::chat|translator|combo|fusion|github`.
 | Encrypted SQLite secrets | Security |
 | **PXPIPE token-saver** | Optional JS image-context compressor; requires external `pxpipe-proxy`. Not ported — use RTK + Headroom + Caveman/Ponytail. |
 | **Hedging / Shadow / Auto-combo** | Modules scaffolded under `src/core/combo/{hedging,shadow,auto_combo}.rs`; chat dispatcher maps unknown names to **fallback** until product demand. |
-| Combo capacity precheck | OpenProxy skips saturated members; optional future gate `capacity_precheck=false` for 9router try-anyway. |
+| Combo capacity precheck | CipherRoute skips saturated members; optional future gate `capacity_precheck=false` for 9router try-anyway. |
 
 ## Key pipeline (current)
 
@@ -86,7 +86,7 @@ kiro, vertex, codex, cursor/cu, github, azure, qwen, iflow, gemini-cli, opencode
 
 ### Critical executor parity notes
 
-| Executor | 9router behavior | OpenProxy |
+| Executor | 9router behavior | CipherRoute |
 |----------|------------------|-----------|
 | GitHub | Codex/o-series → `/responses`; escalate on 400 | `github.rs` prefer + escalate |
 | Cursor | `api2.cursor.sh` + `forceAgentMode` for Claude Code UA | `cursor.rs` |
@@ -126,9 +126,9 @@ Accepts legacy string **or** nested 9router object:
 
 | Provider | Status | Bead |
 |----------|--------|------|
-| **grok-cli** (`gcli`/`gb`) | OAuth refresh + forceStream + format=responses exist; **no** specialized executor / chat branch → falls through Default/xai (wrong host: needs `cli-chat-proxy.grok.com/v1/responses`) | `openproxy-executor-grok-cli-gzt` P0 |
-| **xiaomi-tokenplan** | Region OpenAI URL in DefaultExecutor; **missing** Claude `/anthropic/v1/messages` + resolve_transport | `openproxy-executor-xiaomi-tokenplan-2mz` P1 |
-| **xiaomi-mimo** | OpenAI default only; dual transport not in `resolve_transport` | `openproxy-transport-xiaomi-mimo-lyp` P1 |
+| **grok-cli** (`gcli`/`gb`) | OAuth refresh + forceStream + format=responses exist; **no** specialized executor / chat branch → falls through Default/xai (wrong host: needs `cli-chat-proxy.grok.com/v1/responses`) | `cipherroute-executor-grok-cli-gzt` P0 |
+| **xiaomi-tokenplan** | Region OpenAI URL in DefaultExecutor; **missing** Claude `/anthropic/v1/messages` + resolve_transport | `cipherroute-executor-xiaomi-tokenplan-2mz` P1 |
+| **xiaomi-mimo** | OpenAI default only; dual transport not in `resolve_transport` | `cipherroute-transport-xiaomi-mimo-lyp` P1 |
 | perplexity-web | Implemented (lives in `grok_web.rs`, dispatched) | — |
 | ollama-local | Wired as ollama | — |
 
@@ -136,8 +136,8 @@ Accepts legacy string **or** nested 9router object:
 
 | Item | Severity | Bead |
 |------|----------|------|
-| `web_fetch` still clear-**all** `modelLock_*` on success (chat is selective) | P1 | `openproxy-webfetch-selective-lock-1rb` |
-| Global `model(high)` stripThinkingSuffix (only kiro/codex partial) | P2 | `openproxy-thinking-suffix-global-zya` |
+| `web_fetch` still clear-**all** `modelLock_*` on success (chat is selective) | P1 | `cipherroute-webfetch-selective-lock-1rb` |
+| Global `model(high)` stripThinkingSuffix (only kiro/codex partial) | P2 | `cipherroute-thinking-suffix-global-zya` |
 | Vertex SA JWT mint | OK in `vertex.rs` executor (not OAuth dispatch) — design split, not a gap | — |
 | PXPIPE | Intentional skip | — |
 | Hedging / shadow / auto-combo chat wire | Intentional scaffold-only | — |

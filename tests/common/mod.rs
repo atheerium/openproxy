@@ -1,9 +1,9 @@
 use std::collections::BTreeMap;
 use std::sync::Arc;
 
-use openproxy::db::Db;
-use openproxy::server::state::AppState;
-use openproxy::types::*;
+use cipherroute::db::Db;
+use cipherroute::server::state::AppState;
+use cipherroute::types::*;
 use tempfile::tempdir;
 #[allow(unused_imports)]
 use wiremock::MockServer;
@@ -19,7 +19,7 @@ pub async fn boot_test_app() -> (axum::Router, AppState) {
     .await
     .expect("seed db");
     let state = AppState::new(db);
-    (openproxy::build_app(state.clone()), state)
+    (cipherroute::build_app(state.clone()), state)
 }
 
 #[allow(dead_code)]

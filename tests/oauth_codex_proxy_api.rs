@@ -1,12 +1,12 @@
 #![allow(clippy::await_holding_lock)]
-use openproxy::core::tls::ensure_rustls_provider;
+use cipherroute::core::tls::ensure_rustls_provider;
 use std::sync::{Arc, Mutex};
 
 use axum::body::Body;
 use axum::http::{Method, Request, StatusCode};
 use once_cell::sync::Lazy;
-use openproxy::db::Db;
-use openproxy::server::state::AppState;
+use cipherroute::db::Db;
+use cipherroute::server::state::AppState;
 use serde_json::json;
 use tempfile::tempdir;
 use tower::util::ServiceExt;
@@ -44,7 +44,7 @@ async fn app_state() -> AppState {
     db.update(|state| {
         // Management key: oauth proxy routes sit in the admin tier now that
         // requireLogin defaults to true (9router parity).
-        state.api_keys.push(openproxy::types::ApiKey {
+        state.api_keys.push(cipherroute::types::ApiKey {
             id: "mgmt-1".into(),
             name: "Management".into(),
             key: "codex-proxy-mgmt-key".into(),
@@ -91,7 +91,7 @@ async fn codex_start_proxy_registers_server_side_session_and_poll_status() {
     let _lock = ENV_LOCK
         .lock()
         .unwrap_or_else(|poisoned| poisoned.into_inner());
-    let app = openproxy::build_app(app_state().await);
+    let app = cipherroute::build_app(app_state().await);
     stop_proxy(&app).await;
 
     let response = app
@@ -122,7 +122,7 @@ async fn codex_proxy_fallback_redirects_to_app_callback() {
     let _lock = ENV_LOCK
         .lock()
         .unwrap_or_else(|poisoned| poisoned.into_inner());
-    let app = openproxy::build_app(app_state().await);
+    let app = cipherroute::build_app(app_state().await);
     stop_proxy(&app).await;
 
     let response = app
@@ -164,7 +164,7 @@ async fn codex_proxy_server_side_callback_exchanges_and_clears_session() {
         .unwrap_or_else(|poisoned| poisoned.into_inner());
     let server = MockServer::start().await;
     let _token_url = EnvVarGuard::set(
-        "OPENPROXY_CODEX_TOKEN_URL",
+        "CIPHERROUTE_CODEX_TOKEN_URL",
         &format!("{}/oauth/token", server.uri()),
     );
 
@@ -187,7 +187,7 @@ async fn codex_proxy_server_side_callback_exchanges_and_clears_session() {
         .await;
 
     let state = app_state().await;
-    let app = openproxy::build_app(state.clone());
+    let app = cipherroute::build_app(state.clone());
     stop_proxy(&app).await;
 
     let response = app

@@ -52,11 +52,11 @@ async fn get_codex_settings(State(state): State<AppState>, headers: HeaderMap) -
 
     match read_codex_config().await {
         Ok(settings) => {
-            let has_openproxy = has_openproxy_config(&settings);
+            let has_cipherroute = has_cipherroute_config(&settings);
             Json(json!({
                 "installed": true,
                 "settings": settings,
-                "hasOpenProxy": has_openproxy,
+                "hasCipherRoute": has_cipherroute,
                 "settingsPath": codex_config_path().to_string_lossy().to_string(),
             }))
             .into_response()
@@ -143,7 +143,7 @@ async fn read_codex_config() -> AnyhowResult<Option<Value>> {
     read_json_optional(&codex_config_path()).await
 }
 
-fn has_openproxy_config(settings: &Option<Value>) -> bool {
+fn has_cipherroute_config(settings: &Option<Value>) -> bool {
     let Some(settings) = settings else {
         return false;
     };
@@ -153,7 +153,7 @@ fn has_openproxy_config(settings: &Option<Value>) -> bool {
         .unwrap_or("");
     base_url.contains("localhost")
         || base_url.contains("127.0.0.1")
-        || base_url.contains("openproxy")
+        || base_url.contains("cipherroute")
         || base_url.contains("0.0.0.0")
 }
 
@@ -243,8 +243,8 @@ async fn set_permissions_600(path: &Path) {
     let _ = path;
 }
 
-/// Marker line used to identify the OpenProxy Codex block in shell profiles.
-const BASHRC_ENV_LINE: &str = "# OpenProxy Codex settings";
+/// Marker line used to identify the CipherRoute Codex block in shell profiles.
+const BASHRC_ENV_LINE: &str = "# CipherRoute Codex settings";
 
 async fn upsert_env_var_in_profiles(base_url: &str) -> AnyhowResult<()> {
     let export_line = format!("export OPENAI_BASE_URL=\"{}\"", base_url);
@@ -287,7 +287,7 @@ async fn upsert_env_block(profile_path: &Path, export_line: &str) -> AnyhowResul
         let re = regex_block_pattern();
         if re.is_match(&content) {
             let new_block = format!(
-                "{}\n{export_line}\n# End OpenProxy Codex settings",
+                "{}\n{export_line}\n# End CipherRoute Codex settings",
                 BASHRC_ENV_LINE
             );
             let updated = re.replace(&content, &new_block);
@@ -298,7 +298,7 @@ async fn upsert_env_block(profile_path: &Path, export_line: &str) -> AnyhowResul
 
     // Append at the end
     let block = format!(
-        "\n{}\n{export_line}\n# End OpenProxy Codex settings\n",
+        "\n{}\n{export_line}\n# End CipherRoute Codex settings\n",
         BASHRC_ENV_LINE
     );
     let updated = format!("{content}{block}");
@@ -332,7 +332,7 @@ async fn remove_env_block(profile_path: &Path) -> AnyhowResult<()> {
 
 fn regex_block_pattern() -> regex::Regex {
     regex::Regex::new(&format!(
-        r"(?m)^{}\n(?:export OPENAI_BASE_URL=.*\n)?# End OpenProxy Codex settings\n?",
+        r"(?m)^{}\n(?:export OPENAI_BASE_URL=.*\n)?# End CipherRoute Codex settings\n?",
         regex::escape(BASHRC_ENV_LINE)
     ))
     .unwrap()
@@ -363,38 +363,38 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_has_openproxy_config_none() {
-        assert!(!has_openproxy_config(&None));
+    fn test_has_cipherroute_config_none() {
+        assert!(!has_cipherroute_config(&None));
     }
 
     #[test]
-    fn test_has_openproxy_config_localhost() {
+    fn test_has_cipherroute_config_localhost() {
         let settings = json!({
             "baseUrl": "http://localhost:4623",
         });
-        assert!(has_openproxy_config(&Some(settings)));
+        assert!(has_cipherroute_config(&Some(settings)));
     }
 
     #[test]
-    fn test_has_openproxy_config_openproxy() {
+    fn test_has_cipherroute_config_cipherroute() {
         let settings = json!({
-            "baseUrl": "http://openproxy.example.com",
+            "baseUrl": "http://cipherroute.example.com",
         });
-        assert!(has_openproxy_config(&Some(settings)));
+        assert!(has_cipherroute_config(&Some(settings)));
     }
 
     #[test]
-    fn test_has_openproxy_config_other() {
+    fn test_has_cipherroute_config_other() {
         let settings = json!({
             "baseUrl": "https://api.openai.com",
         });
-        assert!(!has_openproxy_config(&Some(settings)));
+        assert!(!has_cipherroute_config(&Some(settings)));
     }
 
     #[test]
     fn test_regex_block_pattern_matches() {
         let re = regex_block_pattern();
-        let content = "# OpenProxy Codex settings\nexport OPENAI_BASE_URL=\"http://localhost:4623\"\n# End OpenProxy Codex settings\n";
+        let content = "# CipherRoute Codex settings\nexport OPENAI_BASE_URL=\"http://localhost:4623\"\n# End CipherRoute Codex settings\n";
         assert!(re.is_match(content));
     }
 

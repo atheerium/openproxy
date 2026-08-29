@@ -151,7 +151,7 @@ impl std::error::Error for KiroError {}
 
 /// Resolve the configurable Kiro auth-service base URL.
 fn auth_service_base_url() -> String {
-    std::env::var("OPENPROXY_KIRO_AUTH_SERVICE_BASE_URL")
+    std::env::var("CIPHERROUTE_KIRO_AUTH_SERVICE_BASE_URL")
         .ok()
         .filter(|v| !v.trim().is_empty())
         .unwrap_or_else(|| KIRO_AUTH_SERVICE.to_string())
@@ -161,7 +161,7 @@ fn auth_service_base_url() -> String {
 
 /// Resolve the configurable AWS OIDC base URL for a given region.
 fn oidc_base_url(region: &str) -> String {
-    std::env::var("OPENPROXY_KIRO_OIDC_BASE_URL")
+    std::env::var("CIPHERROUTE_KIRO_OIDC_BASE_URL")
         .ok()
         .filter(|v| !v.trim().is_empty())
         .unwrap_or_else(|| format!("https://oidc.{region}.amazonaws.com"))

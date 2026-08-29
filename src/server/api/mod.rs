@@ -67,7 +67,7 @@ use crate::server::state::AppState;
 use crate::types::{AppDb, HealthResponse, ProviderConnection};
 
 /// Header carrying the dashboard password for sensitive re-auth (export/import).
-/// Accepts the OpenProxy name and the legacy 9router name for compatibility.
+/// Accepts the CipherRoute name and the legacy 9router name for compatibility.
 const DB_PASSWORD_HEADERS: &[&str] = &["x-op-password", "x-9r-password"];
 
 pub fn routes(state: AppState) -> Router<AppState> {
@@ -283,7 +283,7 @@ pub fn routes(state: AppState) -> Router<AppState> {
     // (noAuth) providers must work without any key. Per-provider
     // credential checks happen inside handlers/executors instead
     // (chat.js only enforces keys when settings.requireApiKey is set,
-    // which openproxy does not implement).
+    // which cipherroute does not implement).
 
     // ── ADMIN: dashboard session or management API key required ──
     let admin_local_only = Router::new()
@@ -504,7 +504,7 @@ async fn fetch_latest_dashboard_version() -> Option<String> {
         .ok()?;
 
     client
-        .get("https://registry.npmjs.org/openproxy/latest")
+        .get("https://registry.npmjs.org/cipherroute/latest")
         .send()
         .await
         .ok()?
@@ -519,12 +519,12 @@ async fn fetch_latest_dashboard_version() -> Option<String> {
 async fn fetch_latest_release_version() -> Option<String> {
     let client = reqwest::Client::builder()
         .timeout(std::time::Duration::from_secs(4))
-        .user_agent(concat!("openproxy/", env!("CARGO_PKG_VERSION")))
+        .user_agent(concat!("cipherroute/", env!("CARGO_PKG_VERSION")))
         .build()
         .ok()?;
 
     let body: Value = client
-        .get("https://api.github.com/repos/quangdang46/openproxy/releases/latest")
+        .get("https://api.github.com/repos/quangdang46/cipherroute/releases/latest")
         .send()
         .await
         .ok()?
@@ -1770,7 +1770,7 @@ pub fn consistent_machine_id() -> String {
         None => {
             use sha2::Digest;
             let mut hasher = sha2::Sha256::new();
-            hasher.update(b"openproxy-fallback-machine");
+            hasher.update(b"cipherroute-fallback-machine");
             hasher.update(salt.as_bytes());
             hex::encode(hasher.finalize())[..16].to_string()
         }
@@ -2098,7 +2098,7 @@ async fn get_settings_api(State(state): State<AppState>, headers: HeaderMap) -> 
     }
 
     let snapshot = state.db.snapshot();
-    let db_path = state.db.data_dir.join("openproxy.sqlite");
+    let db_path = state.db.data_dir.join("cipherroute.sqlite");
     let db_path_str = db_path.display().to_string();
     Json(safe_settings_payload_with_db_path(
         &snapshot.settings,
@@ -2393,7 +2393,7 @@ async fn update_settings_api(
                 // Best-effort reload; discovery failure leaves the previous client.
                 state.reload_oidc_from_settings().await;
             }
-            let db_path = state.db.data_dir.join("openproxy.sqlite");
+            let db_path = state.db.data_dir.join("cipherroute.sqlite");
             let db_path_str = db_path.display().to_string();
             Json(safe_settings_payload_with_db_path(
                 &snapshot.settings,
@@ -2722,7 +2722,7 @@ async fn proxy_test_api(
     let client = match reqwest::Client::builder()
         .proxy(proxy)
         .timeout(std::time::Duration::from_millis(timeout_ms))
-        .user_agent("openproxy")
+        .user_agent("cipherroute")
         .build()
     {
         Ok(client) => client,

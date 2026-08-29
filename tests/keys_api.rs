@@ -3,10 +3,10 @@ use std::sync::Arc;
 
 use axum::body::Body;
 use axum::http::{Request, StatusCode};
-use openproxy::core::auth::parse_api_key;
-use openproxy::db::Db;
-use openproxy::server::state::AppState;
-use openproxy::types::ApiKey;
+use cipherroute::core::auth::parse_api_key;
+use cipherroute::db::Db;
+use cipherroute::server::state::AppState;
+use cipherroute::types::ApiKey;
 use serde_json::json;
 use tempfile::tempdir;
 use tower::util::ServiceExt;
@@ -43,7 +43,7 @@ async fn app_state(keys: Vec<ApiKey>) -> AppState {
 #[tokio::test]
 async fn create_key_returns_machine_bound_key_shape() {
     let state = app_state(vec![]).await;
-    let app = openproxy::build_app(state.clone());
+    let app = cipherroute::build_app(state.clone());
     let response = app
         .oneshot(
             Request::builder()
@@ -93,7 +93,7 @@ async fn create_key_returns_machine_bound_key_shape() {
 
 #[tokio::test]
 async fn create_key_rejects_missing_name() {
-    let app = openproxy::build_app(app_state(vec![]).await);
+    let app = cipherroute::build_app(app_state(vec![]).await);
     let response = app
         .oneshot(
             Request::builder()
@@ -117,7 +117,7 @@ async fn create_key_rejects_missing_name() {
 
 #[tokio::test]
 async fn create_key_with_existing_keys_requires_auth_and_keeps_response_shape() {
-    let app = openproxy::build_app(app_state(vec![active_key()]).await);
+    let app = cipherroute::build_app(app_state(vec![active_key()]).await);
     let response = app
         .oneshot(
             Request::builder()

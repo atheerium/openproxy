@@ -1,12 +1,12 @@
 use std::collections::BTreeMap;
 use std::sync::Arc;
 
-use openproxy::core::model::{
+use cipherroute::core::model::{
     get_model_info, parse_model, resolve_model_alias_from_map, resolve_provider_alias,
     ModelRouteKind,
 };
-use openproxy::db::Db;
-use openproxy::types::{
+use cipherroute::db::Db;
+use cipherroute::types::{
     ApiKey, AppDb, Combo, DailySummary, ModelAliasTarget, ProviderConnection, ProviderModelRef,
     ProviderNode, Settings, SummaryCounter, TokenUsage, UsageDb, UsageEntry,
 };
@@ -248,7 +248,7 @@ async fn db_loads_normalizes_and_persists_json_files() {
     assert!(snapshot.api_keys[0].is_active());
     assert!(snapshot.settings.outbound_proxy_enabled);
     assert_eq!(usage.total_requests_lifetime, 1);
-    assert!(db.data_dir.join("openproxy.sqlite").exists());
+    assert!(db.data_dir.join("cipherroute.sqlite").exists());
 
     db.update(|state| {
         state.model_aliases.insert(

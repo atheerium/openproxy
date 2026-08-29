@@ -292,7 +292,7 @@ pub enum ComboStrategyEntry {
 /// `settings.providerStrategies[providerId]`.
 ///
 /// Accepts either a bare strategy string (`"round-robin"`) for backward
-/// compatibility with older openproxy data or the 9router nested object
+/// compatibility with older cipherroute data or the 9router nested object
 /// (`{ fallbackStrategy, stickyRoundRobinLimit, rotateStrategy, proxyPoolId }`)
 /// the dashboard writes.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -1378,7 +1378,7 @@ mod provider_strategy_tests {
         assert_eq!(qwen.proxy_pool_id(), Some("pool-1"));
     }
 
-    /// Legacy openproxy data stores bare strings.
+    /// Legacy cipherroute data stores bare strings.
     #[test]
     fn provider_strategies_accept_legacy_strings() {
         let json = json!({ "providerStrategies": { "gemini": "round-robin" } });

@@ -17,7 +17,7 @@ interface ApiKey {
 }
 
 interface CopilotStatus {
-  hasOpenProxy?: boolean;
+  hasCipherRoute?: boolean;
   currentUrl?: string;
   config?: Array<{ name: string; models: Array<{ id: string }> }>;
   error?: string;
@@ -76,7 +76,7 @@ export default function CopilotToolCard({ tool, isExpanded, onToggle, baseUrl, a
   // Pre-fill model list from existing config
   useEffect(() => {
     if (status?.config && Array.isArray(status.config) && modelList.length === 0) {
-      const entry = status.config.find((e) => e.name === "OpenProxy");
+      const entry = status.config.find((e) => e.name === "CipherRoute");
       if (entry?.models?.length > 0) {
         setModelList(entry.models.map((m) => m.id));
       }
@@ -95,7 +95,7 @@ export default function CopilotToolCard({ tool, isExpanded, onToggle, baseUrl, a
 
   const getConfigStatus = (): "configured" | "not_configured" | "other" | null => {
     if (!status) return null;
-    if (!status.hasOpenProxy) return "not_configured";
+    if (!status.hasCipherRoute) return "not_configured";
     const url = status.currentUrl || "";
     return url.includes("localhost") || url.includes("127.0.0.1") || url.includes(baseUrl)
       ? "configured" : "other";
@@ -136,7 +136,7 @@ export default function CopilotToolCard({ tool, isExpanded, onToggle, baseUrl, a
     try {
       const keyToUse = (selectedApiKey && selectedApiKey.trim())
         ? selectedApiKey
-        : (!cloudEnabled ? "sk_openproxy" : selectedApiKey);
+        : (!cloudEnabled ? "sk_cipherroute" : selectedApiKey);
 
       const res = await fetch("/api/cli-tools/copilot-settings", {
         method: "POST",
@@ -180,13 +180,13 @@ export default function CopilotToolCard({ tool, isExpanded, onToggle, baseUrl, a
   const getManualConfigs = (): Array<{ filename: string; content: string }> => {
     const keyToUse = (selectedApiKey && selectedApiKey.trim())
       ? selectedApiKey
-      : (!cloudEnabled ? "sk_openproxy" : "<API_KEY_FROM_DASHBOARD>");
+      : (!cloudEnabled ? "sk_cipherroute" : "<API_KEY_FROM_DASHBOARD>");
     const effectiveBaseUrl = getEffectiveBaseUrl();
 
     return [{
       filename: "~/Library/Application Support/Code/User/chatLanguageModels.json",
       content: JSON.stringify([{
-        name: "OpenProxy",
+        name: "CipherRoute",
         vendor: "azure",
         apiKey: keyToUse,
         models: modelList.map((id) => ({
@@ -268,7 +268,7 @@ export default function CopilotToolCard({ tool, isExpanded, onToggle, baseUrl, a
                     </select>
                   ) : (
                     <span className="text-sm text-text-muted">
-                      {cloudEnabled ? "No API keys - Create one in Keys page" : "sk_openproxy (default)"}
+                      {cloudEnabled ? "No API keys - Create one in Keys page" : "sk_cipherroute (default)"}
                     </span>
                   )}
                 </div>
@@ -321,7 +321,7 @@ export default function CopilotToolCard({ tool, isExpanded, onToggle, baseUrl, a
                 <Button variant="primary" size="sm" onClick={handleApply} disabled={modelList.length === 0} loading={applying}>
                   <span className="material-symbols-outlined text-[14px] mr-1">save</span>Apply
                 </Button>
-                <Button variant="outline" size="sm" onClick={handleReset} disabled={!status?.hasOpenProxy} loading={restoring}>
+                <Button variant="outline" size="sm" onClick={handleReset} disabled={!status?.hasCipherRoute} loading={restoring}>
                   <span className="material-symbols-outlined text-[14px] mr-1">restore</span>Reset
                 </Button>
                 <Button variant="ghost" size="sm" onClick={() => setShowManualConfigModal(true)} disabled={modelList.length === 0}>

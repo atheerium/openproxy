@@ -1,7 +1,7 @@
 //! HTTP endpoints for the native MCP server.
 //!
 //! Provides an SSE-based MCP transport endpoint so any MCP client (Claude
-//! Desktop, Cursor, Cline, etc.) can discover and invoke OpenProxy's
+//! Desktop, Cursor, Cline, etc.) can discover and invoke CipherRoute's
 //! administrative tools directly via the MCP protocol — no child process bridge
 //! required.
 //!
@@ -82,7 +82,7 @@ async fn sse_handler(State(state): State<AppState>) -> Response {
                 }
                 Err(tokio::sync::broadcast::error::RecvError::Lagged(skipped)) => {
                     tracing::warn!(
-                        target: "openproxy::mcp",
+                        target: "cipherroute::mcp",
                         skipped,
                         "MCP server SSE session lagged; dropping frames"
                     );
@@ -104,7 +104,7 @@ async fn sse_handler(State(state): State<AppState>) -> Response {
         .header("X-Accel-Buffering", "no")
         .body(Body::from_stream(body_stream))
         .unwrap_or_else(|err| {
-            tracing::error!(target: "openproxy::mcp", error = %err, "build MCP server SSE response");
+            tracing::error!(target: "cipherroute::mcp", error = %err, "build MCP server SSE response");
             (StatusCode::INTERNAL_SERVER_ERROR, "internal error").into_response()
         })
 }
@@ -149,7 +149,7 @@ async fn message_handler(
 /// `resources/list`, `resources/read`) and returns the response directly
 /// in the HTTP response body. No SSE session required.
 ///
-/// This is the simplest way for MCP clients to interact with OpenProxy's
+/// This is the simplest way for MCP clients to interact with CipherRoute's
 /// built-in tools — just POST a JSON-RPC 2.0 request and get a response back.
 async fn stateless_mcp_handler(
     State(state): State<AppState>,

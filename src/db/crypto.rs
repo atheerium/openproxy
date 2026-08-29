@@ -2,7 +2,7 @@
 //!
 //! Two schemes coexist, dispatch on a prefix:
 //! - `opxenc2:` — **AES-256-GCM** (authenticated encryption) with a key
-//!   derived via **Argon2id** from `OPENPROXY_ENCRYPTION_KEY` and a
+//!   derived via **Argon2id** from `CIPHERROUTE_ENCRYPTION_KEY` and a
 //!   per-install salt. This is the default for all new writes. GCM detects
 //!   tampering (an attacker who can write to disk cannot silently corrupt or
 //!   swap blocks). The Argon2id derivation is cached per process, so the hot
@@ -12,7 +12,7 @@
 //!   format. Existing `opxenc1:` values are lazily re-wrapped to `opxenc2:`
 //!   the next time their connection is written.
 //!
-//! Key rotation caveat: changing `OPENPROXY_ENCRYPTION_KEY` requires
+//! Key rotation caveat: changing `CIPHERROUTE_ENCRYPTION_KEY` requires
 //! re-encrypting existing credentials (lazy re-wrap handles this on next
 //! write). The primary goal is to prevent accidental exposure of plaintext
 //! credentials in `db.json` or SQLite backups. For stronger protection, use
@@ -128,11 +128,11 @@ pub fn sha256_checksum(data: &[u8]) -> String {
 // Encryption key source
 // ---------------------------------------------------------------------------
 
-/// Return the encryption key from the `OPENPROXY_ENCRYPTION_KEY` environment
+/// Return the encryption key from the `CIPHERROUTE_ENCRYPTION_KEY` environment
 /// variable, or `None` when unset / empty (encryption is disabled, values are
 /// stored in plaintext).
 pub fn encryption_key() -> Option<String> {
-    std::env::var("OPENPROXY_ENCRYPTION_KEY")
+    std::env::var("CIPHERROUTE_ENCRYPTION_KEY")
         .ok()
         .filter(|k| !k.is_empty())
 }
@@ -141,8 +141,8 @@ pub fn encryption_key() -> Option<String> {
 // ProviderConnection field-level encryption / decryption
 // ---------------------------------------------------------------------------
 
-/// Marker prefix for values encrypted by OpenProxy (prevents double-encrypt and
-/// detects ciphertext when `OPENPROXY_ENCRYPTION_KEY` is missing).
+/// Marker prefix for values encrypted by CipherRoute (prevents double-encrypt and
+/// detects ciphertext when `CIPHERROUTE_ENCRYPTION_KEY` is missing).
 pub const ENC_PREFIX: &str = "opxenc1:";
 
 /// Marker prefix for values encrypted with the v2 scheme (AES-256-GCM +
@@ -162,19 +162,19 @@ const TAG_LEN: usize = 16;
 
 /// Directory where the persisted crypto salt file is stored (mirrors the
 /// `api_key_secret` persistence pattern).
-fn openproxy_dir() -> PathBuf {
+fn cipherroute_dir() -> PathBuf {
     if let Some(dir) = std::env::var_os("DATA_DIR") {
         return PathBuf::from(dir);
     }
     let home = std::env::var_os("HOME")
         .or_else(|| std::env::var_os("USERPROFILE"))
         .unwrap_or_else(|| PathBuf::from(".").into());
-    PathBuf::from(home).join(".openproxy")
+    PathBuf::from(home).join(".cipherroute")
 }
 
 /// Path to the persisted per-install crypto salt.
 fn crypto_salt_path() -> PathBuf {
-    openproxy_dir().join("crypto_salt")
+    cipherroute_dir().join("crypto_salt")
 }
 
 /// Get (or create on first use) the per-install 16-byte salt for the
@@ -205,15 +205,15 @@ fn read_salt_file() -> Option<[u8; SALT_LEN]> {
 /// Argon2id parameters. High memory cost (64 MiB) is acceptable because the
 /// derivation is cached and runs once per boot.
 fn argon2_params() -> argon2::Params {
-    let m_cost: u32 = std::env::var("OPENPROXY_ARGON2_M_COST_KB")
+    let m_cost: u32 = std::env::var("CIPHERROUTE_ARGON2_M_COST_KB")
         .ok()
         .and_then(|v| v.parse().ok())
         .unwrap_or(65_536);
-    let t_cost: u32 = std::env::var("OPENPROXY_ARGON2_T_COST")
+    let t_cost: u32 = std::env::var("CIPHERROUTE_ARGON2_T_COST")
         .ok()
         .and_then(|v| v.parse().ok())
         .unwrap_or(3);
-    let p_cost: u32 = std::env::var("OPENPROXY_ARGON2_P_COST")
+    let p_cost: u32 = std::env::var("CIPHERROUTE_ARGON2_P_COST")
         .ok()
         .and_then(|v| v.parse().ok())
         .unwrap_or(1);
@@ -225,7 +225,7 @@ fn argon2_params() -> argon2::Params {
     })
 }
 
-/// Derive the 256-bit AES-GCM key from the raw `OPENPROXY_ENCRYPTION_KEY`
+/// Derive the 256-bit AES-GCM key from the raw `CIPHERROUTE_ENCRYPTION_KEY`
 /// using Argon2id with the per-install salt. Cached per process keyed by the
 /// raw key string — the hot path never re-derives, but a different key
 /// (e.g. in tests) still derives its own.
@@ -300,7 +300,7 @@ fn decrypt_value_v2(raw_key: &str, payload_b64: &str) -> anyhow::Result<String> 
 /// struct is safe for serialization to disk.
 ///
 /// When `key` is empty (encryption disabled), the fields are left as-is.
-/// This matches 9router's behaviour where `OPENPROXY_ENCRYPTION_KEY` unset
+/// This matches 9router's behaviour where `CIPHERROUTE_ENCRYPTION_KEY` unset
 /// means plaintext storage — SHA-256("") is NOT a valid encryption key.
 ///
 /// Already-prefixed ciphertext is never re-encrypted (stops monotonic growth
@@ -386,8 +386,8 @@ fn decrypt_opt(field: &mut Option<String>, key: &str) {
     if key.is_empty() {
         if is_marked {
             tracing::error!(
-                target: "openproxy::crypto",
-                "Encrypted credential present but OPENPROXY_ENCRYPTION_KEY is unset — \
+                target: "cipherroute::crypto",
+                "Encrypted credential present but CIPHERROUTE_ENCRYPTION_KEY is unset — \
                  clearing field so ciphertext is never sent upstream. Set the same key \
                  used when writing the DB."
             );
@@ -413,8 +413,8 @@ fn decrypt_opt(field: &mut Option<String>, key: &str) {
         Err(err) => {
             if is_marked || looks_like_ciphertext(&payload) {
                 tracing::error!(
-                    target: "openproxy::crypto",
-                    "Failed to decrypt credential (wrong OPENPROXY_ENCRYPTION_KEY?): {err:#} — \
+                    target: "cipherroute::crypto",
+                    "Failed to decrypt credential (wrong CIPHERROUTE_ENCRYPTION_KEY?): {err:#} — \
                      clearing field so ciphertext is never sent upstream"
                 );
                 *field = None;
@@ -501,7 +501,7 @@ pub fn open_db(bytes: &[u8], key: Option<&str>) -> anyhow::Result<AppDb> {
             let actual = sha256_checksum(&recomputed);
             if &actual != expected {
                 tracing::warn!(
-                    target: "openproxy::db::crypto",
+                    target: "cipherroute::db::crypto",
                     expected = expected,
                     actual = actual,
                     "JSON checksum mismatch — data may be corrupt on disk"
@@ -560,7 +560,7 @@ pub fn open_json(bytes: &[u8]) -> anyhow::Result<Value> {
             let actual = sha256_checksum(&recomputed);
             if &actual != expected {
                 tracing::warn!(
-                    target: "openproxy::db::crypto",
+                    target: "cipherroute::db::crypto",
                     expected = expected,
                     actual = actual,
                     "JSON checksum mismatch — data may be corrupt on disk"

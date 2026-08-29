@@ -3,8 +3,8 @@ use std::sync::Arc;
 
 use axum::body::Body;
 use axum::http::{Method, Request, StatusCode};
-use openproxy::db::Db;
-use openproxy::server::state::AppState;
+use cipherroute::db::Db;
+use cipherroute::server::state::AppState;
 use serde_json::json;
 use tempfile::tempdir;
 use tower::util::ServiceExt;
@@ -15,7 +15,7 @@ async fn app_state() -> AppState {
     db.update(|state| {
         // Management key: pricing routes sit in the admin tier now that
         // requireLogin defaults to true (9router parity).
-        state.api_keys.push(openproxy::types::ApiKey {
+        state.api_keys.push(cipherroute::types::ApiKey {
             id: "mgmt-1".into(),
             name: "Management".into(),
             key: "pricing-mgmt-key".into(),
@@ -53,7 +53,7 @@ fn request(method: Method, uri: &str, body: Body) -> Request<Body> {
 
 #[tokio::test]
 async fn pricing_get_merges_defaults_with_user_pricing() {
-    let app = openproxy::build_app(app_state().await);
+    let app = cipherroute::build_app(app_state().await);
     let response = app
         .oneshot(request(Method::GET, "/api/pricing", Body::empty()))
         .await
@@ -74,7 +74,7 @@ async fn pricing_get_merges_defaults_with_user_pricing() {
 #[tokio::test]
 async fn pricing_patch_validates_and_returns_user_pricing_only() {
     let state = app_state().await;
-    let app = openproxy::build_app(state.clone());
+    let app = cipherroute::build_app(state.clone());
     let response = app
         .oneshot(request(
             Method::PATCH,
@@ -117,7 +117,7 @@ async fn pricing_patch_validates_and_returns_user_pricing_only() {
 
 #[tokio::test]
 async fn pricing_patch_rejects_invalid_field() {
-    let app = openproxy::build_app(app_state().await);
+    let app = cipherroute::build_app(app_state().await);
     let response = app
         .oneshot(request(
             Method::PATCH,
@@ -164,7 +164,7 @@ async fn pricing_delete_resets_model_and_returns_merged_pricing() {
         .await
         .unwrap();
 
-    let app = openproxy::build_app(state.clone());
+    let app = cipherroute::build_app(state.clone());
     let response = app
         .oneshot(request(
             Method::DELETE,

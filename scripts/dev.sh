@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# dev build + run loop for OpenProxy
+# dev build + run loop for CipherRoute
 # Runnable from repo root OR any cwd:
 #   ./scripts/dev.sh --fast              # fast incremental build (default)
 #   ./scripts/dev.sh --full              # full rebuild + checks
@@ -81,13 +81,13 @@ if [[ "$MODE" == "release" ]]; then
   MODE="run"
 fi
 
-BIN_DEBUG="target/debug/openproxy"
-BIN_RELEASE="target/release/openproxy"
+BIN_DEBUG="target/debug/cipherroute"
+BIN_RELEASE="target/release/cipherroute"
 BIN="$BIN_DEBUG"
-CARGO_ARGS=(build --bin openproxy)
+CARGO_ARGS=(build --bin cipherroute)
 if [[ "$BUILD_MODE" == "release" ]]; then
   BIN="$BIN_RELEASE"
-  CARGO_ARGS=(build --release --bin openproxy)
+  CARGO_ARGS=(build --release --bin cipherroute)
 fi
 
 print_help() {
@@ -129,12 +129,12 @@ HELP
 }
 
 kill_port() {
-  systemctl --user stop openproxy.service 2>/dev/null || true
+  systemctl --user stop cipherroute.service 2>/dev/null || true
   if command -v fuser >/dev/null 2>&1; then
     fuser -k "${PORT}/tcp" 2>/dev/null || true
   fi
-  pkill -f "openproxy server start" 2>/dev/null || true
-  pkill -f "target/.*/openproxy.*${PORT}" 2>/dev/null || true
+  pkill -f "cipherroute server start" 2>/dev/null || true
+  pkill -f "target/.*/cipherroute.*${PORT}" 2>/dev/null || true
   sleep 0.5
 }
 
@@ -182,7 +182,7 @@ run_checks() {
   if [[ -d "web" ]]; then
     pnpm --dir web exec astro check 2>&1 | tail -n 30 || echo "astro check advisory (fix new errors)"
   fi
-  cargo test -p openproxy --lib provider_models -- --nocapture 2>&1 | tail -n 30
+  cargo test -p cipherroute --lib provider_models -- --nocapture 2>&1 | tail -n 30
   echo "checks passed"
 }
 
@@ -285,8 +285,8 @@ case "$MODE" in
     "$BIN" server start --detach --no-open --port "$PORT"
     echo "== status =="
     "$BIN" --robot server status 2>&1 | head -n 20 || curl -sf "http://127.0.0.1:${PORT}/health" && echo "health ok"
-    echo "Logs: tail -f ~/.openproxy/log.txt  (or journalctl --user -u openproxy -f if using service)"
-    echo "Stop: $BIN server stop  or  pkill -f openproxy  or  fuser -k ${PORT}/tcp"
+    echo "Logs: tail -f ~/.cipherroute/log.txt  (or journalctl --user -u cipherroute -f if using service)"
+    echo "Stop: $BIN server stop  or  pkill -f cipherroute  or  fuser -k ${PORT}/tcp"
     ;;
   run|restart|"")
     check_dirty_tree || true
@@ -294,7 +294,7 @@ case "$MODE" in
     build
     echo "== starting $BIN server start --port $PORT (foreground, Ctrl+C to stop) =="
     echo "   Dashboard: http://127.0.0.1:${PORT}"
-    echo "   API:       http://127.0.0.1:${PORT}/v1  (Bearer \$OPENPROXY_API_KEY)"
+    echo "   API:       http://127.0.0.1:${PORT}/v1  (Bearer \$CIPHERROUTE_API_KEY)"
     exec "$BIN" server start --port "$PORT" --no-open
     ;;
   *)

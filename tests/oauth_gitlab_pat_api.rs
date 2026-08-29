@@ -2,8 +2,8 @@ use std::sync::Arc;
 
 use axum::body::Body;
 use axum::http::{Method, Request, StatusCode};
-use openproxy::db::Db;
-use openproxy::server::state::AppState;
+use cipherroute::db::Db;
+use cipherroute::server::state::AppState;
 use serde_json::json;
 use tempfile::tempdir;
 use tower::util::ServiceExt;
@@ -16,7 +16,7 @@ async fn app_state() -> AppState {
     db.update(|state| {
         // Management key: oauth proxy routes sit in the admin tier now that
         // requireLogin defaults to true (9router parity).
-        state.api_keys.push(openproxy::types::ApiKey {
+        state.api_keys.push(cipherroute::types::ApiKey {
             id: "mgmt-1".into(),
             name: "Management".into(),
             key: "gitlab-pat-mgmt-key".into(),
@@ -52,7 +52,7 @@ async fn response_json(response: axum::response::Response) -> (StatusCode, serde
 }
 
 #[tokio::test]
-async fn gitlab_pat_route_matches_openproxy_success_flow() {
+async fn gitlab_pat_route_matches_cipherroute_success_flow() {
     let server = MockServer::start().await;
     Mock::given(method("GET"))
         .and(path("/api/v4/user"))
@@ -66,7 +66,7 @@ async fn gitlab_pat_route_matches_openproxy_success_flow() {
         .await;
 
     let state = app_state().await;
-    let app = openproxy::build_app(state.clone());
+    let app = cipherroute::build_app(state.clone());
     let response = app
         .oneshot(request(Body::from(
             json!({
@@ -125,7 +125,7 @@ async fn gitlab_pat_route_upserts_existing_oauth_connection_by_provider_and_emai
         .db
         .update(|db| {
             db.provider_connections
-                .push(openproxy::types::ProviderConnection {
+                .push(cipherroute::types::ProviderConnection {
                     id: "existing-connection".to_string(),
                     provider: "gitlab".to_string(),
                     auth_type: "oauth".to_string(),
@@ -143,7 +143,7 @@ async fn gitlab_pat_route_upserts_existing_oauth_connection_by_provider_and_emai
         .await
         .unwrap();
 
-    let app = openproxy::build_app(state.clone());
+    let app = cipherroute::build_app(state.clone());
     let response = app
         .oneshot(request(Body::from(
             json!({
@@ -176,7 +176,7 @@ async fn gitlab_pat_route_upserts_existing_oauth_connection_by_provider_and_emai
 
 #[tokio::test]
 async fn gitlab_pat_route_rejects_invalid_body_and_missing_token() {
-    let app = openproxy::build_app(app_state().await);
+    let app = cipherroute::build_app(app_state().await);
 
     let invalid = app.clone().oneshot(request(Body::from("{"))).await.unwrap();
     let (status, json) = response_json(invalid).await;
@@ -204,7 +204,7 @@ async fn gitlab_pat_route_returns_401_when_verification_fails() {
         .mount(&server)
         .await;
 
-    let app = openproxy::build_app(app_state().await);
+    let app = cipherroute::build_app(app_state().await);
     let response = app
         .oneshot(request(Body::from(
             json!({

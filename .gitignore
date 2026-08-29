@@ -45,7 +45,7 @@ excalidraw.log
 # local agent/user config — never commit (see AGENTS.md)
 opencode.json
 opencode.jsonc
-.openproxy/
+.cipherroute/
 admin.key
 
 # typescript

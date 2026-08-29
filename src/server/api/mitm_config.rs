@@ -853,7 +853,7 @@ async fn vercel_deploy(
 }
 
 fn vercel_api_base_url() -> String {
-    std::env::var("OPENPROXY_VERCEL_API_BASE_URL")
+    std::env::var("CIPHERROUTE_VERCEL_API_BASE_URL")
         .ok()
         .filter(|value| !value.is_empty())
         .unwrap_or_else(|| VERCEL_API.to_string())
@@ -1169,7 +1169,7 @@ async fn cloudflare_deploy(
 // ── POST /api/proxy-pools/deno-deploy ─────────────────────────────
 
 fn deno_api_base_url() -> String {
-    std::env::var("OPENPROXY_DENO_API_BASE_URL")
+    std::env::var("CIPHERROUTE_DENO_API_BASE_URL")
         .ok()
         .filter(|value| !value.is_empty())
         .unwrap_or_else(|| DENO_V2_API.to_string())
@@ -1713,7 +1713,7 @@ async fn test_proxy_url(
     let client = match reqwest::Client::builder()
         .proxy(proxy)
         .timeout(std::time::Duration::from_millis(normalized_timeout_ms))
-        .user_agent("OpenProxy")
+        .user_agent("CipherRoute")
         .build()
     {
         Ok(client) => client,

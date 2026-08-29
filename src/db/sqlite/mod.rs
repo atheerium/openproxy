@@ -1,4 +1,4 @@
-//! SQLite backend for OpenProxy persistence.
+//! SQLite backend for CipherRoute persistence.
 //!
 //! Provides a thin wrapper around `rusqlite::Connection` with:
 //! - Synchronous connections wrapped in a `parking_lot::Mutex` (the rest of
@@ -27,7 +27,7 @@ use rusqlite::Connection;
 
 pub use schema::SCHEMA_VERSION;
 
-/// Cheap handle to the OpenProxy SQLite DB. Cloning shares the same
+/// Cheap handle to the CipherRoute SQLite DB. Cloning shares the same
 /// connection (serialised through the mutex). Callers should perform
 /// long transactions on a dedicated `Connection` (see [`connect`]).
 #[derive(Clone)]
@@ -279,7 +279,7 @@ mod tests {
     #[test]
     fn open_creates_parent_dir() {
         let tmp = std::env::temp_dir().join(format!(
-            "openproxy-test-{}-{}",
+            "cipherroute-test-{}-{}",
             std::process::id(),
             std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)

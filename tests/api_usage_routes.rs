@@ -3,9 +3,9 @@ use std::sync::Arc;
 
 use axum::body::Body;
 use axum::http::{Request, StatusCode};
-use openproxy::db::Db;
-use openproxy::server::state::AppState;
-use openproxy::types::{ApiKey, ProviderNode, TokenUsage, UsageEntry};
+use cipherroute::db::Db;
+use cipherroute::server::state::AppState;
+use cipherroute::types::{ApiKey, ProviderNode, TokenUsage, UsageEntry};
 use serde_json::json;
 use tempfile::tempdir;
 use tower::util::ServiceExt;
@@ -85,7 +85,7 @@ async fn build_test_app() -> axum::Router {
     .await
     .expect("seed usage");
 
-    openproxy::build_app(AppState::new(db))
+    cipherroute::build_app(AppState::new(db))
 }
 
 #[tokio::test]

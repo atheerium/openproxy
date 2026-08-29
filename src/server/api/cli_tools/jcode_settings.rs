@@ -54,16 +54,16 @@ pub(super) async fn get_jcode_settings(
     let config = read_config()
         .await
         .unwrap_or_else(|_| Value::Object(Default::default()));
-    let has_openproxy = has_openproxy_config(&config);
+    let has_cipherroute = has_cipherroute_config(&config);
     let env_api_key = read_provider_env()
         .await
-        .and_then(|env| env.get("JCODE_OPENPROXY_API_KEY").cloned())
+        .and_then(|env| env.get("JCODE_CIPHERROUTE_API_KEY").cloned())
         .filter(|s| !s.is_empty());
 
     Json(json!({
         "installed": true,
         "config": config,
-        "hasOpenProxy": has_openproxy,
+        "hasCipherRoute": has_cipherroute,
         "configPath": config_path().to_string_lossy().to_string(),
         "envApiKey": env_api_key,
     }))
@@ -90,7 +90,7 @@ async fn save_jcode_settings(
     match write_jcode_config(&body).await {
         Ok(()) => Json(json!({
             "success": true,
-            "message": "jcode configured successfully. Use: jcode --provider-profile openproxy",
+            "message": "jcode configured successfully. Use: jcode --provider-profile cipherroute",
             "configPath": config_path().to_string_lossy().to_string(),
         }))
         .into_response(),
@@ -153,13 +153,13 @@ async fn read_config() -> AnyhowResult<Value> {
     Ok(json_value)
 }
 
-/// Detect whether the config has an openproxy-compatible provider entry.
-fn has_openproxy_config(config: &Value) -> bool {
+/// Detect whether the config has an cipherroute-compatible provider entry.
+fn has_cipherroute_config(config: &Value) -> bool {
     let Some(providers) = config.get("providers").and_then(|v| v.as_object()) else {
         return false;
     };
 
-    if providers.contains_key("openproxy") {
+    if providers.contains_key("cipherroute") {
         return true;
     }
 
@@ -169,7 +169,7 @@ fn has_openproxy_config(config: &Value) -> bool {
             if base_url.contains("localhost")
                 || base_url.contains("127.0.0.1")
                 || base_url.contains("0.0.0.0")
-                || base_url.contains("openproxy")
+                || base_url.contains("cipherroute")
             {
                 return true;
             }
@@ -220,13 +220,13 @@ async fn write_provider_env(api_key: &str) -> AnyhowResult<()> {
 
     let content = format!(
         "# jcode provider environment variables\n\
-         JCODE_OPENPROXY_API_KEY=\"{api_key}\"\n"
+         JCODE_CIPHERROUTE_API_KEY=\"{api_key}\"\n"
     );
     fs::write(&env_path, content).await?;
     Ok(())
 }
 
-/// Remove the openproxy API key from the provider env file.
+/// Remove the cipherroute API key from the provider env file.
 async fn clear_provider_env() -> AnyhowResult<()> {
     let env_path = provider_env_path();
     let mut env = match fs::read_to_string(&env_path).await {
@@ -237,7 +237,7 @@ async fn clear_provider_env() -> AnyhowResult<()> {
         Err(error) => return Err(error.into()),
     };
 
-    // Re-read and write back without the JCODE_OPENPROXY_API_KEY line
+    // Re-read and write back without the JCODE_CIPHERROUTE_API_KEY line
     let mut parsed = std::collections::HashMap::new();
     for line in env.lines() {
         let trimmed = line.trim();
@@ -258,7 +258,7 @@ async fn clear_provider_env() -> AnyhowResult<()> {
         }
     }
 
-    parsed.remove("JCODE_OPENPROXY_API_KEY");
+    parsed.remove("JCODE_CIPHERROUTE_API_KEY");
 
     let mut output = "# jcode provider environment variables\n".to_string();
     for (key, value) in &parsed {
@@ -269,7 +269,7 @@ async fn clear_provider_env() -> AnyhowResult<()> {
     Ok(())
 }
 
-/// Write the jcode config.toml with an openproxy provider entry.
+/// Write the jcode config.toml with an cipherroute provider entry.
 async fn write_jcode_config(body: &SaveJcodeSettingsRequest) -> AnyhowResult<()> {
     let config_path = config_path();
     if let Some(parent) = config_path.parent() {
@@ -309,11 +309,11 @@ async fn write_jcode_config(body: &SaveJcodeSettingsRequest) -> AnyhowResult<()>
         ("auth".to_string(), TomlValue::String("bearer".to_string())),
         (
             "api_key_env".to_string(),
-            TomlValue::String("JCODE_OPENPROXY_API_KEY".to_string()),
+            TomlValue::String("JCODE_CIPHERROUTE_API_KEY".to_string()),
         ),
         (
             "env_file".to_string(),
-            TomlValue::String("provider-openproxy.env".to_string()),
+            TomlValue::String("provider-cipherroute.env".to_string()),
         ),
         (
             "default_model".to_string(),
@@ -331,7 +331,7 @@ async fn write_jcode_config(body: &SaveJcodeSettingsRequest) -> AnyhowResult<()>
             *providers = TomlValue::Table(TomlMap::new());
         }
         if let TomlValue::Table(ref mut providers_table) = providers {
-            providers_table.insert("openproxy".to_string(), provider_entry);
+            providers_table.insert("cipherroute".to_string(), provider_entry);
         }
     }
 
@@ -345,7 +345,7 @@ async fn write_jcode_config(body: &SaveJcodeSettingsRequest) -> AnyhowResult<()>
     Ok(())
 }
 
-/// Remove the openproxy provider entry from jcode config.
+/// Remove the cipherroute provider entry from jcode config.
 async fn reset_jcode_config() -> AnyhowResult<Value> {
     let config_path = config_path();
     let content = match fs::read_to_string(&config_path).await {
@@ -362,7 +362,7 @@ async fn reset_jcode_config() -> AnyhowResult<Value> {
     let mut root: TomlValue = toml::from_str(&content)?;
     if let TomlValue::Table(ref mut table) = root {
         if let Some(TomlValue::Table(providers)) = table.get_mut("providers") {
-            providers.remove("openproxy");
+            providers.remove("cipherroute");
             if providers.is_empty() {
                 table.remove("providers");
             }
@@ -377,7 +377,7 @@ async fn reset_jcode_config() -> AnyhowResult<Value> {
 
     Ok(json!({
         "success": true,
-        "message": "OpenProxy configuration removed from jcode",
+        "message": "CipherRoute configuration removed from jcode",
     }))
 }
 
@@ -418,7 +418,7 @@ fn provider_env_path() -> PathBuf {
     let config_dir = env::var("XDG_CONFIG_HOME")
         .map(PathBuf::from)
         .unwrap_or_else(|_| home_dir().join(".config"));
-    config_dir.join("jcode").join("provider-openproxy.env")
+    config_dir.join("jcode").join("provider-cipherroute.env")
 }
 
 fn home_dir() -> PathBuf {

@@ -1,7 +1,7 @@
-# OpenProxy — Rust AI Proxy Router
+# CipherRoute — Rust AI Proxy Router
 
 ## What
-OpenProxy is an AI proxy router written in Rust — OpenAI-compatible endpoint that routes requests to 40+ AI providers with format translation, account fallback, token refresh, usage tracking, and SSE streaming.
+CipherRoute is an AI proxy router written in Rust — OpenAI-compatible endpoint that routes requests to 40+ AI providers with format translation, account fallback, token refresh, usage tracking, and SSE streaming.
 
 ## Why
 Replace 9router (Node.js) with a faster, safer Rust implementation that avoids 235+ bugs found in the JS version. Critical patterns: type-safe format handling, encrypted secrets, immutable data flow, thread-safe by design.
@@ -14,7 +14,7 @@ Replace 9router (Node.js) with a faster, safer Rust implementation that avoids 2
 - **Security**: HMAC API keys, bcrypt auth, SSRF protection
 
 ## Beads
-Parity work: epic `openproxy-9router-parity-v0550-pnc` (9router v0.5.50 → openproxy, 122 specs) (+ children). Prior v0.5.30 epic `openproxy-9router-parity-mj1` is closed. See `br ready` / `bv --robot-next`.
+Parity work: epic `cipherroute-9router-parity-v0550-pnc` (9router v0.5.50 → cipherroute, 122 specs) (+ children). Prior v0.5.30 epic `cipherroute-9router-parity-mj1` is closed. See `br ready` / `bv --robot-next`.
 
 ## Key References
 - `docs/parity-9router.md` — intentional divergences, pipeline order, executor dispatch
@@ -35,7 +35,7 @@ After any `web/src` change you **must** rebuild the dashboard or the feature wil
 | Change you made | Command (from repo root) | What it does | When to use |
 |---|---|---|---|
 | **Only `web/src`** (dashboard/providers, Astro, Tailwind) | `./scripts/dev.sh --web-only` or `./scripts/dev.sh --fast detach` | Rebuilds `web/dist` only if stale (`web/src` newer than `web/dist`), skips cargo | Iterating on UI; fastest feedback |
-| **Only `src/`** (Rust: executors, translators, `src/db/`, `src/server/`) | `./scripts/dev.sh --backend-only detach` or `./scripts/dev.sh --fast detach` | `cargo build --bin openproxy` (debug) + restart on `:4623` | Iterating on backend |
+| **Only `src/`** (Rust: executors, translators, `src/db/`, `src/server/`) | `./scripts/dev.sh --backend-only detach` or `./scripts/dev.sh --fast detach` | `cargo build --bin cipherroute` (debug) + restart on `:4623` | Iterating on backend |
 | **Both `web/src` + `src/`** | `./scripts/dev.sh --fast detach` | Stale-aware web + incremental cargo; `~10-20s` | Default daily loop |
 | **Before `git push` / PR** | `./scripts/dev.sh --full detach` | Always rebuilds web + cargo + runs `cargo fmt --check`, `cargo clippy`, `astro check`, tests; `~2-5m` | Required gate before push — catches stale `web/dist` + lint failures |
 | **Touched `provider_catalog.json` or `src/db/`** | `./scripts/dev.sh --full detach` | Same as above | Catalog/DB changes affect placeholder seeding (`GET /api/providers`) — needs full verification |
@@ -111,9 +111,9 @@ PRs use [`.github/pull_request_template.md`](.github/pull_request_template.md); 
   git worktree add ../wt-<agent>-<slug> -b <agent>/<type>/<kebab>
   cd ../wt-<agent>-<slug>
   # claim branch so others skip it
-  ../openproxy/scripts/claim-branch.sh <agent>/<type>/<kebab>
+  ../cipherroute/scripts/claim-branch.sh <agent>/<type>/<kebab>
   ```
-  Single checkout (`/home/atheerium/dev/openproxy`) with N writers is the conflict root cause — `src/server/api/chat.rs` + `web/src/shared/constants/providers.ts` are hot files.
+  Single checkout (`/home/atheerium/dev/cipherroute`) with N writers is the conflict root cause — `src/server/api/chat.rs` + `web/src/shared/constants/providers.ts` are hot files.
 - **Claim file:** `scripts/claim-branch.sh` writes `.opencode/claims/<branch>` (gitignored) with `agent, pid, branch, timestamp`. Pre-task, check `cat .opencode/claims/*` or `git branch -a` for taken names.
 - **Dirty-tree guard:** `scripts/dev.sh` (run/detach) now warns on dirty `git status --porcelain`; hooks block committing on wrong branch. Before switching, `git status --porcelain` must be clean.
 - **Mechanical gates (not docs-only):** `scripts/setup-hooks.sh` installs `pre-commit` (fmt check + secret scan), `commit-msg` (Conventional Commits), `pre-push` (branch name + secret scan). `scripts/dev.sh check` runs `cargo fmt --check && cargo clippy --all-targets --all-features`. CI lints branch names.
@@ -130,9 +130,9 @@ PRs use [`.github/pull_request_template.md`](.github/pull_request_template.md); 
   git worktree add ../wt-<agent>-<slug> -b <agent>/<type>/<kebab>
   cd ../wt-<agent>-<slug>
   # claim branch so others skip it
-  ../openproxy/scripts/claim-branch.sh <agent>/<type>/<kebab>
+  ../cipherroute/scripts/claim-branch.sh <agent>/<type>/<kebab>
   ```
-  Single checkout (`/home/atheerium/dev/openproxy`) with N writers is the conflict root cause — `src/server/api/chat.rs` + `web/src/shared/constants/providers.ts` are hot files.
+  Single checkout (`/home/atheerium/dev/cipherroute`) with N writers is the conflict root cause — `src/server/api/chat.rs` + `web/src/shared/constants/providers.ts` are hot files.
 - **Claim file:** `scripts/claim-branch.sh` writes `.opencode/claims/<branch>` (gitignored) with `agent, pid, branch, timestamp`. Pre-task, check `cat .opencode/claims/*` or `git branch -a` for taken names.
 - **Dirty-tree guard:** `scripts/dev.sh` (run/detach) now warns on dirty `git status --porcelain`; hooks block committing on wrong branch. Before switching, `git status --porcelain` must be clean.
 - **Mechanical gates (not docs-only):** `scripts/setup-hooks.sh` installs `pre-commit` (fmt check + secret scan), `commit-msg` (Conventional Commits), `pre-push` (branch name + secret scan). `scripts/dev.sh check` runs `cargo fmt --check && cargo clippy --all-targets --all-features`. CI lints branch names.
@@ -151,32 +151,32 @@ These 4 surfaces ARE the product. Everything else is optional. They must be flaw
 Core workflow that must never break: configure provider → customize available models → create combos → select models for opencode CLI config.
 
 ## Status
-Active parity port. Run `cargo test -p openproxy --lib parity_tests stream_flags` for smoke.
+Active parity port. Run `cargo test -p cipherroute --lib parity_tests stream_flags` for smoke.
 
 ## Local Config & Secrets — Never Commit
-- **Do not commit** local user config or secrets: `opencode.json`, `.env`, `.env.*`, `*.pem`, `~/.openproxy/db.json`, `~/.openproxy/admin.key`, API keys, `provider_specific_data` with live credentials, or any file containing `sk-`, `Bearer`, `refresh_token`.
-- `opencode.json` is local agent config (model, MCP keys like `CONTEXT7_API_KEY`, permissions) — keep untracked. `scripts/dev.sh` builds locally; real secrets live in SQLite (`db.json` encrypted) + `OPENPROXY_API_KEY` env, not in git.
+- **Do not commit** local user config or secrets: `opencode.json`, `.env`, `.env.*`, `*.pem`, `~/.cipherroute/db.json`, `~/.cipherroute/admin.key`, API keys, `provider_specific_data` with live credentials, or any file containing `sk-`, `Bearer`, `refresh_token`.
+- `opencode.json` is local agent config (model, MCP keys like `CONTEXT7_API_KEY`, permissions) — keep untracked. `scripts/dev.sh` builds locally; real secrets live in SQLite (`db.json` encrypted) + `CIPHERROUTE_API_KEY` env, not in git.
 - Before `git add`/`commit`, run `git status` and `git diff --cached`; if a file contains secrets or is machine-local, `git restore --staged <file>` and add it to `.gitignore`. Prefer `git check-ignore -v <file>` to verify.
 - If a secret is accidentally committed, rotate it immediately and purge history (`git filter-repo` or BFG) — do not just revert.
 
-## Schema stability (`openproxy.v1.*`)
+## Schema stability (`cipherroute.v1.*`)
 
-The `openproxy.v1.*` envelope namespace is a **frozen, additive-only contract**. Every JSON envelope emitted by `--robot` carries a `schema` field matching `openproxy.v1.<area>.<action>`. Existing fields keep their names, types, and meanings across releases. New fields are additive only — no renames or removals. A new `openproxy.v2.*` namespace will be opened before any breaking change.
+The `cipherroute.v1.*` envelope namespace is a **frozen, additive-only contract**. Every JSON envelope emitted by `--robot` carries a `schema` field matching `cipherroute.v1.<area>.<action>`. Existing fields keep their names, types, and meanings across releases. New fields are additive only — no renames or removals. A new `cipherroute.v2.*` namespace will be opened before any breaking change.
 
-Run `openproxy schema stability` to see the current stability promise:
+Run `cipherroute schema stability` to see the current stability promise:
 
 ```bash
-openproxy --robot schema stability
-# → {"schema":"openproxy.v1.schema.stability","data":{"namespace":"openproxy.v1","stability":"stable","policy":"..."}}
+cipherroute --robot schema stability
+# → {"schema":"cipherroute.v1.schema.stability","data":{"namespace":"cipherroute.v1","stability":"stable","policy":"..."}}
 ```
 
 The `schema` subcommand provides four operations:
 
 | Command | Purpose |
 |---|---|
-| `openproxy schema list` | List all resource kinds with schema and example support |
-| `openproxy schema show <resource>` | Print JSON Schema for a resource (provider, key, combo, etc.) |
-| `openproxy schema example <resource>` | Print an example payload for a resource |
-| `openproxy schema stability` | Print the v1 namespace stability contract |
+| `cipherroute schema list` | List all resource kinds with schema and example support |
+| `cipherroute schema show <resource>` | Print JSON Schema for a resource (provider, key, combo, etc.) |
+| `cipherroute schema example <resource>` | Print an example payload for a resource |
+| `cipherroute schema stability` | Print the v1 namespace stability contract |
 
 13 resources are covered: `provider`, `provider-node`, `combo`, `key`, `pool`, `settings`, `custom-model`, `model-alias`, `usage-event`, `log-event`, `chat-event`, `quota`, `oauth-status`. Each has both a schema and an example — enforced by tests.

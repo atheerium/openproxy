@@ -6,10 +6,10 @@ use std::time::{Duration, Instant};
 use axum::body::Body;
 use axum::http::{Request, StatusCode};
 use once_cell::sync::Lazy;
-use openproxy::db::Db;
-use openproxy::server::api::providers;
-use openproxy::server::state::AppState;
-use openproxy::types::{ApiKey, ProviderConnection, ProviderNode};
+use cipherroute::db::Db;
+use cipherroute::server::api::providers;
+use cipherroute::server::state::AppState;
+use cipherroute::types::{ApiKey, ProviderConnection, ProviderNode};
 use serde_json::json;
 use tempfile::tempdir;
 use tower::util::ServiceExt;
@@ -518,7 +518,7 @@ async fn provider_test_route_returns_exact_missing_connection_payload() {
 }
 
 #[tokio::test]
-async fn provider_test_route_matches_openproxy_payload_and_updates_connection_status() {
+async fn provider_test_route_matches_cipherroute_payload_and_updates_connection_status() {
     let server = MockServer::start().await;
     Mock::given(method("GET"))
         .and(path("/models"))
@@ -1255,7 +1255,7 @@ async fn import_catalog_skips_pre_existing_models() {
     state
         .db
         .update(|db| {
-            db.custom_models.push(openproxy::types::CustomModel {
+            db.custom_models.push(cipherroute::types::CustomModel {
                 provider_alias: alias.clone(),
                 id: "gpt-4.1-mini".to_string(),
                 r#type: "llm".to_string(),

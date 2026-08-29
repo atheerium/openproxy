@@ -1,8 +1,8 @@
-# OpenProxy — Consolidated Audit Report
+# CipherRoute — Consolidated Audit Report
 
 **Date:** 2026-07-26
 **Scope:** Full source audit (~150K lines, 180+ files, 4 Herdr investigator panes + 4 deep-dive subagents)
-**Root pane:** w3T:p1 | **Project:** openproxy v0.2.0
+**Root pane:** w3T:p1 | **Project:** cipherroute v0.2.0
 
 ---
 

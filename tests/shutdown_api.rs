@@ -1,4 +1,4 @@
-use openproxy::core::tls::ensure_rustls_provider;
+use cipherroute::core::tls::ensure_rustls_provider;
 use std::net::TcpListener;
 use std::process::Stdio;
 use std::time::{Duration, Instant};
@@ -19,7 +19,7 @@ impl ServerHandle {
     async fn start(node_env: &str, shutdown_secret: Option<&str>) -> Self {
         let temp_dir = tempfile::tempdir().expect("tempdir");
         let port = free_port();
-        let bin = std::env::var("CARGO_BIN_EXE_openproxy").expect("openproxy binary path");
+        let bin = std::env::var("CARGO_BIN_EXE_cipherroute").expect("cipherroute binary path");
 
         let mut command = Command::new(bin);
         command
@@ -37,7 +37,7 @@ impl ServerHandle {
             command.env_remove("SHUTDOWN_SECRET");
         }
 
-        let child = command.spawn().expect("spawn openproxy");
+        let child = command.spawn().expect("spawn cipherroute");
         let client = reqwest::Client::new();
         let base_url = format!("http://127.0.0.1:{port}");
         wait_for_ready(&client, &base_url).await;
@@ -119,7 +119,7 @@ async fn wait_for_ready(client: &reqwest::Client, base_url: &str) {
 }
 
 #[tokio::test]
-async fn shutdown_route_returns_401_when_secret_missing_like_openproxy() {
+async fn shutdown_route_returns_401_when_secret_missing_like_cipherroute() {
     ensure_rustls_provider();
     let mut server = ServerHandle::start("development", None).await;
     let response = server.post_shutdown(None).await;

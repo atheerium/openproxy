@@ -2,8 +2,8 @@ use std::sync::Arc;
 
 use axum::body::Body;
 use axum::http::{Request, StatusCode};
-use openproxy::db::Db;
-use openproxy::server::state::AppState;
+use cipherroute::db::Db;
+use cipherroute::server::state::AppState;
 use tempfile::tempdir;
 use tower::util::ServiceExt;
 
@@ -14,8 +14,8 @@ async fn app_state() -> AppState {
 }
 
 #[tokio::test]
-async fn init_route_matches_openproxy_plain_text_response() {
-    let app = openproxy::build_app(app_state().await);
+async fn init_route_matches_cipherroute_plain_text_response() {
+    let app = cipherroute::build_app(app_state().await);
     let response = app
         .oneshot(
             Request::builder()

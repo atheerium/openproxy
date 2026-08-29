@@ -32,7 +32,7 @@ pub struct Db {
 /// Decrypt every provider connection in an `AppDb` built from a SQLite
 /// `export_all`. The in-memory snapshot must hold plaintext credentials;
 /// SQLite's `data` column holds ciphertext. Decryption is a no-op when
-/// `OPENPROXY_ENCRYPTION_KEY` is unset (plaintext mode), and `decrypt_opt`
+/// `CIPHERROUTE_ENCRYPTION_KEY` is unset (plaintext mode), and `decrypt_opt`
 /// fails-loud (clears) ciphertext that can't be decrypted.
 fn decrypt_snapshot_connections(app_db: &mut AppDb) {
     let key = crate::db::crypto::encryption_key().unwrap_or_default();
@@ -54,7 +54,7 @@ impl Db {
                 Ok(db) => Ok(db),
                 Err(err) if is_permission_denied(&err) && *dir != default => {
                     tracing::warn!(
-                        target: "openproxy::db",
+                        target: "cipherroute::db",
                         configured = %dir.display(),
                         fallback = %default.display(),
                         "DATA_DIR not writable (permission denied); falling back to default"
@@ -72,7 +72,7 @@ impl Db {
         fs::create_dir_all(&data_dir).await?;
 
         // SQLite is the sole runtime store — mandatory, no fallback.
-        let sqlite_path = data_dir.join("openproxy.sqlite");
+        let sqlite_path = data_dir.join("cipherroute.sqlite");
         let sqlite = sqlite::SqliteDb::open(&sqlite_path).map_err(|e| {
             anyhow::anyhow!(
                 "Failed to open SQLite DB at {}: {}",
@@ -88,7 +88,7 @@ impl Db {
 
         if !migrated_marker.exists() && (db_json_path.exists() || usage_json_path.exists()) {
             tracing::info!(
-                target: "openproxy::db",
+                target: "cipherroute::db",
                 "Legacy JSON files detected — importing into SQLite once"
             );
 
@@ -114,7 +114,7 @@ impl Db {
                 })
                 .await
                 .context("spawn_blocking for db.json import")??;
-                tracing::info!(target: "openproxy::db", "db.json imported into SQLite");
+                tracing::info!(target: "cipherroute::db", "db.json imported into SQLite");
             }
 
             if usage_json_path.exists() {
@@ -129,14 +129,14 @@ impl Db {
                 })
                 .await
                 .context("spawn_blocking for usage.json import")??;
-                tracing::info!(target: "openproxy::db", "usage.json imported into SQLite");
+                tracing::info!(target: "cipherroute::db", "usage.json imported into SQLite");
             }
 
             fs::write(&migrated_marker, b"1").await.with_context(|| {
                 format!("write migrated marker at {}", migrated_marker.display())
             })?;
             tracing::info!(
-                target: "openproxy::db",
+                target: "cipherroute::db",
                 "Legacy JSON import complete — wrote {}",
                 migrated_marker.display()
             );
@@ -225,7 +225,7 @@ impl Db {
                 }
                 Err(e) => {
                     tracing::warn!(
-                        target: "openproxy::db",
+                        target: "cipherroute::db",
                         "Failed to seed provider connection for {}: {}",
                         provider_id, e
                     );
@@ -235,7 +235,7 @@ impl Db {
 
         if seeded_count > 0 {
             tracing::info!(
-                target: "openproxy::db",
+                target: "cipherroute::db",
                 "Seeded {} default provider connection(s) from provider_catalog.json",
                 seeded_count
             );
@@ -493,7 +493,7 @@ impl Db {
     pub fn export_db(&self) -> anyhow::Result<(Vec<u8>, String)> {
         let snapshot = self.snapshot.load_full();
         let json = serde_json::to_vec_pretty(snapshot.as_ref())?;
-        let filename = format!("openproxy-db-{}.json", chrono_like_stamp());
+        let filename = format!("cipherroute-db-{}.json", chrono_like_stamp());
         Ok((json, filename))
     }
 
@@ -512,7 +512,7 @@ impl Db {
     pub fn export_usage_db(&self) -> anyhow::Result<(Vec<u8>, String)> {
         let snapshot = self.usage_snapshot.load_full();
         let json = serde_json::to_vec_pretty(snapshot.as_ref())?;
-        let filename = format!("openproxy-usage-{}.json", chrono_like_stamp());
+        let filename = format!("cipherroute-usage-{}.json", chrono_like_stamp());
         Ok((json, filename))
     }
 
@@ -545,8 +545,8 @@ fn default_data_dir() -> PathBuf {
     let home = std::env::var_os("HOME")
         .map(PathBuf::from)
         .unwrap_or_else(|| PathBuf::from("."));
-    let preferred = home.join(".openproxy");
-    let legacy = home.join(".openproxy");
+    let preferred = home.join(".cipherroute");
+    let legacy = home.join(".cipherroute");
 
     if preferred.exists() || !legacy.exists() {
         preferred
@@ -612,7 +612,7 @@ mod tests {
     #[tokio::test]
     async fn db_init_creates_sqlite() {
         let dir = tempfile::tempdir().unwrap();
-        let sqlite_path = dir.path().join("openproxy.sqlite");
+        let sqlite_path = dir.path().join("cipherroute.sqlite");
 
         // SQLite must be created and readable.
         let sqlite = SqliteDb::open(&sqlite_path).unwrap();
@@ -632,7 +632,7 @@ mod tests {
     #[tokio::test]
     async fn db_init_creates_usage_sqlite() {
         let dir = tempfile::tempdir().unwrap();
-        let sqlite_path = dir.path().join("openproxy-usage.sqlite");
+        let sqlite_path = dir.path().join("cipherroute-usage.sqlite");
 
         let sqlite = SqliteDb::open(&sqlite_path).unwrap();
         let usage_db = sqlite

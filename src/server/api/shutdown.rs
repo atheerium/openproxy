@@ -18,8 +18,8 @@ pub fn routes() -> Router<AppState> {
 
 async fn shutdown(State(state): State<AppState>, headers: HeaderMap) -> Response {
     // JS parity: production is detected via NODE_ENV (custom-server) — also
-    // accept OPENPROXY_ENV so either variable gates the shutdown route.
-    let env_name = std::env::var("OPENPROXY_ENV")
+    // accept CIPHERROUTE_ENV so either variable gates the shutdown route.
+    let env_name = std::env::var("CIPHERROUTE_ENV")
         .or_else(|_| std::env::var("NODE_ENV"))
         .unwrap_or_default();
     if env_name == "production" {

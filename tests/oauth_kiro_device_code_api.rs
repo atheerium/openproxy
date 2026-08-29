@@ -5,8 +5,8 @@ use axum::body::Body;
 use axum::http::{Method, Request, StatusCode};
 use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine};
 use once_cell::sync::Lazy;
-use openproxy::db::Db;
-use openproxy::server::state::AppState;
+use cipherroute::db::Db;
+use cipherroute::server::state::AppState;
 use serde_json::json;
 use tempfile::tempdir;
 use tower::util::ServiceExt;
@@ -44,7 +44,7 @@ async fn app_state() -> AppState {
     db.update(|state| {
         // Management key: oauth proxy routes sit in the admin tier now that
         // requireLogin defaults to true (9router parity).
-        state.api_keys.push(openproxy::types::ApiKey {
+        state.api_keys.push(cipherroute::types::ApiKey {
             id: "mgmt-1".into(),
             name: "Management".into(),
             key: "kiro-mgmt-key".into(),
@@ -108,10 +108,10 @@ fn is_base64url_no_pad(value: &str) -> bool {
 }
 
 #[tokio::test]
-async fn kiro_device_code_defaults_match_openproxy_builder_id_flow() {
+async fn kiro_device_code_defaults_match_cipherroute_builder_id_flow() {
     let _lock = ENV_LOCK.lock().unwrap();
     let server = MockServer::start().await;
-    let _env = EnvVarGuard::set("OPENPROXY_KIRO_OIDC_BASE_URL", &server.uri());
+    let _env = EnvVarGuard::set("CIPHERROUTE_KIRO_OIDC_BASE_URL", &server.uri());
 
     Mock::given(method("POST"))
         .and(path("/client/register"))
@@ -154,7 +154,7 @@ async fn kiro_device_code_defaults_match_openproxy_builder_id_flow() {
         .mount(&server)
         .await;
 
-    let app = openproxy::build_app(app_state().await);
+    let app = cipherroute::build_app(app_state().await);
     let response = app
         .oneshot(get_request("/api/oauth/kiro/device-code"))
         .await
@@ -183,10 +183,10 @@ async fn kiro_device_code_defaults_match_openproxy_builder_id_flow() {
 }
 
 #[tokio::test]
-async fn kiro_device_code_supports_idc_query_params_like_openproxy() {
+async fn kiro_device_code_supports_idc_query_params_like_cipherroute() {
     let _lock = ENV_LOCK.lock().unwrap();
     let server = MockServer::start().await;
-    let _env = EnvVarGuard::set("OPENPROXY_KIRO_OIDC_BASE_URL", &server.uri());
+    let _env = EnvVarGuard::set("CIPHERROUTE_KIRO_OIDC_BASE_URL", &server.uri());
 
     Mock::given(method("POST"))
         .and(path("/client/register"))
@@ -214,7 +214,7 @@ async fn kiro_device_code_supports_idc_query_params_like_openproxy() {
         .mount(&server)
         .await;
 
-    let app = openproxy::build_app(app_state().await);
+    let app = cipherroute::build_app(app_state().await);
     let response = app
         .oneshot(get_request(
             "/api/oauth/kiro/device-code?start_url=https%3A%2F%2Fcompany.awsapps.com%2Fstart&region=eu-west-1&auth_method=idc",
@@ -236,7 +236,7 @@ async fn kiro_device_code_supports_idc_query_params_like_openproxy() {
 
 #[tokio::test]
 async fn kiro_poll_returns_missing_device_code_without_api_key() {
-    let app = openproxy::build_app(app_state().await);
+    let app = cipherroute::build_app(app_state().await);
     let response = app
         .oneshot(post_request("/api/oauth/kiro/poll", json!({})))
         .await
@@ -252,10 +252,10 @@ async fn kiro_poll_returns_missing_device_code_without_api_key() {
 }
 
 #[tokio::test]
-async fn kiro_poll_returns_pending_shape_like_openproxy() {
+async fn kiro_poll_returns_pending_shape_like_cipherroute() {
     let _lock = ENV_LOCK.lock().unwrap();
     let server = MockServer::start().await;
-    let _env = EnvVarGuard::set("OPENPROXY_KIRO_OIDC_BASE_URL", &server.uri());
+    let _env = EnvVarGuard::set("CIPHERROUTE_KIRO_OIDC_BASE_URL", &server.uri());
 
     Mock::given(method("POST"))
         .and(path("/token"))
@@ -273,7 +273,7 @@ async fn kiro_poll_returns_pending_shape_like_openproxy() {
         .await;
 
     let state = app_state().await;
-    let app = openproxy::build_app(state.clone());
+    let app = cipherroute::build_app(state.clone());
     let response = app
         .oneshot(post_request(
             "/api/oauth/kiro/poll",
@@ -307,10 +307,10 @@ async fn kiro_poll_returns_pending_shape_like_openproxy() {
 }
 
 #[tokio::test]
-async fn kiro_poll_success_saves_connection_like_openproxy() {
+async fn kiro_poll_success_saves_connection_like_cipherroute() {
     let _lock = ENV_LOCK.lock().unwrap();
     let server = MockServer::start().await;
-    let _env = EnvVarGuard::set("OPENPROXY_KIRO_OIDC_BASE_URL", &server.uri());
+    let _env = EnvVarGuard::set("CIPHERROUTE_KIRO_OIDC_BASE_URL", &server.uri());
     let access_token = make_jwt("me@example.com");
 
     Mock::given(method("POST"))
@@ -331,7 +331,7 @@ async fn kiro_poll_success_saves_connection_like_openproxy() {
         .await;
 
     let state = app_state().await;
-    let app = openproxy::build_app(state.clone());
+    let app = cipherroute::build_app(state.clone());
     let response = app
         .oneshot(post_request(
             "/api/oauth/kiro/poll",

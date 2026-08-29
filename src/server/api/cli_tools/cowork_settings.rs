@@ -252,7 +252,7 @@ fn app_port() -> u16 {
 
 fn cli_token() -> String {
     // Match 9router's getConsistentMachineId("9r-cli-auth") as closely as practical.
-    // OpenProxy's consistent_machine_id uses MACHINE_ID_SALT (default endpoint-proxy-salt).
+    // CipherRoute's consistent_machine_id uses MACHINE_ID_SALT (default endpoint-proxy-salt).
     // For CLI bridge headers we hash with the dedicated CLI_TOKEN_SALT.
     use sha2::Digest;
     let salt = CLI_TOKEN_SALT;
@@ -505,7 +505,7 @@ async fn load_cowork_status() -> AnyhowResult<Value> {
         .and_then(|value| value.get("inferenceProvider"))
         .and_then(Value::as_str)
         .map(str::to_string);
-    let has_openproxy = provider.as_deref() == Some(PROVIDER)
+    let has_cipherroute = provider.as_deref() == Some(PROVIDER)
         && base_url.as_deref().is_some_and(|value| !value.is_empty());
 
     let managed_mcp: Vec<Value> = config
@@ -595,7 +595,7 @@ async fn load_cowork_status() -> AnyhowResult<Value> {
     Ok(json!({
         "installed": true,
         "config": config,
-        "hasOpenProxy": has_openproxy,
+        "hasCipherRoute": has_cipherroute,
         "configPath": config_path.map(|path| path.to_string_lossy().to_string()),
         "cowork": {
             "appliedId": applied_id,

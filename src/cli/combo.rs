@@ -1,6 +1,6 @@
-//! `openproxy combo *` — fallback chains and round-robin combos.
+//! `cipherroute combo *` — fallback chains and round-robin combos.
 //!
-//! Combos are one of OpenProxy's two core concepts: a named list of models
+//! Combos are one of CipherRoute's two core concepts: a named list of models
 //! the router walks through on failure (or rotates across, depending on
 //! strategy). They are stored in `db.json` as the `combos` Vec.
 
@@ -112,7 +112,7 @@ async fn run_list(db: &Db, ctx: OutputCtx) -> anyhow::Result<()> {
     let combos = snapshot.combos.clone();
     if ctx.is_robot() {
         emit_robot(
-            "openproxy.v1.combo.list",
+            "cipherroute.v1.combo.list",
             json!({ "combos": combos, "count": combos.len() }),
         )?;
     } else {
@@ -138,7 +138,7 @@ async fn run_get(db: &Db, ctx: OutputCtx, name: &str) -> anyhow::Result<()> {
         std::process::exit(exit);
     };
     if ctx.is_robot() {
-        emit_robot("openproxy.v1.combo.get", serde_json::to_value(&combo)?)?;
+        emit_robot("cipherroute.v1.combo.get", serde_json::to_value(&combo)?)?;
     } else {
         humanln(ctx, format!("Combo: {}", combo.name));
         humanln(
@@ -196,7 +196,7 @@ async fn run_create(
     db.update(|db| db.combos.push(combo.clone())).await?;
 
     if ctx.is_robot() {
-        emit_robot("openproxy.v1.combo.create", serde_json::to_value(&combo)?)?;
+        emit_robot("cipherroute.v1.combo.create", serde_json::to_value(&combo)?)?;
     } else {
         humanln(ctx, format!("created combo '{}'", combo.name));
     }
@@ -231,7 +231,7 @@ async fn run_edit(
 
     let combo = updated.expect("combo existed before update");
     if ctx.is_robot() {
-        emit_robot("openproxy.v1.combo.edit", serde_json::to_value(&combo)?)?;
+        emit_robot("cipherroute.v1.combo.edit", serde_json::to_value(&combo)?)?;
     } else {
         humanln(ctx, format!("updated combo '{}'", combo.name));
     }
@@ -246,7 +246,7 @@ async fn run_delete(db: &Db, ctx: OutputCtx, name: &str, strict: bool) -> anyhow
         }
         if ctx.is_robot() {
             emit_robot(
-                "openproxy.v1.combo.delete",
+                "cipherroute.v1.combo.delete",
                 json!({ "name": name, "deleted": false }),
             )?;
         } else {
@@ -259,7 +259,7 @@ async fn run_delete(db: &Db, ctx: OutputCtx, name: &str, strict: bool) -> anyhow
 
     if ctx.is_robot() {
         emit_robot(
-            "openproxy.v1.combo.delete",
+            "cipherroute.v1.combo.delete",
             json!({ "name": name, "deleted": true }),
         )?;
     } else {
@@ -285,9 +285,9 @@ async fn run_set_active(db: &Db, ctx: OutputCtx, name: &str, active: bool) -> an
 
     let combo = updated.expect("combo existed");
     let schema = if active {
-        "openproxy.v1.combo.enable"
+        "cipherroute.v1.combo.enable"
     } else {
-        "openproxy.v1.combo.disable"
+        "cipherroute.v1.combo.disable"
     };
     if ctx.is_robot() {
         emit_robot(schema, serde_json::to_value(&combo)?)?;
@@ -349,7 +349,7 @@ async fn run_test(
     });
 
     if ctx.is_robot() {
-        emit_robot("openproxy.v1.combo.test", payload)?;
+        emit_robot("cipherroute.v1.combo.test", payload)?;
     } else {
         humanln(ctx, format!("combo '{}' resolution:", combo.name));
         for member in &members {
@@ -466,7 +466,7 @@ async fn run_apply(db: &Db, ctx: OutputCtx, from_file: &str, prune: bool) -> any
     let summary = diff.summary();
     if ctx.is_robot() {
         emit_robot(
-            "openproxy.v1.combo.apply",
+            "cipherroute.v1.combo.apply",
             json!({
                 "diff": diff,
                 "summary": summary,

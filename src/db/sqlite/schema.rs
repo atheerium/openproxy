@@ -1,7 +1,7 @@
-//! SQLite schema for OpenProxy persistence.
+//! SQLite schema for CipherRoute persistence.
 //!
 //! Mirrors the upstream 9router schema (see `9router/src/lib/db/schema.js`)
-//! with openproxy-specific columns added for encrypted secrets and snapshots.
+//! with cipherroute-specific columns added for encrypted secrets and snapshots.
 //!
 //! All tables use TEXT primary keys (UUIDs or human-readable slugs) except
 //! for `usageHistory` (AUTOINCREMENT id) and `usageDaily` (date string PK).
@@ -12,7 +12,7 @@
 /// `migrations/`.
 pub const SCHEMA_VERSION: i32 = 2;
 
-/// All DDL statements that define the OpenProxy schema. Run inside a single
+/// All DDL statements that define the CipherRoute schema. Run inside a single
 /// transaction during `init_db`.
 pub const TABLES_SQL: &[&str] = &[
     // Metadata: holds the active schema version + integrity stamp.

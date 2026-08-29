@@ -28,9 +28,9 @@ mod platform {
 use axum::body::Body;
 use axum::http::{Method, Request, StatusCode};
 use once_cell::sync::Lazy;
-use openproxy::db::Db;
-use openproxy::server::state::AppState;
-use openproxy::types::ApiKey;
+use cipherroute::db::Db;
+use cipherroute::server::state::AppState;
+use cipherroute::types::ApiKey;
 use serde_json::{json, Value};
 use tempfile::tempdir;
 use tower::util::ServiceExt;
@@ -147,7 +147,7 @@ async fn claude_settings_get_reports_not_installed_without_binary_or_config() {
     let _home = EnvVarGuard::set_path("HOME", home.path());
     let _path = EnvVarGuard::set_path("PATH", path.path());
 
-    let app = openproxy::build_app(app_state().await);
+    let app = cipherroute::build_app(app_state().await);
     let response = app
         .oneshot(authorized_request(
             Method::GET,
@@ -170,7 +170,7 @@ async fn claude_settings_get_reports_not_installed_without_binary_or_config() {
 }
 
 #[tokio::test]
-async fn claude_settings_post_get_and_delete_match_openproxy_behavior() {
+async fn claude_settings_post_get_and_delete_match_cipherroute_behavior() {
     let _lock = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
     let home = tempdir().unwrap();
     let path = tempdir().unwrap();
@@ -192,7 +192,7 @@ async fn claude_settings_post_get_and_delete_match_openproxy_behavior() {
     )
     .unwrap();
 
-    let app = openproxy::build_app(app_state().await);
+    let app = cipherroute::build_app(app_state().await);
     let post = app
         .clone()
         .oneshot(authorized_request(
@@ -237,7 +237,7 @@ async fn claude_settings_post_get_and_delete_match_openproxy_behavior() {
     let (status, json) = response_json(get).await;
     assert_eq!(status, StatusCode::OK);
     assert_eq!(json["installed"], true);
-    assert_eq!(json["hasOpenProxy"], true);
+    assert_eq!(json["hasCipherRoute"], true);
     assert_eq!(
         json["settingsPath"],
         settings_path.to_string_lossy().to_string()
@@ -279,7 +279,7 @@ async fn hermes_settings_get_reports_not_installed_without_binary_or_config() {
     let _home = EnvVarGuard::set_path("HOME", home.path());
     let _path = EnvVarGuard::set_path("PATH", path.path());
 
-    let app = openproxy::build_app(app_state().await);
+    let app = cipherroute::build_app(app_state().await);
     let response = app
         .oneshot(authorized_request(
             Method::GET,
@@ -313,7 +313,7 @@ async fn hermes_settings_post_get_and_delete_preserve_other_files() {
     std::fs::create_dir_all(config_path.parent().unwrap()).unwrap();
     std::fs::write(&config_path, "foo: bar\n").unwrap();
 
-    let app = openproxy::build_app(app_state().await);
+    let app = cipherroute::build_app(app_state().await);
     let post = app
         .clone()
         .oneshot(authorized_request(
@@ -356,7 +356,7 @@ async fn hermes_settings_post_get_and_delete_preserve_other_files() {
     let (status, json) = response_json(get).await;
     assert_eq!(status, StatusCode::OK);
     assert_eq!(json["installed"], true);
-    assert_eq!(json["hasOpenProxy"], true);
+    assert_eq!(json["hasCipherRoute"], true);
     assert_eq!(json["settings"]["model"]["default"], "oa/gpt-4.1");
     assert_eq!(json["settings"]["model"]["provider"], "custom");
     assert_eq!(
@@ -379,7 +379,7 @@ async fn hermes_settings_post_get_and_delete_preserve_other_files() {
         json,
         json!({
             "success": true,
-            "message": "openproxy model block removed"
+            "message": "cipherroute model block removed"
         })
     );
 
@@ -400,7 +400,7 @@ async fn codex_settings_get_reports_not_installed_without_binary_or_config() {
     let _home = EnvVarGuard::set_path("HOME", home.path());
     let _path = EnvVarGuard::set_path("PATH", path.path());
 
-    let app = openproxy::build_app(app_state().await);
+    let app = cipherroute::build_app(app_state().await);
     let response = app
         .oneshot(authorized_request(
             Method::GET,
@@ -423,7 +423,7 @@ async fn codex_settings_get_reports_not_installed_without_binary_or_config() {
 }
 
 #[tokio::test]
-async fn codex_settings_post_get_and_delete_match_openproxy_file_behavior() {
+async fn codex_settings_post_get_and_delete_match_cipherroute_file_behavior() {
     let _lock = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
     let home = tempdir().unwrap();
     let path = tempdir().unwrap();
@@ -447,14 +447,14 @@ async fn codex_settings_post_get_and_delete_match_openproxy_file_behavior() {
     )
     .unwrap();
 
-    let app = openproxy::build_app(app_state().await);
+    let app = cipherroute::build_app(app_state().await);
     let post = app
         .clone()
         .oneshot(authorized_request(
             Method::POST,
             "/api/cli-tools/codex-settings",
             Body::from(
-                r#"{"baseUrl":"https://proxy.example.com","apiKey":"sk-openproxy","model":"oa/gpt-4.1","subagentModel":"oa/gpt-4.1-mini"}"#,
+                r#"{"baseUrl":"https://proxy.example.com","apiKey":"sk-cipherroute","model":"oa/gpt-4.1","subagentModel":"oa/gpt-4.1-mini"}"#,
             ),
         ))
         .await
@@ -472,8 +472,8 @@ async fn codex_settings_post_get_and_delete_match_openproxy_file_behavior() {
 
     let saved_config = std::fs::read_to_string(&config_path).unwrap();
     assert!(saved_config.contains("model = \"oa/gpt-4.1\""));
-    assert!(saved_config.contains("model_provider = \"openproxy\""));
-    assert!(saved_config.contains("[model_providers.openproxy]"));
+    assert!(saved_config.contains("model_provider = \"cipherroute\""));
+    assert!(saved_config.contains("[model_providers.cipherroute]"));
     assert!(saved_config.contains("base_url = \"https://proxy.example.com/v1\""));
     assert!(saved_config.contains("wire_api = \"responses\""));
     assert!(saved_config.contains("[agents.subagent]"));
@@ -483,7 +483,7 @@ async fn codex_settings_post_get_and_delete_match_openproxy_file_behavior() {
     let saved_auth: serde_json::Value =
         serde_json::from_str(&std::fs::read_to_string(codex_auth_path(home.path())).unwrap())
             .unwrap();
-    assert_eq!(saved_auth["OPENAI_API_KEY"], "sk-openproxy");
+    assert_eq!(saved_auth["OPENAI_API_KEY"], "sk-cipherroute");
     assert_eq!(saved_auth["auth_mode"], "apikey");
     assert_eq!(saved_auth["refresh_token"], "keep-me");
 
@@ -499,7 +499,7 @@ async fn codex_settings_post_get_and_delete_match_openproxy_file_behavior() {
     let (status, json) = response_json(get).await;
     assert_eq!(status, StatusCode::OK);
     assert_eq!(json["installed"], true);
-    assert_eq!(json["hasOpenProxy"], true);
+    assert_eq!(json["hasCipherRoute"], true);
     assert_eq!(
         json["configPath"],
         config_path.to_string_lossy().to_string()
@@ -521,13 +521,13 @@ async fn codex_settings_post_get_and_delete_match_openproxy_file_behavior() {
         json,
         json!({
             "success": true,
-            "message": "OpenProxy settings removed successfully"
+            "message": "CipherRoute settings removed successfully"
         })
     );
 
     let reset_config = std::fs::read_to_string(&config_path).unwrap();
-    assert!(!reset_config.contains("model_provider = \"openproxy\""));
-    assert!(!reset_config.contains("[model_providers.openproxy]"));
+    assert!(!reset_config.contains("model_provider = \"cipherroute\""));
+    assert!(!reset_config.contains("[model_providers.cipherroute]"));
     assert!(!reset_config.contains("[agents.subagent]"));
     assert!(reset_config.contains("[existing]"));
 
@@ -545,7 +545,7 @@ async fn copilot_settings_get_reports_installed_without_existing_config() {
     let home = tempdir().unwrap();
     let _home = EnvVarGuard::set_path("HOME", home.path());
 
-    let app = openproxy::build_app(app_state().await);
+    let app = cipherroute::build_app(app_state().await);
     let response = app
         .oneshot(authorized_request(
             Method::GET,
@@ -562,7 +562,7 @@ async fn copilot_settings_get_reports_installed_without_existing_config() {
         json!({
             "installed": true,
             "config": null,
-            "hasOpenProxy": false,
+            "hasCipherRoute": false,
             "configPath": copilot_config_path(home.path()).to_string_lossy().to_string(),
             "currentModel": null,
             "currentUrl": null
@@ -571,7 +571,7 @@ async fn copilot_settings_get_reports_installed_without_existing_config() {
 }
 
 #[tokio::test]
-async fn copilot_settings_post_get_and_delete_match_openproxy_file_behavior() {
+async fn copilot_settings_post_get_and_delete_match_cipherroute_file_behavior() {
     let _lock = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
     let home = tempdir().unwrap();
     let _home = EnvVarGuard::set_path("HOME", home.path());
@@ -587,7 +587,7 @@ async fn copilot_settings_post_get_and_delete_match_openproxy_file_behavior() {
                 "models": [{ "id": "other/model" }]
             },
             {
-                "name": "OpenProxy",
+                "name": "CipherRoute",
                 "vendor": "azure",
                 "models": [{ "id": "old/model", "url": "https://old.example.com/chat/completions#models.ai.azure.com" }]
             }
@@ -596,14 +596,14 @@ async fn copilot_settings_post_get_and_delete_match_openproxy_file_behavior() {
     )
     .unwrap();
 
-    let app = openproxy::build_app(app_state().await);
+    let app = cipherroute::build_app(app_state().await);
     let post = app
         .clone()
         .oneshot(authorized_request(
             Method::POST,
             "/api/cli-tools/copilot-settings",
             Body::from(
-                r#"{"baseUrl":"https://proxy.example.com/v1","apiKey":"sk-openproxy","models":["oa/gpt-4.1","oa/gpt-4.1-mini"]}"#,
+                r#"{"baseUrl":"https://proxy.example.com/v1","apiKey":"sk-cipherroute","models":["oa/gpt-4.1","oa/gpt-4.1-mini"]}"#,
             ),
         ))
         .await
@@ -624,9 +624,9 @@ async fn copilot_settings_post_get_and_delete_match_openproxy_file_behavior() {
     let saved_array = saved.as_array().unwrap();
     assert_eq!(saved_array.len(), 2);
     assert_eq!(saved_array[0]["name"], "Other");
-    assert_eq!(saved_array[1]["name"], "OpenProxy");
+    assert_eq!(saved_array[1]["name"], "CipherRoute");
     assert_eq!(saved_array[1]["vendor"], "azure");
-    assert_eq!(saved_array[1]["apiKey"], "sk-openproxy");
+    assert_eq!(saved_array[1]["apiKey"], "sk-cipherroute");
     assert_eq!(saved_array[1]["models"][0]["id"], "oa/gpt-4.1");
     assert_eq!(saved_array[1]["models"][0]["name"], "oa/gpt-4.1");
     assert_eq!(
@@ -651,7 +651,7 @@ async fn copilot_settings_post_get_and_delete_match_openproxy_file_behavior() {
     let (status, json) = response_json(get).await;
     assert_eq!(status, StatusCode::OK);
     assert_eq!(json["installed"], true);
-    assert_eq!(json["hasOpenProxy"], true);
+    assert_eq!(json["hasCipherRoute"], true);
     assert_eq!(json["config"], saved);
     assert_eq!(json["currentModel"], "oa/gpt-4.1");
     assert_eq!(
@@ -674,7 +674,7 @@ async fn copilot_settings_post_get_and_delete_match_openproxy_file_behavior() {
         json,
         json!({
             "success": true,
-            "message": "OpenProxy removed from Copilot config"
+            "message": "CipherRoute removed from Copilot config"
         })
     );
 
@@ -700,7 +700,7 @@ async fn droid_settings_get_reports_not_installed_without_binary_or_config() {
     let _home = EnvVarGuard::set_path("HOME", home.path());
     let _path = EnvVarGuard::set_path("PATH", path.path());
 
-    let app = openproxy::build_app(app_state().await);
+    let app = cipherroute::build_app(app_state().await);
     let response = app
         .oneshot(authorized_request(
             Method::GET,
@@ -723,7 +723,7 @@ async fn droid_settings_get_reports_not_installed_without_binary_or_config() {
 }
 
 #[tokio::test]
-async fn droid_settings_post_get_and_delete_match_openproxy_file_behavior() {
+async fn droid_settings_post_get_and_delete_match_cipherroute_file_behavior() {
     let _lock = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
     let home = tempdir().unwrap();
     let path = tempdir().unwrap();
@@ -743,7 +743,7 @@ async fn droid_settings_post_get_and_delete_match_openproxy_file_behavior() {
                     "index": 99
                 },
                 {
-                    "id": "custom:OpenProxy-old",
+                    "id": "custom:CipherRoute-old",
                     "model": "old/model"
                 }
             ]
@@ -752,14 +752,14 @@ async fn droid_settings_post_get_and_delete_match_openproxy_file_behavior() {
     )
     .unwrap();
 
-    let app = openproxy::build_app(app_state().await);
+    let app = cipherroute::build_app(app_state().await);
     let post = app
         .clone()
         .oneshot(authorized_request(
             Method::POST,
             "/api/cli-tools/droid-settings",
             Body::from(
-                r#"{"baseUrl":"https://proxy.example.com","apiKey":"sk-openproxy","models":["oa/gpt-4.1","oa/gpt-4.1-mini"],"activeModel":"oa/gpt-4.1-mini"}"#,
+                r#"{"baseUrl":"https://proxy.example.com","apiKey":"sk-cipherroute","models":["oa/gpt-4.1","oa/gpt-4.1-mini"],"activeModel":"oa/gpt-4.1-mini"}"#,
             ),
         ))
         .await
@@ -780,14 +780,14 @@ async fn droid_settings_post_get_and_delete_match_openproxy_file_behavior() {
     assert_eq!(saved["theme"], "keep");
     let custom_models = saved["customModels"].as_array().unwrap();
     assert_eq!(custom_models.len(), 3);
-    assert_eq!(custom_models[0]["id"], "custom:OpenProxy-0");
+    assert_eq!(custom_models[0]["id"], "custom:CipherRoute-0");
     assert_eq!(custom_models[0]["model"], "oa/gpt-4.1");
     assert_eq!(custom_models[0]["index"], 0);
     assert_eq!(custom_models[0]["baseUrl"], "https://proxy.example.com/v1");
-    assert_eq!(custom_models[0]["apiKey"], "sk-openproxy");
+    assert_eq!(custom_models[0]["apiKey"], "sk-cipherroute");
     assert_eq!(custom_models[1]["id"], "custom:other-0");
     assert_eq!(custom_models[1]["index"], 1);
-    assert_eq!(custom_models[2]["id"], "custom:OpenProxy-1");
+    assert_eq!(custom_models[2]["id"], "custom:CipherRoute-1");
     assert_eq!(custom_models[2]["model"], "oa/gpt-4.1-mini");
     assert_eq!(custom_models[2]["index"], 2);
 
@@ -803,7 +803,7 @@ async fn droid_settings_post_get_and_delete_match_openproxy_file_behavior() {
     let (status, json) = response_json(get).await;
     assert_eq!(status, StatusCode::OK);
     assert_eq!(json["installed"], true);
-    assert_eq!(json["hasOpenProxy"], true);
+    assert_eq!(json["hasCipherRoute"], true);
     assert_eq!(
         json["settingsPath"],
         settings_path.to_string_lossy().to_string()
@@ -825,7 +825,7 @@ async fn droid_settings_post_get_and_delete_match_openproxy_file_behavior() {
         json,
         json!({
             "success": true,
-            "message": "OpenProxy settings removed successfully"
+            "message": "CipherRoute settings removed successfully"
         })
     );
 
@@ -854,7 +854,7 @@ async fn opencode_settings_get_reports_not_installed_without_binary_or_config() 
     let _home = EnvVarGuard::set_path("HOME", home.path());
     let _path = EnvVarGuard::set_path("PATH", path.path());
 
-    let app = openproxy::build_app(app_state().await);
+    let app = cipherroute::build_app(app_state().await);
     let response = app
         .oneshot(authorized_request(
             Method::GET,
@@ -877,7 +877,7 @@ async fn opencode_settings_get_reports_not_installed_without_binary_or_config() 
 }
 
 #[tokio::test]
-async fn opencode_settings_post_patch_and_delete_match_openproxy_file_behavior() {
+async fn opencode_settings_post_patch_and_delete_match_cipherroute_file_behavior() {
     let _lock = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
     let home = tempdir().unwrap();
     let path = tempdir().unwrap();
@@ -891,7 +891,7 @@ async fn opencode_settings_post_patch_and_delete_match_openproxy_file_behavior()
         serde_json::to_vec_pretty(&json!({
             "provider": {
                 "other": { "keep": true },
-                "openproxy": {
+                "cipherroute": {
                     "npm": "@ai-sdk/openai-compatible",
                     "options": {
                         "region": "keep",
@@ -917,14 +917,14 @@ async fn opencode_settings_post_patch_and_delete_match_openproxy_file_behavior()
     )
     .unwrap();
 
-    let app = openproxy::build_app(app_state().await);
+    let app = cipherroute::build_app(app_state().await);
     let post = app
         .clone()
         .oneshot(authorized_request(
             Method::POST,
             "/api/cli-tools/opencode-settings",
             Body::from(
-                r#"{"baseUrl":"https://proxy.example.com","apiKey":"sk-openproxy","models":["oa/gpt-4.1","oa/gpt-4.1-mini"],"activeModel":"oa/gpt-4.1-mini","subagentModel":"oa/gpt-4.1-nano"}"#,
+                r#"{"baseUrl":"https://proxy.example.com","apiKey":"sk-cipherroute","models":["oa/gpt-4.1","oa/gpt-4.1-mini"],"activeModel":"oa/gpt-4.1-mini","subagentModel":"oa/gpt-4.1-nano"}"#,
             ),
         ))
         .await
@@ -944,35 +944,35 @@ async fn opencode_settings_post_patch_and_delete_match_openproxy_file_behavior()
         serde_json::from_str(&std::fs::read_to_string(&config_path).unwrap()).unwrap();
     assert_eq!(saved["provider"]["other"]["keep"], true);
     assert_eq!(
-        saved["provider"]["openproxy"]["npm"],
+        saved["provider"]["cipherroute"]["npm"],
         "@ai-sdk/openai-compatible"
     );
-    assert_eq!(saved["provider"]["openproxy"]["options"]["region"], "keep");
+    assert_eq!(saved["provider"]["cipherroute"]["options"]["region"], "keep");
     assert_eq!(
-        saved["provider"]["openproxy"]["options"]["baseURL"],
+        saved["provider"]["cipherroute"]["options"]["baseURL"],
         "https://proxy.example.com/v1"
     );
     assert_eq!(
-        saved["provider"]["openproxy"]["options"]["apiKey"],
-        "sk-openproxy"
+        saved["provider"]["cipherroute"]["options"]["apiKey"],
+        "sk-cipherroute"
     );
     assert_eq!(
-        saved["provider"]["openproxy"]["models"]["old/model"]["name"],
+        saved["provider"]["cipherroute"]["models"]["old/model"]["name"],
         "old/model"
     );
     assert_eq!(
-        saved["provider"]["openproxy"]["models"]["oa/gpt-4.1"]["name"],
+        saved["provider"]["cipherroute"]["models"]["oa/gpt-4.1"]["name"],
         "oa/gpt-4.1"
     );
     assert_eq!(
-        saved["provider"]["openproxy"]["models"]["oa/gpt-4.1-mini"]["name"],
+        saved["provider"]["cipherroute"]["models"]["oa/gpt-4.1-mini"]["name"],
         "oa/gpt-4.1-mini"
     );
-    assert_eq!(saved["model"], "openproxy/oa/gpt-4.1-mini");
+    assert_eq!(saved["model"], "cipherroute/oa/gpt-4.1-mini");
     assert_eq!(saved["agent"]["keep"]["still"], true);
     assert_eq!(
         saved["agent"]["explorer"]["model"],
-        "openproxy/oa/gpt-4.1-nano"
+        "cipherroute/oa/gpt-4.1-nano"
     );
 
     let get = app
@@ -987,7 +987,7 @@ async fn opencode_settings_post_patch_and_delete_match_openproxy_file_behavior()
     let (status, json) = response_json(get).await;
     assert_eq!(status, StatusCode::OK);
     assert_eq!(json["installed"], true);
-    assert_eq!(json["hasOpenProxy"], true);
+    assert_eq!(json["hasCipherRoute"], true);
     assert_eq!(json["config"], saved);
     assert_eq!(
         json["configPath"],
@@ -1045,13 +1045,13 @@ async fn opencode_settings_post_patch_and_delete_match_openproxy_file_behavior()
 
     let deleted_one: serde_json::Value =
         serde_json::from_str(&std::fs::read_to_string(&config_path).unwrap()).unwrap();
-    assert!(deleted_one["provider"]["openproxy"]["models"]
+    assert!(deleted_one["provider"]["cipherroute"]["models"]
         .get("oa/gpt-4.1")
         .is_none());
-    assert!(deleted_one["provider"]["openproxy"]["models"]
+    assert!(deleted_one["provider"]["cipherroute"]["models"]
         .get("old/model")
         .is_some());
-    assert!(deleted_one["provider"]["openproxy"]["models"]
+    assert!(deleted_one["provider"]["cipherroute"]["models"]
         .get("oa/gpt-4.1-mini")
         .is_some());
     assert!(deleted_one["agent"].get("explorer").is_none());
@@ -1073,13 +1073,13 @@ async fn opencode_settings_post_patch_and_delete_match_openproxy_file_behavior()
         json,
         json!({
             "success": true,
-            "message": "OpenProxy settings removed from OpenCode"
+            "message": "CipherRoute settings removed from OpenCode"
         })
     );
 
     let reset: serde_json::Value =
         serde_json::from_str(&std::fs::read_to_string(&config_path).unwrap()).unwrap();
-    assert!(reset["provider"].get("openproxy").is_none());
+    assert!(reset["provider"].get("cipherroute").is_none());
     assert_eq!(reset["provider"]["other"]["keep"], true);
     assert_eq!(reset["agent"]["keep"]["still"], true);
     assert_eq!(reset["model"], "");
@@ -1093,7 +1093,7 @@ async fn openclaw_settings_get_reports_not_installed_without_binary_or_config() 
     let _home = EnvVarGuard::set_path("HOME", home.path());
     let _path = EnvVarGuard::set_path("PATH", path.path());
 
-    let app = openproxy::build_app(app_state().await);
+    let app = cipherroute::build_app(app_state().await);
     let response = app
         .oneshot(authorized_request(
             Method::GET,
@@ -1116,7 +1116,7 @@ async fn openclaw_settings_get_reports_not_installed_without_binary_or_config() 
 }
 
 #[tokio::test]
-async fn openclaw_settings_post_get_and_delete_match_openproxy_file_behavior() {
+async fn openclaw_settings_post_get_and_delete_match_cipherroute_file_behavior() {
     let _lock = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
     let home = tempdir().unwrap();
     let path = tempdir().unwrap();
@@ -1148,7 +1148,7 @@ async fn openclaw_settings_post_get_and_delete_match_openproxy_file_behavior() {
                     },
                     "models": {
                         "other/model": {},
-                        "openproxy/old-model": {}
+                        "cipherroute/old-model": {}
                     }
                 },
                 "list": [
@@ -1156,7 +1156,7 @@ async fn openclaw_settings_post_get_and_delete_match_openproxy_file_behavior() {
                         "id": "agent-a",
                         "name": "Agent A",
                         "agentDir": agent_a_dir.to_string_lossy().to_string(),
-                        "model": "openproxy/old-model"
+                        "model": "cipherroute/old-model"
                     },
                     {
                         "id": "agent-b",
@@ -1179,14 +1179,14 @@ async fn openclaw_settings_post_get_and_delete_match_openproxy_file_behavior() {
     )
     .unwrap();
 
-    let app = openproxy::build_app(app_state().await);
+    let app = cipherroute::build_app(app_state().await);
     let post = app
         .clone()
         .oneshot(authorized_request(
             Method::POST,
             "/api/cli-tools/openclaw-settings",
             Body::from(
-                r#"{"baseUrl":"https://proxy.example.com","apiKey":"sk-openproxy","model":"oa/gpt-4.1","agentModels":{"agent-a":"oa/gpt-4.1-mini"}}"#.to_string(),
+                r#"{"baseUrl":"https://proxy.example.com","apiKey":"sk-cipherroute","model":"oa/gpt-4.1","agentModels":{"agent-a":"oa/gpt-4.1-mini"}}"#.to_string(),
             ),
         ))
         .await
@@ -1206,40 +1206,40 @@ async fn openclaw_settings_post_get_and_delete_match_openproxy_file_behavior() {
         serde_json::from_str(&std::fs::read_to_string(&settings_path).unwrap()).unwrap();
     assert_eq!(
         saved["agents"]["defaults"]["model"]["primary"],
-        "openproxy/oa/gpt-4.1"
+        "cipherroute/oa/gpt-4.1"
     );
     assert!(saved["agents"]["defaults"]["models"]
-        .get("openproxy/old-model")
+        .get("cipherroute/old-model")
         .is_none());
     assert!(saved["agents"]["defaults"]["models"]
         .get("other/model")
         .is_some());
     assert!(saved["agents"]["defaults"]["models"]
-        .get("openproxy/oa/gpt-4.1")
+        .get("cipherroute/oa/gpt-4.1")
         .is_some());
     assert!(saved["agents"]["defaults"]["models"]
-        .get("openproxy/oa/gpt-4.1-mini")
+        .get("cipherroute/oa/gpt-4.1-mini")
         .is_some());
     assert_eq!(
-        saved["models"]["providers"]["openproxy"]["baseUrl"],
+        saved["models"]["providers"]["cipherroute"]["baseUrl"],
         "https://proxy.example.com/v1"
     );
     assert_eq!(
-        saved["models"]["providers"]["openproxy"]["apiKey"],
-        "sk-openproxy"
+        saved["models"]["providers"]["cipherroute"]["apiKey"],
+        "sk-cipherroute"
     );
     assert_eq!(
-        saved["models"]["providers"]["openproxy"]["api"],
+        saved["models"]["providers"]["cipherroute"]["api"],
         "openai-completions"
     );
-    let provider_models = saved["models"]["providers"]["openproxy"]["models"]
+    let provider_models = saved["models"]["providers"]["cipherroute"]["models"]
         .as_array()
         .unwrap();
     assert_eq!(provider_models.len(), 2);
     assert_eq!(provider_models[0]["id"], "oa/gpt-4.1");
     assert_eq!(provider_models[1]["id"], "oa/gpt-4.1-mini");
     let agent_list = saved["agents"]["list"].as_array().unwrap();
-    assert_eq!(agent_list[0]["model"], "openproxy/oa/gpt-4.1-mini");
+    assert_eq!(agent_list[0]["model"], "cipherroute/oa/gpt-4.1-mini");
     assert!(agent_list[1].get("model").is_none());
     assert!(agent_list[2].get("model").is_none());
 
@@ -1248,14 +1248,14 @@ async fn openclaw_settings_post_get_and_delete_match_openproxy_file_behavior() {
             .unwrap();
     assert_eq!(agent_a_models["providers"]["other"]["keep"], true);
     assert_eq!(
-        agent_a_models["providers"]["openproxy"]["models"][0]["id"],
+        agent_a_models["providers"]["cipherroute"]["models"][0]["id"],
         "oa/gpt-4.1-mini"
     );
     let agent_b_models: serde_json::Value =
         serde_json::from_str(&std::fs::read_to_string(agent_b_dir.join("models.json")).unwrap())
             .unwrap();
     assert_eq!(
-        agent_b_models["providers"]["openproxy"]["models"][0]["id"],
+        agent_b_models["providers"]["cipherroute"]["models"][0]["id"],
         "oa/gpt-4.1"
     );
 
@@ -1271,7 +1271,7 @@ async fn openclaw_settings_post_get_and_delete_match_openproxy_file_behavior() {
     let (status, json) = response_json(get).await;
     assert_eq!(status, StatusCode::OK);
     assert_eq!(json["installed"], true);
-    assert_eq!(json["hasOpenProxy"], true);
+    assert_eq!(json["hasCipherRoute"], true);
     assert_eq!(json["settings"], saved);
     assert_eq!(
         json["settingsPath"],
@@ -1297,19 +1297,19 @@ async fn openclaw_settings_post_get_and_delete_match_openproxy_file_behavior() {
         json,
         json!({
             "success": true,
-            "message": "OpenProxy settings removed successfully"
+            "message": "CipherRoute settings removed successfully"
         })
     );
 
     let reset: serde_json::Value =
         serde_json::from_str(&std::fs::read_to_string(&settings_path).unwrap()).unwrap();
-    assert!(reset["models"]["providers"].get("openproxy").is_none());
+    assert!(reset["models"]["providers"].get("cipherroute").is_none());
     assert_eq!(reset["models"]["providers"]["other"]["keep"], true);
     assert!(reset["agents"]["defaults"]["models"]
-        .get("openproxy/oa/gpt-4.1")
+        .get("cipherroute/oa/gpt-4.1")
         .is_none());
     assert!(reset["agents"]["defaults"]["models"]
-        .get("openproxy/oa/gpt-4.1-mini")
+        .get("cipherroute/oa/gpt-4.1-mini")
         .is_none());
     assert!(reset["agents"]["defaults"]["models"]
         .get("other/model")
@@ -1319,7 +1319,7 @@ async fn openclaw_settings_post_get_and_delete_match_openproxy_file_behavior() {
         .is_none());
     assert_eq!(
         reset["agents"]["list"][0]["model"],
-        "openproxy/oa/gpt-4.1-mini"
+        "cipherroute/oa/gpt-4.1-mini"
     );
 
     let get_after_delete = app
@@ -1333,7 +1333,7 @@ async fn openclaw_settings_post_get_and_delete_match_openproxy_file_behavior() {
         .unwrap();
     let (status, json) = response_json(get_after_delete).await;
     assert_eq!(status, StatusCode::OK);
-    assert_eq!(json["hasOpenProxy"], false);
+    assert_eq!(json["hasCipherRoute"], false);
     let agents = json["agents"].as_array().unwrap();
     assert_eq!(agents[0]["currentModel"], "oa/gpt-4.1-mini");
     assert_eq!(agents[1]["currentModel"], "oa/gpt-4.1");

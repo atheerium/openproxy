@@ -708,7 +708,7 @@ fn is_device_code_provider(provider: &str) -> bool {
 }
 
 fn iflow_api_base_url() -> String {
-    std::env::var("OPENPROXY_IFLOW_API_BASE_URL")
+    std::env::var("CIPHERROUTE_IFLOW_API_BASE_URL")
         .ok()
         .filter(|value| !value.trim().is_empty())
         .unwrap_or_else(|| "https://platform.iflow.cn".to_string())
@@ -717,84 +717,84 @@ fn iflow_api_base_url() -> String {
 }
 
 fn claude_authorize_url() -> String {
-    std::env::var("OPENPROXY_CLAUDE_AUTHORIZE_URL")
+    std::env::var("CIPHERROUTE_CLAUDE_AUTHORIZE_URL")
         .ok()
         .filter(|value| !value.trim().is_empty())
         .unwrap_or_else(|| CLAUDE_AUTHORIZE_URL.to_string())
 }
 
 fn claude_token_url() -> String {
-    std::env::var("OPENPROXY_CLAUDE_TOKEN_URL")
+    std::env::var("CIPHERROUTE_CLAUDE_TOKEN_URL")
         .ok()
         .filter(|value| !value.trim().is_empty())
         .unwrap_or_else(|| CLAUDE_TOKEN_URL.to_string())
 }
 
 fn codex_authorize_url() -> String {
-    std::env::var("OPENPROXY_CODEX_AUTHORIZE_URL")
+    std::env::var("CIPHERROUTE_CODEX_AUTHORIZE_URL")
         .ok()
         .filter(|value| !value.trim().is_empty())
         .unwrap_or_else(|| CODEX_AUTHORIZE_URL.to_string())
 }
 
 fn codex_token_url() -> String {
-    std::env::var("OPENPROXY_CODEX_TOKEN_URL")
+    std::env::var("CIPHERROUTE_CODEX_TOKEN_URL")
         .ok()
         .filter(|value| !value.trim().is_empty())
         .unwrap_or_else(|| CODEX_TOKEN_URL.to_string())
 }
 
 fn gemini_token_url() -> String {
-    std::env::var("OPENPROXY_GEMINI_TOKEN_URL")
+    std::env::var("CIPHERROUTE_GEMINI_TOKEN_URL")
         .ok()
         .filter(|value| !value.trim().is_empty())
         .unwrap_or_else(|| GEMINI_TOKEN_URL.to_string())
 }
 
 fn gemini_user_info_url() -> String {
-    std::env::var("OPENPROXY_GEMINI_USER_INFO_URL")
+    std::env::var("CIPHERROUTE_GEMINI_USER_INFO_URL")
         .ok()
         .filter(|value| !value.trim().is_empty())
         .unwrap_or_else(|| GEMINI_USER_INFO_URL.to_string())
 }
 
 fn gemini_load_code_assist_endpoint() -> String {
-    std::env::var("OPENPROXY_GEMINI_LOAD_CODE_ASSIST_ENDPOINT")
+    std::env::var("CIPHERROUTE_GEMINI_LOAD_CODE_ASSIST_ENDPOINT")
         .ok()
         .filter(|value| !value.trim().is_empty())
         .unwrap_or_else(|| GEMINI_LOAD_CODE_ASSIST_ENDPOINT.to_string())
 }
 
 fn antigravity_token_url() -> String {
-    std::env::var("OPENPROXY_ANTIGRAVITY_TOKEN_URL")
+    std::env::var("CIPHERROUTE_ANTIGRAVITY_TOKEN_URL")
         .ok()
         .filter(|value| !value.trim().is_empty())
         .unwrap_or_else(|| ANTIGRAVITY_TOKEN_URL.to_string())
 }
 
 fn antigravity_user_info_url() -> String {
-    std::env::var("OPENPROXY_ANTIGRAVITY_USER_INFO_URL")
+    std::env::var("CIPHERROUTE_ANTIGRAVITY_USER_INFO_URL")
         .ok()
         .filter(|value| !value.trim().is_empty())
         .unwrap_or_else(|| ANTIGRAVITY_USER_INFO_URL.to_string())
 }
 
 fn antigravity_load_code_assist_endpoint() -> String {
-    std::env::var("OPENPROXY_ANTIGRAVITY_LOAD_CODE_ASSIST_ENDPOINT")
+    std::env::var("CIPHERROUTE_ANTIGRAVITY_LOAD_CODE_ASSIST_ENDPOINT")
         .ok()
         .filter(|value| !value.trim().is_empty())
         .unwrap_or_else(|| ANTIGRAVITY_LOAD_CODE_ASSIST_ENDPOINT.to_string())
 }
 
 fn antigravity_onboard_user_endpoint() -> String {
-    std::env::var("OPENPROXY_ANTIGRAVITY_ONBOARD_USER_ENDPOINT")
+    std::env::var("CIPHERROUTE_ANTIGRAVITY_ONBOARD_USER_ENDPOINT")
         .ok()
         .filter(|value| !value.trim().is_empty())
         .unwrap_or_else(|| ANTIGRAVITY_ONBOARD_USER_ENDPOINT.to_string())
 }
 
 fn kiro_auth_service_base_url() -> String {
-    std::env::var("OPENPROXY_KIRO_AUTH_SERVICE_BASE_URL")
+    std::env::var("CIPHERROUTE_KIRO_AUTH_SERVICE_BASE_URL")
         .ok()
         .filter(|value| !value.trim().is_empty())
         .unwrap_or_else(|| "https://prod.us-east-1.auth.desktop.kiro.dev".to_string())
@@ -803,7 +803,7 @@ fn kiro_auth_service_base_url() -> String {
 }
 
 fn kiro_oidc_base_url(region: &str) -> String {
-    std::env::var("OPENPROXY_KIRO_OIDC_BASE_URL")
+    std::env::var("CIPHERROUTE_KIRO_OIDC_BASE_URL")
         .ok()
         .filter(|value| !value.trim().is_empty())
         .unwrap_or_else(|| format!("https://oidc.{region}.amazonaws.com"))
@@ -847,21 +847,21 @@ fn encode_component_value(value: &str) -> String {
 }
 
 fn iflow_token_url() -> String {
-    std::env::var("OPENPROXY_IFLOW_TOKEN_URL")
+    std::env::var("CIPHERROUTE_IFLOW_TOKEN_URL")
         .ok()
         .filter(|value| !value.trim().is_empty())
         .unwrap_or_else(|| IFLOW_TOKEN_URL.to_string())
 }
 
 fn iflow_user_info_url() -> String {
-    std::env::var("OPENPROXY_IFLOW_USER_INFO_URL")
+    std::env::var("CIPHERROUTE_IFLOW_USER_INFO_URL")
         .ok()
         .filter(|value| !value.trim().is_empty())
         .unwrap_or_else(|| IFLOW_USER_INFO_URL.to_string())
 }
 
 fn cline_token_url() -> String {
-    std::env::var("OPENPROXY_CLINE_TOKEN_URL")
+    std::env::var("CIPHERROUTE_CLINE_TOKEN_URL")
         .ok()
         .filter(|value| !value.trim().is_empty())
         .unwrap_or_else(|| CLINE_TOKEN_URL.to_string())
@@ -1352,7 +1352,7 @@ async fn store_connection(
     let _client_id = provider_config
         .as_ref()
         .and_then(|c| c.get_param("client_id"))
-        .unwrap_or("openproxy")
+        .unwrap_or("cipherroute")
         .to_string();
 
     let _now = now_secs();
@@ -2695,7 +2695,7 @@ async fn start_device_code_compat(
             .map(|s| s.to_string())
             .unwrap_or_else(|| {
                 if provider_config.client_id.is_empty() {
-                    "openproxy".to_string()
+                    "cipherroute".to_string()
                 } else {
                     provider_config.client_id.to_string()
                 }
@@ -3557,14 +3557,14 @@ async fn exchange_codex_compat(
 }
 
 fn xai_token_url() -> String {
-    std::env::var("OPENPROXY_XAI_TOKEN_URL")
+    std::env::var("CIPHERROUTE_XAI_TOKEN_URL")
         .ok()
         .filter(|value| !value.trim().is_empty())
         .unwrap_or_else(|| XAI_TOKEN_URL_DEFAULT.to_string())
 }
 
 fn xai_authorize_url() -> String {
-    std::env::var("OPENPROXY_XAI_AUTHORIZE_URL")
+    std::env::var("CIPHERROUTE_XAI_AUTHORIZE_URL")
         .ok()
         .filter(|value| !value.trim().is_empty())
         .unwrap_or_else(|| XAI_AUTHORIZE_URL_DEFAULT.to_string())
@@ -4391,7 +4391,7 @@ pub async fn start_oauth_flow(
     let client_id = if provider == "xai" {
         XAI_CLIENT_ID
     } else {
-        "openproxy"
+        "cipherroute"
     };
     let auth_url =
         provider_config.build_auth_url(client_id, redirect_uri, &state_value, &code_challenge);
@@ -4497,7 +4497,7 @@ pub async fn oauth_callback(
         code,
         &flow.code_verifier,
         redirect_uri,
-        "openproxy",
+        "cipherroute",
     )
     .await
     {
@@ -4604,7 +4604,7 @@ pub async fn start_device_code(
         // Prefer an explicit `client_id` in extra_params (e.g. KiloCode);
         // otherwise use the provider's configured client_id field (e.g. the
         // GitHub Copilot public client `Iv1.b507a08c87ecfe98`). Falling back
-        // to "openproxy" breaks GitHub's device flow which rejects unknown
+        // to "cipherroute" breaks GitHub's device flow which rejects unknown
         // client IDs with `{"error":"Not Found"}` — see 9router#442.
         let client_id = provider_config
             .get_param("client_id")
@@ -4616,7 +4616,7 @@ pub async fn start_device_code(
                     Some(provider_config.client_id.to_string())
                 }
             })
-            .unwrap_or_else(|| "openproxy".to_string());
+            .unwrap_or_else(|| "cipherroute".to_string());
 
         match device_code::start_device_flow(&provider_config, &client_id).await {
             Ok(resp) => (resp, None),
@@ -4966,7 +4966,7 @@ pub async fn refresh_token(
     // provider has its own refresh wire format — claude posts JSON to
     // api.anthropic.com, codex via refreshCodexToken, iflow adds a Basic
     // auth header, xai/grok use their own client_id. The generic
-    // form-encoded grant with client_id "openproxy" only ever worked for
+    // form-encoded grant with client_id "cipherroute" only ever worked for
     // Auth0-style endpoints, so route through the per-provider dispatcher.
     let provider_specific_data = connection
         .map(|c| c.provider_specific_data.clone())

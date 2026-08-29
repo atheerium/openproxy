@@ -9,7 +9,7 @@
 //!   not OpenAI's. This executor expects the body to already be in that
 //!   shape (the request translator pipeline does the conversion).
 //! - A per-connection session id is derived via [`derive_session_id`] so
-//!   prompt caching survives within a single OpenProxy run.
+//!   prompt caching survives within a single CipherRoute run.
 //! - Tool function names are sanitised to Gemini's regex
 //!   `[a-zA-Z_][a-zA-Z0-9_.:\-]{0,63}`.
 //! - The `cleanJSONSchemaForAntigravity` schema-cleaning step from 9router
@@ -1459,7 +1459,7 @@ mod tests {
 
     #[test]
     fn transform_request_strips_competitive_system_prompt() {
-        // Regression test for openproxy-mfs3.5 (9router v0.5.55 parity).
+        // Regression test for cipherroute-mfs3.5 (9router v0.5.55 parity).
         // Antigravity flags requests containing Zed IDE's Claude prompt and
         // blocks them with 429 Quota Exhausted. Strip the competitive text.
         let competitive_text = "You are a Claude agent, built on Anthropic's Claude Agent SDK.";

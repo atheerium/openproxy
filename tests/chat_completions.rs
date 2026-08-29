@@ -3,10 +3,10 @@ use std::sync::Arc;
 
 use axum::body::Body;
 use axum::http::{Request, StatusCode};
-use openproxy::core::rtk::CompressionLevel;
-use openproxy::db::Db;
-use openproxy::server::state::AppState;
-use openproxy::types::{ApiKey, Combo, ProviderConnection, ProviderNode, Settings};
+use cipherroute::core::rtk::CompressionLevel;
+use cipherroute::db::Db;
+use cipherroute::server::state::AppState;
+use cipherroute::types::{ApiKey, Combo, ProviderConnection, ProviderNode, Settings};
 use serde_json::json;
 use tempfile::tempdir;
 use tower::util::ServiceExt;
@@ -144,7 +144,7 @@ async fn chat_completions_streams_openai_compatible_response() {
     )
     .await;
 
-    let app = openproxy::build_app(state);
+    let app = cipherroute::build_app(state);
     let response = app
         .oneshot(
             Request::builder()
@@ -221,7 +221,7 @@ async fn chat_completions_injects_caveman_prompt_for_long_requests() {
     .await;
     let long_prompt = "Need concise summary of massive transcript. ".repeat(220);
 
-    let app = openproxy::build_app(state);
+    let app = cipherroute::build_app(state);
     let response = app
         .oneshot(
             Request::builder()
@@ -303,7 +303,7 @@ async fn chat_completions_skips_caveman_prompt_for_short_requests() {
     )
     .await;
 
-    let app = openproxy::build_app(state);
+    let app = cipherroute::build_app(state);
     let response = app
         .oneshot(
             Request::builder()
@@ -384,7 +384,7 @@ async fn chat_completions_preserves_chat_content_part_schema_when_injecting_cave
     .await;
     let long_prompt = "Need concise summary of massive transcript. ".repeat(220);
 
-    let app = openproxy::build_app(state);
+    let app = cipherroute::build_app(state);
     let response = app
         .oneshot(
             Request::builder()
@@ -483,7 +483,7 @@ async fn chat_completions_falls_back_to_next_account_on_retryable_error() {
     )
     .await;
 
-    let app = openproxy::build_app(state.clone());
+    let app = cipherroute::build_app(state.clone());
     let response = app
         .oneshot(
             Request::builder()
@@ -578,7 +578,7 @@ async fn chat_completions_uses_combo_fallback_across_models() {
     )
     .await;
 
-    let app = openproxy::build_app(state);
+    let app = cipherroute::build_app(state);
     let response = app
         .oneshot(
             Request::builder()
@@ -650,7 +650,7 @@ async fn chat_completions_skips_accounts_that_do_not_advertise_requested_model()
     )
     .await;
 
-    let app = openproxy::build_app(state);
+    let app = cipherroute::build_app(state);
     let response = app
         .oneshot(
             Request::builder()
@@ -715,7 +715,7 @@ async fn chat_completions_returns_retry_after_while_model_is_cooling_down() {
     })
     .to_string();
 
-    let app = openproxy::build_app(state.clone());
+    let app = cipherroute::build_app(state.clone());
     let first = app
         .oneshot(
             Request::builder()
@@ -744,7 +744,7 @@ async fn chat_completions_returns_retry_after_while_model_is_cooling_down() {
     let first_retry_after: i64 = retry_hdr.unwrap().to_str().unwrap().parse().unwrap();
     assert!(first_retry_after >= 100);
 
-    let app = openproxy::build_app(state);
+    let app = cipherroute::build_app(state);
     let second = app
         .oneshot(
             Request::builder()
@@ -825,7 +825,7 @@ async fn chat_completions_does_not_cool_down_entire_connection_for_model_specifi
     )
     .await;
 
-    let app = openproxy::build_app(state.clone());
+    let app = cipherroute::build_app(state.clone());
     let missing = app
         .oneshot(
             Request::builder()
@@ -856,7 +856,7 @@ async fn chat_completions_does_not_cool_down_entire_connection_for_model_specifi
     assert!(stored.extra.contains_key("modelLock_gpt-missing"));
     assert!(stored.rate_limited_until.is_none());
 
-    let app = openproxy::build_app(state);
+    let app = cipherroute::build_app(state);
     let ok = app
         .oneshot(
             Request::builder()
@@ -919,7 +919,7 @@ async fn chat_completions_supports_enabled_models_with_nested_slashes() {
     )
     .await;
 
-    let app = openproxy::build_app(state);
+    let app = cipherroute::build_app(state);
     let response = app
         .oneshot(
             Request::builder()
@@ -990,7 +990,7 @@ async fn chat_completions_preserves_earliest_retry_after_when_all_accounts_fail(
     )
     .await;
 
-    let app = openproxy::build_app(state);
+    let app = cipherroute::build_app(state);
     let response = app
         .oneshot(
             Request::builder()
@@ -1042,7 +1042,7 @@ async fn chat_completions_rejects_connections_without_credentials() {
     )
     .await;
 
-    let app = openproxy::build_app(state);
+    let app = cipherroute::build_app(state);
     let response = app
         .oneshot(
             Request::builder()

@@ -1,11 +1,11 @@
-//! `openproxy auth` — manage credentials for remote server management.
+//! `cipherroute auth` — manage credentials for remote server management.
 //!
 //! By default the CLI works against the local DB and needs no auth. The auth
 //! subcommands only matter when you want to point this CLI at a *different*
-//! `openproxy` server (e.g. on a teammate's box or a VPS):
+//! `cipherroute` server (e.g. on a teammate's box or a VPS):
 //!
 //! - `auth login --url <url> --api-key <key> [--profile <name>]`: saves the
-//!   credentials as a profile in `~/.config/openproxy/config.toml`. The key
+//!   credentials as a profile in `~/.config/cipherroute/config.toml`. The key
 //!   is stored as plaintext TOML — see SECURITY note below. The CLI then
 //!   activates the profile by setting `default_profile`.
 //! - `auth logout [--profile <name>]`: deletes the named profile (or the
@@ -17,7 +17,7 @@
 //!
 //! SECURITY: storing API keys in plaintext is acceptable for personal dev
 //! boxes — it's the same trust model as `~/.netrc` or `~/.aws/credentials`.
-//! For shared machines, prefer setting `OPENPROXY_API_KEY` per-shell or
+//! For shared machines, prefer setting `CIPHERROUTE_API_KEY` per-shell or
 //! using a per-profile `api_key_env = "MY_VAR"` indirection.
 
 use std::time::Duration;
@@ -49,7 +49,7 @@ pub struct ResetPasswordOptions {
     pub show: bool,
 }
 
-/// `openproxy auth login` — persist credentials and (optionally) verify them.
+/// `cipherroute auth login` — persist credentials and (optionally) verify them.
 pub async fn run_login(ctx: OutputCtx, opts: LoginOptions) -> anyhow::Result<i32> {
     let url = normalize_url(&opts.url);
     if !is_http_url(&url) {
@@ -98,7 +98,7 @@ pub async fn run_login(ctx: OutputCtx, opts: LoginOptions) -> anyhow::Result<i32
 
     if ctx.is_robot() {
         emit_robot(
-            "openproxy.v1.auth.login",
+            "cipherroute.v1.auth.login",
             json!({
                 "profile": profile_name,
                 "url": url,
@@ -129,7 +129,7 @@ pub async fn run_login(ctx: OutputCtx, opts: LoginOptions) -> anyhow::Result<i32
     Ok(0)
 }
 
-/// `openproxy auth logout` — remove a saved profile.
+/// `cipherroute auth logout` — remove a saved profile.
 pub fn run_logout(ctx: OutputCtx, opts: LogoutOptions) -> anyhow::Result<i32> {
     let mut file = load_config_file().unwrap_or_default();
     let target = opts
@@ -160,7 +160,7 @@ pub fn run_logout(ctx: OutputCtx, opts: LogoutOptions) -> anyhow::Result<i32> {
 
     if ctx.is_robot() {
         emit_robot(
-            "openproxy.v1.auth.logout",
+            "cipherroute.v1.auth.logout",
             json!({
                 "profile": name,
                 "config_file": path.display().to_string(),
@@ -172,7 +172,7 @@ pub fn run_logout(ctx: OutputCtx, opts: LogoutOptions) -> anyhow::Result<i32> {
     Ok(0)
 }
 
-/// `openproxy auth whoami` — describe the currently-resolved identity.
+/// `cipherroute auth whoami` — describe the currently-resolved identity.
 pub async fn run_whoami(ctx: OutputCtx, cfg: &ResolvedConfig, verify: bool) -> anyhow::Result<i32> {
     let file = load_config_file().unwrap_or_default();
     let profile = cfg.profile.clone().or(file.default_profile.clone());
@@ -193,7 +193,7 @@ pub async fn run_whoami(ctx: OutputCtx, cfg: &ResolvedConfig, verify: bool) -> a
 
     if ctx.is_robot() {
         emit_robot(
-            "openproxy.v1.auth.whoami",
+            "cipherroute.v1.auth.whoami",
             json!({
                 "profile": profile,
                 "url": probe_target,
@@ -205,7 +205,7 @@ pub async fn run_whoami(ctx: OutputCtx, cfg: &ResolvedConfig, verify: bool) -> a
             }),
         )?;
     } else {
-        humanln(ctx, "openproxy auth whoami:");
+        humanln(ctx, "cipherroute auth whoami:");
         humanln(
             ctx,
             format!("  profile: {}", profile.as_deref().unwrap_or("<none>")),
@@ -238,7 +238,7 @@ pub async fn run_whoami(ctx: OutputCtx, cfg: &ResolvedConfig, verify: bool) -> a
     })
 }
 
-/// `openproxy auth list` — show all configured profiles. Useful for agents
+/// `cipherroute auth list` — show all configured profiles. Useful for agents
 /// to discover what's available before picking one with `--profile`.
 pub fn run_list(ctx: OutputCtx) -> anyhow::Result<i32> {
     let file = load_config_file().unwrap_or_default();
@@ -257,7 +257,7 @@ pub fn run_list(ctx: OutputCtx) -> anyhow::Result<i32> {
 
     if ctx.is_robot() {
         emit_robot(
-            "openproxy.v1.auth.list",
+            "cipherroute.v1.auth.list",
             json!({
                 "default_profile": file.default_profile,
                 "profiles": entries,
@@ -283,7 +283,7 @@ pub fn run_list(ctx: OutputCtx) -> anyhow::Result<i32> {
     Ok(0)
 }
 
-/// `openproxy auth reset-password` — reset the dashboard password back to a
+/// `cipherroute auth reset-password` — reset the dashboard password back to a
 /// freshly generated random one.
 ///
 /// Works offline against the local data dir: clears the stored bcrypt hash
@@ -324,7 +324,7 @@ pub async fn run_reset_password(
         if let Some(obj) = body.as_object_mut() {
             obj.insert("passwordReset".into(), json!(true));
         }
-        emit_robot("openproxy.v1.auth.reset-password", body)?;
+        emit_robot("cipherroute.v1.auth.reset-password", body)?;
     } else {
         humanln(ctx, "Dashboard password reset.");
         humanln(ctx, format!("  data dir: {}", cfg.data_dir.display()));
@@ -451,7 +451,7 @@ mod tests {
         let _g = crate::cli::test_lock::ENV_LOCK.lock().unwrap();
         let tmp = tempfile::tempdir().unwrap();
         let cfg_path = tmp.path().join("config.toml");
-        std::env::set_var("OPENPROXY_CONFIG", &cfg_path);
+        std::env::set_var("CIPHERROUTE_CONFIG", &cfg_path);
 
         run_login(
             OutputCtx::robot(),
@@ -485,6 +485,6 @@ mod tests {
         assert!(file.profiles.get("p1").is_none());
         assert!(file.default_profile.is_none());
 
-        std::env::remove_var("OPENPROXY_CONFIG");
+        std::env::remove_var("CIPHERROUTE_CONFIG");
     }
 }

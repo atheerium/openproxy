@@ -2,29 +2,29 @@ import pkg from "../../../package.json" with { type: "json" };
 
 // App configuration
 export const APP_CONFIG = {
-  name: "OpenProxy",
-  description: "OpenProxy dashboard",
+  name: "CipherRoute",
+  description: "CipherRoute dashboard",
   version: pkg.version,
 } as const;
 
 // GitHub configuration
 export const GITHUB_CONFIG = {
   changelogUrl:
-    "https://raw.githubusercontent.com/quangdang46/openproxy/refs/heads/main/CHANGELOG.md",
-  repoUrl: "https://github.com/quangdang46/openproxy",
-  docsUrl: "https://github.com/quangdang46/openproxy#readme",
-  licenseUrl: "https://github.com/quangdang46/openproxy/blob/main/LICENSE",
+    "https://raw.githubusercontent.com/quangdang46/cipherroute/refs/heads/main/CHANGELOG.md",
+  repoUrl: "https://github.com/quangdang46/cipherroute",
+  docsUrl: "https://github.com/quangdang46/cipherroute#readme",
+  licenseUrl: "https://github.com/quangdang46/cipherroute/blob/main/LICENSE",
   // 9router DonateModal.js:14 fetches this verbatim — keep the upstream URL.
   donateUrl: "https://9router.com/api/donate",
 } as const;
 
 // Updater configuration — binary install via install.sh (not npm)
 export const UPDATER_CONFIG = {
-  npmPackageName: "openproxy",
+  npmPackageName: "cipherroute",
   installCmd:
-    "curl -fsSL https://raw.githubusercontent.com/quangdang46/openproxy/main/install.sh | bash",
+    "curl -fsSL https://raw.githubusercontent.com/quangdang46/cipherroute/main/install.sh | bash",
   installCmdLatest:
-    "curl -fsSL https://raw.githubusercontent.com/quangdang46/openproxy/main/install.sh | bash",
+    "curl -fsSL https://raw.githubusercontent.com/quangdang46/cipherroute/main/install.sh | bash",
   exitDelayMs: 500,
   statusPort: 4625,
   statusPollIntervalMs: 1000,

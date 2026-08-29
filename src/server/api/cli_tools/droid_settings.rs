@@ -54,11 +54,11 @@ async fn get_droid_settings(State(state): State<AppState>, headers: HeaderMap) -
 
     match read_droid_settings().await {
         Ok(settings) => {
-            let has_openproxy = settings.as_ref().is_some_and(has_openproxy_droid_settings);
+            let has_cipherroute = settings.as_ref().is_some_and(has_cipherroute_droid_settings);
             Json(json!({
                 "installed": true,
                 "settings": settings,
-                "hasOpenProxy": has_openproxy,
+                "hasCipherRoute": has_cipherroute,
                 "settingsPath": droid_settings_path().to_string_lossy().to_string(),
             }))
             .into_response()
@@ -158,7 +158,7 @@ async fn write_droid_settings(
         !entry
             .get("id")
             .and_then(Value::as_str)
-            .is_some_and(|id| id.starts_with("custom:OpenProxy"))
+            .is_some_and(|id| id.starts_with("custom:CipherRoute"))
     });
 
     let normalized_base_url = normalize_v1_base_url(&req.base_url);
@@ -185,7 +185,7 @@ async fn write_droid_settings(
         }
         custom_models.push(json!({
             "model": model,
-            "id": format!("custom:OpenProxy-{index}"),
+            "id": format!("custom:CipherRoute-{index}"),
             "index": index,
             "baseUrl": normalized_base_url,
             "apiKey": api_key,
@@ -196,8 +196,8 @@ async fn write_droid_settings(
         }));
     }
 
-    // Intentionally matches openproxy's whole-array reordering behavior, including
-    // pre-existing non-OpenProxy entries that may shift indexes.
+    // Intentionally matches cipherroute's whole-array reordering behavior, including
+    // pre-existing non-CipherRoute entries that may shift indexes.
     if let Some(default_index) = default_index {
         if default_index < custom_models.len() {
             let default_entry = custom_models.remove(default_index);
@@ -244,7 +244,7 @@ async fn reset_droid_settings() -> AnyhowResult<Value> {
             !entry
                 .get("id")
                 .and_then(Value::as_str)
-                .is_some_and(|id| id.starts_with("custom:OpenProxy"))
+                .is_some_and(|id| id.starts_with("custom:CipherRoute"))
         });
         if !custom_models.is_empty() {
             settings.insert("customModels".to_string(), Value::Array(custom_models));
@@ -258,11 +258,11 @@ async fn reset_droid_settings() -> AnyhowResult<Value> {
     .await?;
     Ok(json!({
         "success": true,
-        "message": "OpenProxy settings removed successfully",
+        "message": "CipherRoute settings removed successfully",
     }))
 }
 
-fn has_openproxy_droid_settings(settings: &Value) -> bool {
+fn has_cipherroute_droid_settings(settings: &Value) -> bool {
     settings
         .get("customModels")
         .and_then(Value::as_array)
@@ -271,7 +271,7 @@ fn has_openproxy_droid_settings(settings: &Value) -> bool {
                 entry
                     .get("id")
                     .and_then(Value::as_str)
-                    .is_some_and(|id| id.starts_with("custom:OpenProxy"))
+                    .is_some_and(|id| id.starts_with("custom:CipherRoute"))
             })
         })
 }

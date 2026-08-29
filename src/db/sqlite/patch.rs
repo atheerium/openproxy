@@ -401,7 +401,7 @@ mod tests {
     #[test]
     fn unchanged_rows_not_written() {
         // Serializes against encryption_boundary_data_column_holds_ciphertext,
-        // which mutates process-global OPENPROXY_ENCRYPTION_KEY — without the
+        // which mutates process-global CIPHERROUTE_ENCRYPTION_KEY — without the
         // lock this test intermittently reads ciphertext as plaintext (or
         // vice versa) and fails.
         let _guard = ENV_LOCK.lock();
@@ -729,11 +729,11 @@ mod tests {
 
     #[test]
     fn encryption_boundary_data_column_holds_ciphertext() {
-        // With OPENPROXY_ENCRYPTION_KEY set, the `data` column must hold the
+        // With CIPHERROUTE_ENCRYPTION_KEY set, the `data` column must hold the
         // encrypted (prefixed) form, and get_by_id must decrypt back.
         let _guard = ENV_LOCK.lock();
         let temp = TempDir::new().unwrap();
-        std::env::set_var("OPENPROXY_ENCRYPTION_KEY", "test-encryption-key-123");
+        std::env::set_var("CIPHERROUTE_ENCRYPTION_KEY", "test-encryption-key-123");
         std::env::set_var("DATA_DIR", temp.path());
 
         let db = open();
@@ -766,7 +766,7 @@ mod tests {
             .unwrap();
         assert_eq!(c.api_key.as_deref(), Some("sk-secret"));
 
-        std::env::remove_var("OPENPROXY_ENCRYPTION_KEY");
+        std::env::remove_var("CIPHERROUTE_ENCRYPTION_KEY");
         std::env::remove_var("DATA_DIR");
     }
 

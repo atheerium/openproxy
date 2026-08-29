@@ -1,4 +1,4 @@
-/// LLM evaluation framework for OpenProxy.
+/// LLM evaluation framework for CipherRoute.
 ///
 /// This module provides the types and machinery to define, run, and store
 /// golden test evaluations against LLM providers. Results are used to inform

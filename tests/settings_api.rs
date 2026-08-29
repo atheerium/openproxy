@@ -3,9 +3,9 @@ use std::sync::Arc;
 
 use axum::body::Body;
 use axum::http::{Request, StatusCode};
-use openproxy::db::Db;
-use openproxy::server::state::AppState;
-use openproxy::types::ApiKey;
+use cipherroute::db::Db;
+use cipherroute::server::state::AppState;
+use cipherroute::types::ApiKey;
 use serde_json::{json, Value};
 use tempfile::tempdir;
 use tower::util::ServiceExt;
@@ -43,7 +43,7 @@ async fn app_state() -> AppState {
 
 #[tokio::test]
 async fn get_settings_requires_auth_and_redacts_password() {
-    let app = openproxy::build_app(app_state().await);
+    let app = cipherroute::build_app(app_state().await);
 
     let unauthenticated = app
         .clone()
@@ -82,7 +82,7 @@ async fn get_settings_requires_auth_and_redacts_password() {
 
 #[tokio::test]
 async fn patch_settings_updates_values_and_rejects_password_fields() {
-    let app = openproxy::build_app(app_state().await);
+    let app = cipherroute::build_app(app_state().await);
 
     let updated = app
         .clone()
@@ -155,7 +155,7 @@ async fn patch_settings_updates_values_and_rejects_password_fields() {
 
 #[tokio::test]
 async fn settings_database_import_and_require_login_round_trip() {
-    let app = openproxy::build_app(app_state().await);
+    let app = cipherroute::build_app(app_state().await);
 
     let imported = app
         .clone()

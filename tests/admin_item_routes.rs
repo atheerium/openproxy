@@ -3,9 +3,9 @@ use std::sync::Arc;
 
 use axum::body::Body;
 use axum::http::{Request, StatusCode};
-use openproxy::db::Db;
-use openproxy::server::state::AppState;
-use openproxy::types::{ApiKey, Combo, ProviderConnection, ProxyPool};
+use cipherroute::db::Db;
+use cipherroute::server::state::AppState;
+use cipherroute::types::{ApiKey, Combo, ProviderConnection, ProxyPool};
 use serde_json::{json, Value};
 use tempfile::tempdir;
 use tower::util::ServiceExt;
@@ -119,7 +119,7 @@ async fn app_state() -> AppState {
 
 #[tokio::test]
 async fn get_provider_item_redacts_secrets() {
-    let app = openproxy::build_app(app_state().await);
+    let app = cipherroute::build_app(app_state().await);
     let response = app
         .oneshot(
             Request::builder()
@@ -144,7 +144,7 @@ async fn get_provider_item_redacts_secrets() {
 
 #[tokio::test]
 async fn update_key_item_toggles_active_flag() {
-    let app = openproxy::build_app(app_state().await);
+    let app = cipherroute::build_app(app_state().await);
     let response = app
         .oneshot(
             Request::builder()
@@ -169,7 +169,7 @@ async fn update_key_item_toggles_active_flag() {
 
 #[tokio::test]
 async fn delete_proxy_pool_rejects_bound_connections() {
-    let app = openproxy::build_app(app_state().await);
+    let app = cipherroute::build_app(app_state().await);
     let response = app
         .oneshot(
             Request::builder()
@@ -195,7 +195,7 @@ async fn delete_proxy_pool_rejects_bound_connections() {
 #[tokio::test]
 async fn create_provider_round_trips_api_key_updates() {
     let state = app_state().await;
-    let app = openproxy::build_app(state.clone());
+    let app = cipherroute::build_app(state.clone());
 
     let created = app
         .clone()

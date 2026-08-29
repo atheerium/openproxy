@@ -3,9 +3,9 @@ use std::sync::Arc;
 
 use axum::body::Body;
 use axum::http::{Method, Request, StatusCode};
-use openproxy::db::Db;
-use openproxy::server::state::AppState;
-use openproxy::types::{ApiKey, ModelAliasTarget, ProviderModelRef};
+use cipherroute::db::Db;
+use cipherroute::server::state::AppState;
+use cipherroute::types::{ApiKey, ModelAliasTarget, ProviderModelRef};
 use serde_json::json;
 use tempfile::tempdir;
 use tower::util::ServiceExt;
@@ -75,7 +75,7 @@ async fn models_alias_get_returns_wrapped_string_aliases() {
         .await
         .unwrap();
 
-    let app = openproxy::build_app(state);
+    let app = cipherroute::build_app(state);
     let response = app
         .oneshot(authorized_request(
             Method::GET,
@@ -100,7 +100,7 @@ async fn models_alias_get_returns_wrapped_string_aliases() {
 
 #[tokio::test]
 async fn models_alias_put_requires_model_and_alias() {
-    let app = openproxy::build_app(app_state().await);
+    let app = cipherroute::build_app(app_state().await);
     let response = app
         .oneshot(authorized_request(
             Method::PUT,
@@ -118,7 +118,7 @@ async fn models_alias_put_requires_model_and_alias() {
 #[tokio::test]
 async fn models_alias_put_persists_path_alias() {
     let state = app_state().await;
-    let app = openproxy::build_app(state.clone());
+    let app = cipherroute::build_app(state.clone());
     let response = app
         .oneshot(authorized_request(
             Method::PUT,
@@ -148,7 +148,7 @@ async fn models_alias_put_persists_path_alias() {
 
 #[tokio::test]
 async fn models_alias_delete_requires_alias_query() {
-    let app = openproxy::build_app(app_state().await);
+    let app = cipherroute::build_app(app_state().await);
     let response = app
         .oneshot(authorized_request(
             Method::DELETE,
@@ -181,7 +181,7 @@ async fn models_alias_delete_removes_only_requested_alias() {
         .await
         .unwrap();
 
-    let app = openproxy::build_app(state.clone());
+    let app = cipherroute::build_app(state.clone());
     let response = app
         .oneshot(authorized_request(
             Method::DELETE,

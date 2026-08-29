@@ -644,7 +644,7 @@ impl GrokCliExecutor {
         )?;
 
         tracing::debug!(
-            target: "openproxy::executor",
+            target: "cipherroute::executor",
             "EXECUTOR provider=grok-cli mode=responses force_stream=true url={url} turn={turn_idx}"
         );
 

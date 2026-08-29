@@ -237,7 +237,7 @@ fn headroom_dir() -> std::path::PathBuf {
             let home = std::env::var_os("HOME")
                 .map(std::path::PathBuf::from)
                 .unwrap_or_else(|| std::path::PathBuf::from("."));
-            home.join(".openproxy")
+            home.join(".cipherroute")
         });
     data_dir.join("headroom")
 }
@@ -568,7 +568,7 @@ pub async fn restart(State(state): State<AppState>, headers: HeaderMap) -> Respo
         return (
             StatusCode::BAD_REQUEST,
             Json(json!({
-                "error": "External Headroom proxies must be restarted outside OpenProxy.",
+                "error": "External Headroom proxies must be restarted outside CipherRoute.",
                 "code": "EXTERNAL_PROXY"
             })),
         )
@@ -1100,7 +1100,7 @@ pub async fn proxy_handler(
             };
 
             // Rewrite dashboard HTML so absolute fetch('/stats…') calls hit the
-            // same-origin reverse proxy instead of the OpenProxy origin root.
+            // same-origin reverse proxy instead of the CipherRoute origin root.
             let is_dashboard_html =
                 path_joined == "dashboard" && content_type.contains("text/html");
             let final_body: Bytes = if is_dashboard_html {

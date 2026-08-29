@@ -243,7 +243,7 @@ export async function fetchLiveModels(
 //   PUT  /api/providers/filters  → { alias, freeOnly }
 // Falls back to localStorage when the endpoint is unavailable.
 
-const FREE_ONLY_LS_PREFIX = "openproxy:freeOnly:";
+const FREE_ONLY_LS_PREFIX = "cipherroute:freeOnly:";
 
 async function loadFreeOnly(alias: string): Promise<boolean> {
   try {

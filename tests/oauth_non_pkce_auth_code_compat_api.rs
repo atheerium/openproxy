@@ -5,8 +5,8 @@ use axum::body::Body;
 use axum::http::{Method, Request, StatusCode};
 use base64::{engine::general_purpose::STANDARD, Engine};
 use once_cell::sync::Lazy;
-use openproxy::db::Db;
-use openproxy::server::state::AppState;
+use cipherroute::db::Db;
+use cipherroute::server::state::AppState;
 use serde_json::json;
 use sha2::{Digest, Sha256};
 use tempfile::tempdir;
@@ -45,7 +45,7 @@ async fn app_state() -> AppState {
     db.update(|state| {
         // Management key: oauth proxy routes sit in the admin tier now that
         // requireLogin defaults to true (9router parity).
-        state.api_keys.push(openproxy::types::ApiKey {
+        state.api_keys.push(cipherroute::types::ApiKey {
             id: "mgmt-1".into(),
             name: "Management".into(),
             key: "nonpkce-mgmt-key".into(),
@@ -116,8 +116,8 @@ fn cline_code(payload: serde_json::Value) -> String {
 }
 
 #[tokio::test]
-async fn gemini_authorize_matches_openproxy_response_shape() {
-    let app = openproxy::build_app(app_state().await);
+async fn gemini_authorize_matches_cipherroute_response_shape() {
+    let app = cipherroute::build_app(app_state().await);
     let response = app
         .oneshot(get_request(
             "/api/oauth/gemini-cli/authorize?redirect_uri=http%3A%2F%2Flocalhost%3A4624%2Fcallback",
@@ -146,8 +146,8 @@ async fn gemini_authorize_matches_openproxy_response_shape() {
 }
 
 #[tokio::test]
-async fn antigravity_authorize_matches_openproxy_response_shape() {
-    let app = openproxy::build_app(app_state().await);
+async fn antigravity_authorize_matches_cipherroute_response_shape() {
+    let app = cipherroute::build_app(app_state().await);
     let response = app
         .oneshot(get_request(
             "/api/oauth/antigravity/authorize?redirect_uri=http%3A%2F%2Flocalhost%3A4624%2Fcallback",
@@ -171,8 +171,8 @@ async fn antigravity_authorize_matches_openproxy_response_shape() {
 }
 
 #[tokio::test]
-async fn iflow_authorize_matches_openproxy_response_shape() {
-    let app = openproxy::build_app(app_state().await);
+async fn iflow_authorize_matches_cipherroute_response_shape() {
+    let app = cipherroute::build_app(app_state().await);
     let response = app
         .oneshot(get_request(
             "/api/oauth/iflow/authorize?redirect_uri=http%3A%2F%2Flocalhost%3A4624%2Fcallback",
@@ -196,8 +196,8 @@ async fn iflow_authorize_matches_openproxy_response_shape() {
 }
 
 #[tokio::test]
-async fn cline_authorize_matches_openproxy_response_shape() {
-    let app = openproxy::build_app(app_state().await);
+async fn cline_authorize_matches_cipherroute_response_shape() {
+    let app = cipherroute::build_app(app_state().await);
     let response = app
         .oneshot(get_request(
             "/api/oauth/cline/authorize?redirect_uri=http%3A%2F%2Flocalhost%3A4624%2Fcallback",
@@ -217,21 +217,21 @@ async fn cline_authorize_matches_openproxy_response_shape() {
 }
 
 #[tokio::test]
-async fn gemini_exchange_matches_openproxy_and_saves_connection() {
+async fn gemini_exchange_matches_cipherroute_and_saves_connection() {
     let _lock = ENV_LOCK
         .lock()
         .unwrap_or_else(|poisoned| poisoned.into_inner());
     let server = MockServer::start().await;
     let _token_url = EnvVarGuard::set(
-        "OPENPROXY_GEMINI_TOKEN_URL",
+        "CIPHERROUTE_GEMINI_TOKEN_URL",
         &format!("{}/token", server.uri()),
     );
     let _user_info_url = EnvVarGuard::set(
-        "OPENPROXY_GEMINI_USER_INFO_URL",
+        "CIPHERROUTE_GEMINI_USER_INFO_URL",
         &format!("{}/userinfo", server.uri()),
     );
     let _load_url = EnvVarGuard::set(
-        "OPENPROXY_GEMINI_LOAD_CODE_ASSIST_ENDPOINT",
+        "CIPHERROUTE_GEMINI_LOAD_CODE_ASSIST_ENDPOINT",
         &format!("{}/v1internal:loadCodeAssist", server.uri()),
     );
 
@@ -282,7 +282,7 @@ async fn gemini_exchange_matches_openproxy_and_saves_connection() {
         .await;
 
     let state = app_state().await;
-    let app = openproxy::build_app(state.clone());
+    let app = cipherroute::build_app(state.clone());
     let response = app
         .oneshot(post_request(
             "/api/oauth/gemini-cli/exchange",
@@ -314,25 +314,25 @@ async fn gemini_exchange_matches_openproxy_and_saves_connection() {
 }
 
 #[tokio::test]
-async fn antigravity_exchange_matches_openproxy_and_saves_connection() {
+async fn antigravity_exchange_matches_cipherroute_and_saves_connection() {
     let _lock = ENV_LOCK
         .lock()
         .unwrap_or_else(|poisoned| poisoned.into_inner());
     let server = MockServer::start().await;
     let _token_url = EnvVarGuard::set(
-        "OPENPROXY_ANTIGRAVITY_TOKEN_URL",
+        "CIPHERROUTE_ANTIGRAVITY_TOKEN_URL",
         &format!("{}/token", server.uri()),
     );
     let _user_info_url = EnvVarGuard::set(
-        "OPENPROXY_ANTIGRAVITY_USER_INFO_URL",
+        "CIPHERROUTE_ANTIGRAVITY_USER_INFO_URL",
         &format!("{}/userinfo", server.uri()),
     );
     let _load_url = EnvVarGuard::set(
-        "OPENPROXY_ANTIGRAVITY_LOAD_CODE_ASSIST_ENDPOINT",
+        "CIPHERROUTE_ANTIGRAVITY_LOAD_CODE_ASSIST_ENDPOINT",
         &format!("{}/v1internal:loadCodeAssist", server.uri()),
     );
     let _onboard_url = EnvVarGuard::set(
-        "OPENPROXY_ANTIGRAVITY_ONBOARD_USER_ENDPOINT",
+        "CIPHERROUTE_ANTIGRAVITY_ONBOARD_USER_ENDPOINT",
         &format!("{}/v1internal:onboardUser", server.uri()),
     );
 
@@ -384,7 +384,7 @@ async fn antigravity_exchange_matches_openproxy_and_saves_connection() {
         .await;
 
     let state = app_state().await;
-    let app = openproxy::build_app(state.clone());
+    let app = cipherroute::build_app(state.clone());
     let response = app
         .oneshot(post_request(
             "/api/oauth/antigravity/exchange",
@@ -454,17 +454,17 @@ async fn antigravity_exchange_matches_openproxy_and_saves_connection() {
 }
 
 #[tokio::test]
-async fn iflow_exchange_matches_openproxy_and_saves_connection() {
+async fn iflow_exchange_matches_cipherroute_and_saves_connection() {
     let _lock = ENV_LOCK
         .lock()
         .unwrap_or_else(|poisoned| poisoned.into_inner());
     let server = MockServer::start().await;
     let _token_url = EnvVarGuard::set(
-        "OPENPROXY_IFLOW_TOKEN_URL",
+        "CIPHERROUTE_IFLOW_TOKEN_URL",
         &format!("{}/oauth/token", server.uri()),
     );
     let _user_info_url = EnvVarGuard::set(
-        "OPENPROXY_IFLOW_USER_INFO_URL",
+        "CIPHERROUTE_IFLOW_USER_INFO_URL",
         &format!("{}/api/oauth/getUserInfo", server.uri()),
     );
 
@@ -502,7 +502,7 @@ async fn iflow_exchange_matches_openproxy_and_saves_connection() {
         .await;
 
     let state = app_state().await;
-    let app = openproxy::build_app(state.clone());
+    let app = cipherroute::build_app(state.clone());
     let response = app
         .oneshot(post_request(
             "/api/oauth/iflow/exchange",
@@ -537,7 +537,7 @@ async fn iflow_exchange_matches_openproxy_and_saves_connection() {
 #[tokio::test]
 async fn cline_exchange_accepts_base64_code_without_pkce() {
     let state = app_state().await;
-    let app = openproxy::build_app(state.clone());
+    let app = cipherroute::build_app(state.clone());
     let response = app
         .oneshot(post_request(
             "/api/oauth/cline/exchange",

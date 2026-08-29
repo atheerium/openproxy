@@ -2,7 +2,7 @@
 //!
 //! Mirrors 9router's `/api/pxpipe/*` endpoints (dashboard/src/app/(dashboard)/
 //! dashboard/pxpipe + api/pxpipe/*). PXPIPE is an optional external npm token
-//! compressor; openproxy does not manage its lifecycle, so these endpoints
+//! compressor; cipherroute does not manage its lifecycle, so these endpoints
 //! report the library-mode skeleton state and settings-driven configuration.
 //!
 //!   * `GET  /api/pxpipe/status`   — install/version/config status
@@ -32,7 +32,7 @@ pub fn routes() -> Router<AppState> {
 /// `GET /api/pxpipe/status`
 ///
 /// Reports the library-mode skeleton: PXPIPE is not installed/managed by
-/// openproxy, so install fields are false/empty. Settings-driven values
+/// cipherroute, so install fields are false/empty. Settings-driven values
 /// reflect the current `Settings` (pxpipeEnabled etc.).
 async fn status(State(state): State<AppState>, headers: HeaderMap) -> Response {
     if let Err(resp) = require_dashboard_or_management_api_key(&headers, &state) {
@@ -65,7 +65,7 @@ async fn health(State(state): State<AppState>, headers: HeaderMap) -> Response {
     Json(json!({
         "healthy": false,
         "checks": [
-            { "id": "installed", "label": "PXPIPE installed", "ok": false, "detail": "PXPIPE is not managed by OpenProxy" },
+            { "id": "installed", "label": "PXPIPE installed", "ok": false, "detail": "PXPIPE is not managed by CipherRoute" },
             { "id": "module", "label": "Transform module loads", "ok": false, "detail": null },
             { "id": "transform", "label": "Test request transforms", "ok": false, "detail": null }
         ],

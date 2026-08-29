@@ -126,7 +126,7 @@ async fn serve_embedded(uri: &Uri) -> Response {
 
 #[cfg(not(feature = "embed-web"))]
 async fn serve_embedded(_uri: &Uri) -> Response {
-    let body = "OpenProxy was built without the embedded dashboard. \
+    let body = "CipherRoute was built without the embedded dashboard. \
                 Pass --dashboard-sidecar-url <URL> or --web-dir <PATH> to serve the UI.";
     (StatusCode::NOT_FOUND, body).into_response()
 }

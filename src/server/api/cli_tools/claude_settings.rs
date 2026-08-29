@@ -52,7 +52,7 @@ pub(super) async fn get_claude_settings(
     match check_claude_installed().await {
         true => match read_settings().await {
             Ok(settings) => {
-                let has_openproxy = settings
+                let has_cipherroute = settings
                     .as_ref()
                     .and_then(|value| value.get("env"))
                     .and_then(|value| value.get("ANTHROPIC_BASE_URL"))
@@ -61,7 +61,7 @@ pub(super) async fn get_claude_settings(
                 Json(json!({
                     "installed": true,
                     "settings": settings,
-                    "hasOpenProxy": has_openproxy,
+                    "hasCipherRoute": has_cipherroute,
                     "settingsPath": claude_settings_path().to_string_lossy().to_string(),
                 }))
                 .into_response()

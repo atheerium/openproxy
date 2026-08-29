@@ -55,11 +55,11 @@ pub(super) async fn get_deepseek_tui_settings(
 
     match read_config_toml().await {
         Ok(config) => {
-            let has_openproxy = has_openproxy_config(&config);
+            let has_cipherroute = has_cipherroute_config(&config);
             Json(json!({
                 "installed": true,
                 "settings": config,
-                "hasOpenProxy": has_openproxy,
+                "hasCipherRoute": has_cipherroute,
                 "configPath": config_path().to_string_lossy().to_string(),
             }))
             .into_response()
@@ -202,7 +202,7 @@ fn parse_toml_flat(content: &str) -> Value {
     Value::Object(result)
 }
 
-fn has_openproxy_config(config: &Option<Value>) -> bool {
+fn has_cipherroute_config(config: &Option<Value>) -> bool {
     let Some(config) = config else {
         return false;
     };
@@ -219,7 +219,7 @@ fn has_openproxy_config(config: &Option<Value>) -> bool {
     base_url.contains("localhost")
         || base_url.contains("127.0.0.1")
         || base_url.contains("0.0.0.0")
-        || base_url.contains("openproxy")
+        || base_url.contains("cipherroute")
 }
 
 async fn write_deepseek_config(body: &SaveDeepSeekSettingsRequest) -> AnyhowResult<()> {
@@ -269,7 +269,7 @@ async fn reset_deepseek_config() -> AnyhowResult<Value> {
     fs::write(&config_path, DEFAULT_CONFIG).await?;
     Ok(json!({
         "success": true,
-        "message": "OpenProxy config reset to DeepSeek defaults",
+        "message": "CipherRoute config reset to DeepSeek defaults",
     }))
 }
 

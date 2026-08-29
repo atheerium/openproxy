@@ -6,9 +6,9 @@ use std::sync::Arc;
 
 use axum::body::Body;
 use axum::http::{Request, StatusCode};
-use openproxy::db::Db;
-use openproxy::server::state::AppState;
-use openproxy::types::{ApiKey, ProviderConnection};
+use cipherroute::db::Db;
+use cipherroute::server::state::AppState;
+use cipherroute::types::{ApiKey, ProviderConnection};
 use tempfile::tempdir;
 use tower::util::ServiceExt;
 
@@ -44,7 +44,7 @@ async fn seeded_state(
 
 #[tokio::test]
 async fn web_fetch_options_exposes_cors_and_post_method() {
-    let app = openproxy::build_app(seeded_state(vec![], vec![], false).await);
+    let app = cipherroute::build_app(seeded_state(vec![], vec![], false).await);
     let resp = app
         .oneshot(
             Request::builder()
@@ -78,7 +78,7 @@ async fn web_fetch_options_exposes_cors_and_post_method() {
 
 #[tokio::test]
 async fn web_fetch_requires_auth_when_require_login_is_true() {
-    let app = openproxy::build_app(seeded_state(vec![active_key("valid-key")], vec![], true).await);
+    let app = cipherroute::build_app(seeded_state(vec![active_key("valid-key")], vec![], true).await);
     let resp = app
         .oneshot(
             Request::builder()
@@ -97,7 +97,7 @@ async fn web_fetch_requires_auth_when_require_login_is_true() {
 
 #[tokio::test]
 async fn web_fetch_allows_no_auth_when_require_login_is_false() {
-    let app = openproxy::build_app(seeded_state(vec![], vec![], false).await);
+    let app = cipherroute::build_app(seeded_state(vec![], vec![], false).await);
     let resp = app
         .oneshot(
             Request::builder()
@@ -120,7 +120,7 @@ async fn web_fetch_allows_no_auth_when_require_login_is_false() {
 
 #[tokio::test]
 async fn web_fetch_rejects_missing_url() {
-    let app = openproxy::build_app(seeded_state(vec![active_key("key")], vec![], true).await);
+    let app = cipherroute::build_app(seeded_state(vec![active_key("key")], vec![], true).await);
     let resp = app
         .oneshot(
             Request::builder()
@@ -138,7 +138,7 @@ async fn web_fetch_rejects_missing_url() {
 
 #[tokio::test]
 async fn web_fetch_rejects_missing_provider() {
-    let app = openproxy::build_app(seeded_state(vec![active_key("key")], vec![], true).await);
+    let app = cipherroute::build_app(seeded_state(vec![active_key("key")], vec![], true).await);
     let resp = app
         .oneshot(
             Request::builder()
@@ -156,7 +156,7 @@ async fn web_fetch_rejects_missing_provider() {
 
 #[tokio::test]
 async fn web_fetch_rejects_invalid_url() {
-    let app = openproxy::build_app(seeded_state(vec![active_key("key")], vec![], true).await);
+    let app = cipherroute::build_app(seeded_state(vec![active_key("key")], vec![], true).await);
     let resp = app
         .oneshot(
             Request::builder()
@@ -177,7 +177,7 @@ async fn web_fetch_rejects_invalid_url() {
 
 #[tokio::test]
 async fn web_fetch_rejects_empty_provider() {
-    let app = openproxy::build_app(seeded_state(vec![active_key("key")], vec![], true).await);
+    let app = cipherroute::build_app(seeded_state(vec![active_key("key")], vec![], true).await);
     let resp = app
         .oneshot(
             Request::builder()
@@ -196,7 +196,7 @@ async fn web_fetch_rejects_empty_provider() {
 #[tokio::test]
 async fn web_fetch_model_alias_works_as_provider() {
     // UI sends "model" instead of "provider" — must work
-    let app = openproxy::build_app(seeded_state(vec![active_key("key")], vec![], true).await);
+    let app = cipherroute::build_app(seeded_state(vec![active_key("key")], vec![], true).await);
     let resp = app
         .oneshot(
             Request::builder()

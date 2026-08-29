@@ -5,9 +5,9 @@ use axum::body::Body;
 use axum::http::{Request, StatusCode};
 use hmac::digest::KeyInit;
 use hmac::{Hmac, Mac};
-use openproxy::db::Db;
-use openproxy::server::state::AppState;
-use openproxy::types::{
+use cipherroute::db::Db;
+use cipherroute::server::state::AppState;
+use cipherroute::types::{
     ApiKey, Combo, CustomModel, ModelAliasTarget, ProviderConnection, ProviderModelRef,
 };
 use serde_json::json;
@@ -44,7 +44,7 @@ fn cli_token(machine_id: &str, key_id: &str) -> String {
 
     // Must match the server's resolved HMAC secret (env or per-install
     // persisted secret), never a hardcoded default.
-    let secret = openproxy::core::auth::api_key_secret();
+    let secret = cipherroute::core::auth::api_key_secret();
     let mut mac = HmacSha256::new_from_slice(secret.as_bytes()).unwrap();
     mac.update(machine_id.as_bytes());
     mac.update(key_id.as_bytes());
@@ -162,7 +162,7 @@ async fn app_state() -> AppState {
 
 #[tokio::test]
 async fn valid_bearer_key_allows_models_request() {
-    let app = openproxy::build_app(app_state().await);
+    let app = cipherroute::build_app(app_state().await);
     let response = app
         .oneshot(
             Request::builder()
@@ -179,7 +179,7 @@ async fn valid_bearer_key_allows_models_request() {
 
 #[tokio::test]
 async fn bearer_scheme_is_case_insensitive() {
-    let app = openproxy::build_app(app_state().await);
+    let app = cipherroute::build_app(app_state().await);
     let response = app
         .oneshot(
             Request::builder()
@@ -196,7 +196,7 @@ async fn bearer_scheme_is_case_insensitive() {
 
 #[tokio::test]
 async fn valid_x_api_key_allows_models_request() {
-    let app = openproxy::build_app(app_state().await);
+    let app = cipherroute::build_app(app_state().await);
     let response = app
         .oneshot(
             Request::builder()
@@ -229,7 +229,7 @@ async fn missing_invalid_and_inactive_keys_return_unauthorized() {
             .body(Body::empty())
             .unwrap(),
     ] {
-        let app = openproxy::build_app(app_state().await);
+        let app = cipherroute::build_app(app_state().await);
         let response = app.oneshot(request).await.unwrap();
         assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
     }
@@ -237,7 +237,7 @@ async fn missing_invalid_and_inactive_keys_return_unauthorized() {
 
 #[tokio::test]
 async fn bearer_takes_precedence_over_x_api_key() {
-    let app = openproxy::build_app(app_state().await);
+    let app = cipherroute::build_app(app_state().await);
     let response = app
         .oneshot(
             Request::builder()
@@ -256,7 +256,7 @@ async fn bearer_takes_precedence_over_x_api_key() {
 
 #[tokio::test]
 async fn valid_cli_token_allows_models_request() {
-    let app = openproxy::build_app(app_state().await);
+    let app = cipherroute::build_app(app_state().await);
     let response = app
         .oneshot(
             Request::builder()
@@ -285,7 +285,7 @@ async fn cli_token_machine_id_mismatch_is_unauthorized() {
         .await
         .unwrap();
 
-    let app = openproxy::build_app(state);
+    let app = cipherroute::build_app(state);
     let response = app
         .oneshot(
             Request::builder()
@@ -317,7 +317,7 @@ async fn valid_key_still_resolves_with_many_stored_keys() {
         .await
         .unwrap();
 
-    let app = openproxy::build_app(state);
+    let app = cipherroute::build_app(state);
     let response = app
         .oneshot(
             Request::builder()
@@ -334,7 +334,7 @@ async fn valid_key_still_resolves_with_many_stored_keys() {
 
 #[tokio::test]
 async fn models_endpoint_returns_combo_active_connection_and_custom_llm_models() {
-    let app = openproxy::build_app(app_state().await);
+    let app = cipherroute::build_app(app_state().await);
     let response = app
         .oneshot(
             Request::builder()
@@ -382,7 +382,7 @@ async fn models_endpoint_dedupes_duplicate_model_ids() {
         })
         .await;
 
-    let app = openproxy::build_app(state);
+    let app = cipherroute::build_app(state);
     let response = app
         .oneshot(
             Request::builder()
@@ -422,7 +422,7 @@ async fn models_endpoint_falls_back_to_static_models_when_no_active_connections(
         .await
         .unwrap();
 
-    let app = openproxy::build_app(state);
+    let app = cipherroute::build_app(state);
     let response = app
         .oneshot(
             Request::builder()
@@ -456,7 +456,7 @@ async fn models_endpoint_falls_back_to_static_models_when_no_active_connections(
 /// Verifies that GET /v1 returns the expected API metadata (version + endpoint list).
 #[tokio::test]
 async fn v1_root_returns_api_metadata() {
-    let app = openproxy::build_app(app_state().await);
+    let app = cipherroute::build_app(app_state().await);
 
     let response = app
         .clone()
@@ -485,7 +485,7 @@ async fn v1_root_returns_api_metadata() {
 
 #[tokio::test]
 async fn models_by_kind_returns_tts_models_from_provider_subconfig() {
-    let app = openproxy::build_app(app_state().await);
+    let app = cipherroute::build_app(app_state().await);
     let response = app
         .oneshot(
             Request::builder()
@@ -551,7 +551,7 @@ async fn models_by_kind_returns_web_combos_and_provider_entries() {
         .await
         .unwrap();
 
-    let app = openproxy::build_app(state);
+    let app = cipherroute::build_app(state);
     let response = app
         .oneshot(
             Request::builder()
@@ -621,7 +621,7 @@ async fn models_endpoint_normalizes_prefix_enabled_models_and_alias_targets() {
         .await
         .unwrap();
 
-    let app = openproxy::build_app(state);
+    let app = cipherroute::build_app(state);
     let response = app
         .oneshot(
             Request::builder()
@@ -685,7 +685,7 @@ async fn models_endpoint_fetches_remote_models_for_openai_compatible_connections
         .await
         .unwrap();
 
-    let app = openproxy::build_app(state);
+    let app = cipherroute::build_app(state);
     let response = app
         .oneshot(
             Request::builder()
@@ -718,7 +718,7 @@ async fn models_endpoint_fetches_remote_models_for_openai_compatible_connections
 
 #[tokio::test]
 async fn models_by_kind_rejects_unknown_kind() {
-    let app = openproxy::build_app(app_state().await);
+    let app = cipherroute::build_app(app_state().await);
     let response = app
         .oneshot(
             Request::builder()
@@ -770,7 +770,7 @@ async fn models_availability_get_matches_js_issue_payload() {
         .await
         .unwrap();
 
-    let app = openproxy::build_app(state);
+    let app = cipherroute::build_app(state);
     let response = app
         .oneshot(
             Request::builder()
@@ -835,7 +835,7 @@ async fn models_availability_post_clears_cooldown_like_js() {
         .await
         .unwrap();
 
-    let app = openproxy::build_app(state.clone());
+    let app = cipherroute::build_app(state.clone());
     let response = app
         .oneshot(
             Request::builder()
@@ -891,7 +891,7 @@ async fn models_availability_post_clears_cooldown_like_js() {
 
 #[tokio::test]
 async fn models_availability_post_rejects_invalid_request() {
-    let app = openproxy::build_app(app_state().await);
+    let app = cipherroute::build_app(app_state().await);
     let response = app
         .oneshot(
             Request::builder()

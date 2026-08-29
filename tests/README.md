@@ -1,4 +1,4 @@
-# OpenProxy Embeddings Tests
+# CipherRoute Embeddings Tests
 
 Unit tests for the `/v1/embeddings` endpoint implementation.
 

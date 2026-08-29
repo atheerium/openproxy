@@ -1,6 +1,6 @@
 # Sync snapshot generator
 
-These scripts produce the JSON snapshots that the `openproxy sync` command
+These scripts produce the JSON snapshots that the `cipherroute sync` command
 applies to the user's `db.json`. They are **maintainer-only** tooling — end
 users never need to run them. The committed snapshots live at
 `src/core/model/sources/{9router,omniroute}.json` and are embedded into the
@@ -13,7 +13,7 @@ and helper functions. Parsing those reliably from Rust is brittle; running
 them as the actual modules from Node is trivial. The helper:
 
 1. Shallow-clones (or refreshes) `decolua/9router` and `diegosouzapw/OmniRoute`
-   into `/tmp/openproxy-sync-cache/`.
+   into `/tmp/cipherroute-sync-cache/`.
 2. Dynamically imports each catalog module (`open-sse/config/providerModels.js`
    for 9router, `open-sse/config/providerRegistry.ts` for OmniRoute — the
    latter via `tsx`).
@@ -40,7 +40,7 @@ node scripts/sync/normalize-sources.mjs \
 ```
 
 After running, commit the updated `src/core/model/sources/*.json` files
-alongside any Rust code changes. The runtime `openproxy sync` command then
+alongside any Rust code changes. The runtime `cipherroute sync` command then
 applies them to `db.json` against the user's machine.
 
 ## Schema
@@ -50,7 +50,7 @@ applies them to `db.json` against the user's machine.
   "source": "9router" | "omniroute",
   "ref": "v0.4.55",                 // git ref or "HEAD"
   "generatedAt": "2026-05-19T...",
-  "providerIdToAlias": {            // map provider id -> openproxy alias
+  "providerIdToAlias": {            // map provider id -> cipherroute alias
     "openai": "openai",
     "github-models": "ghm"
   },
@@ -69,5 +69,5 @@ applies them to `db.json` against the user's machine.
 }
 ```
 
-The `kind` field follows openproxy's existing classification:
+The `kind` field follows cipherroute's existing classification:
 `llm` | `embedding` | `image` | `tts` | `stt` | `search` | `fetch` | `video`.

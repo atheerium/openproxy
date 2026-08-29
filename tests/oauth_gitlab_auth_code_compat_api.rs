@@ -3,8 +3,8 @@ use std::sync::Arc;
 use axum::body::Body;
 use axum::http::{Method, Request, StatusCode};
 use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine};
-use openproxy::db::Db;
-use openproxy::server::state::AppState;
+use cipherroute::db::Db;
+use cipherroute::server::state::AppState;
 use serde_json::json;
 use sha2::{Digest, Sha256};
 use tempfile::tempdir;
@@ -18,7 +18,7 @@ async fn app_state() -> AppState {
     db.update(|state| {
         // Management key: oauth proxy routes sit in the admin tier now that
         // requireLogin defaults to true (9router parity).
-        state.api_keys.push(openproxy::types::ApiKey {
+        state.api_keys.push(cipherroute::types::ApiKey {
             id: "mgmt-1".into(),
             name: "Management".into(),
             key: "gitlab-mgmt-key".into(),
@@ -63,8 +63,8 @@ async fn response_json(response: axum::response::Response) -> (StatusCode, serde
 }
 
 #[tokio::test]
-async fn gitlab_authorize_matches_openproxy_query_shape() {
-    let app = openproxy::build_app(app_state().await);
+async fn gitlab_authorize_matches_cipherroute_query_shape() {
+    let app = cipherroute::build_app(app_state().await);
     let response = app
         .oneshot(get_request(
             "/api/oauth/gitlab/authorize?redirect_uri=http%3A%2F%2Flocalhost%3A4624%2Fcallback&baseUrl=https%3A%2F%2Fgitlab.example.com&clientId=gitlab-client",
@@ -93,7 +93,7 @@ async fn gitlab_authorize_matches_openproxy_query_shape() {
 }
 
 #[tokio::test]
-async fn gitlab_exchange_matches_openproxy_meta_and_saves_connection() {
+async fn gitlab_exchange_matches_cipherroute_meta_and_saves_connection() {
     let server = MockServer::start().await;
 
     Mock::given(method("POST"))
@@ -127,7 +127,7 @@ async fn gitlab_exchange_matches_openproxy_meta_and_saves_connection() {
         .await;
 
     let state = app_state().await;
-    let app = openproxy::build_app(state.clone());
+    let app = cipherroute::build_app(state.clone());
     let response = app
         .oneshot(post_request(
             "/api/oauth/gitlab/exchange",

@@ -132,7 +132,7 @@ impl Resolve for MitmBypassResolver {
                     }
                     Err(err) => {
                         tracing::warn!(
-                            target: "openproxy::dns",
+                            target: "cipherroute::dns",
                             "mitm-bypass DNS for {host} failed, falling back to system resolver: {err}"
                         );
                     }

@@ -5,8 +5,8 @@ use std::sync::{Arc, Mutex};
 use axum::body::Body;
 use axum::http::{Method, Request, StatusCode};
 use once_cell::sync::Lazy;
-use openproxy::db::Db;
-use openproxy::server::state::AppState;
+use cipherroute::db::Db;
+use cipherroute::server::state::AppState;
 use serde_json::json;
 use tempfile::tempdir;
 use tower::util::ServiceExt;
@@ -41,7 +41,7 @@ async fn app_state() -> AppState {
     db.update(|state| {
         // Management key: oauth proxy routes sit in the admin tier now that
         // requireLogin defaults to true (9router parity).
-        state.api_keys.push(openproxy::types::ApiKey {
+        state.api_keys.push(cipherroute::types::ApiKey {
             id: "mgmt-1".into(),
             name: "Management".into(),
             key: "kiro-mgmt-key".into(),
@@ -86,12 +86,12 @@ fn write_cache_file(home: &Path, name: &str, content: &str) {
 }
 
 #[tokio::test]
-async fn kiro_auto_import_reports_missing_cache_like_openproxy() {
+async fn kiro_auto_import_reports_missing_cache_like_cipherroute() {
     let _lock = ENV_LOCK.lock().unwrap();
     let home = tempdir().unwrap();
     let _home = EnvVarGuard::set_home(home.path());
 
-    let app = openproxy::build_app(app_state().await);
+    let app = cipherroute::build_app(app_state().await);
     let response = app.oneshot(request()).await.unwrap();
     let (status, json) = response_json(response).await;
 
@@ -106,7 +106,7 @@ async fn kiro_auto_import_reports_missing_cache_like_openproxy() {
 }
 
 #[tokio::test]
-async fn kiro_auto_import_prefers_kiro_auth_token_file_like_openproxy() {
+async fn kiro_auto_import_prefers_kiro_auth_token_file_like_cipherroute() {
     let _lock = ENV_LOCK.lock().unwrap();
     let home = tempdir().unwrap();
     let _home = EnvVarGuard::set_home(home.path());
@@ -121,7 +121,7 @@ async fn kiro_auto_import_prefers_kiro_auth_token_file_like_openproxy() {
         r#"{"refreshToken":"aorAAAAAG-secondary-token"}"#,
     );
 
-    let app = openproxy::build_app(app_state().await);
+    let app = cipherroute::build_app(app_state().await);
     let response = app.oneshot(request()).await.unwrap();
     let (status, json) = response_json(response).await;
 
@@ -154,7 +154,7 @@ async fn kiro_auto_import_scans_other_json_files_when_needed() {
         r#"{"refreshToken":"aorAAAAAG-fallback-token"}"#,
     );
 
-    let app = openproxy::build_app(app_state().await);
+    let app = cipherroute::build_app(app_state().await);
     let response = app.oneshot(request()).await.unwrap();
     let (status, json) = response_json(response).await;
 
@@ -181,7 +181,7 @@ async fn kiro_auto_import_reports_missing_token_when_cache_has_no_match() {
         r#"{"refreshToken":"something-else"}"#,
     );
 
-    let app = openproxy::build_app(app_state().await);
+    let app = cipherroute::build_app(app_state().await);
     let response = app.oneshot(request()).await.unwrap();
     let (status, json) = response_json(response).await;
 

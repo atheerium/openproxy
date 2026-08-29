@@ -1382,7 +1382,7 @@ async fn refresh_google_token(
 }
 
 fn codex_token_url() -> String {
-    std::env::var("OPENPROXY_CODEX_TOKEN_URL")
+    std::env::var("CIPHERROUTE_CODEX_TOKEN_URL")
         .ok()
         .filter(|value| !value.trim().is_empty())
         .unwrap_or_else(|| "https://auth.openai.com/oauth/token".to_string())

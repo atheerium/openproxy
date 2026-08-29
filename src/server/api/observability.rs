@@ -1,11 +1,11 @@
 //! Observability API endpoints.
 //!
-//! Backed by the shared `ConsoleLogBuffer` so the CLI's `openproxy logs *`
+//! Backed by the shared `ConsoleLogBuffer` so the CLI's `cipherroute logs *`
 //! commands have a single stable source of log lines:
 //!
 //! - `GET /api/observability/logs` — snapshot of the in-memory buffer.
 //! - `GET /api/observability/stream` — SSE feed of new log lines (used by
-//!   `openproxy logs tail --follow`).
+//!   `cipherroute logs tail --follow`).
 //! - `GET /api/observability/stats` — rough counters (total lines, last
 //!   timestamp). Combined with the usage stats this gives `logs stats` a
 //!   useful payload without invasively re-instrumenting handlers.
@@ -175,9 +175,9 @@ mod tests {
     #[test]
     fn count_levels_recognizes_tracing_format() {
         let lines = vec![
-            "2026-01-01T00:00:00Z  INFO openproxy: ready".to_string(),
-            "2026-01-01T00:00:01Z  WARN openproxy: slow".to_string(),
-            "2026-01-01T00:00:02Z ERROR openproxy: failed".to_string(),
+            "2026-01-01T00:00:00Z  INFO cipherroute: ready".to_string(),
+            "2026-01-01T00:00:01Z  WARN cipherroute: slow".to_string(),
+            "2026-01-01T00:00:02Z ERROR cipherroute: failed".to_string(),
         ];
         let v = count_levels(&lines);
         assert_eq!(v["info"], 1);

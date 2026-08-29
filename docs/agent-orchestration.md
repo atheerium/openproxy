@@ -2,7 +2,7 @@
 
 ## Problem
 
-Single checkout `/home/atheerium/dev/openproxy` with N concurrent agents writing the same hot files (`src/server/api/chat.rs`, `web/src/shared/constants/providers.ts`, `provider_catalog.json`) causes silent overwrites. Symptoms observed:
+Single checkout `/home/atheerium/dev/cipherroute` with N concurrent agents writing the same hot files (`src/server/api/chat.rs`, `web/src/shared/constants/providers.ts`, `provider_catalog.json`) causes silent overwrites. Symptoms observed:
 
 - `git stash push -m "WIP: save changes from other agent's work"` with 26-file stash `95111c5d`
 - Branch `feat/tokenizer-usage-compression-tracking` used as shared inbox for analytics+oauth+UI (16 commits, 6 concerns → violates atomic PR)
@@ -26,7 +26,7 @@ git worktree add ../wt-a1-kilo-health -b a1/feat/kilo-health
 cd ../wt-a1-kilo-health
 
 # 2. claim branch (writes .opencode/claims/<branch> gitignored)
-../openproxy/scripts/claim-branch.sh a1/feat/kilo-health
+../cipherroute/scripts/claim-branch.sh a1/feat/kilo-health
 
 # 3. work, commit atomically, push, open PR
 git status; git diff --cached   # never git add . blindly

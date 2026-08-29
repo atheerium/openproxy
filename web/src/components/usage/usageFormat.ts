@@ -5,7 +5,7 @@
 // data columns so the pages match the provided visual reference, while page
 // chrome (cards, borders, text) keeps using the dashboard design tokens
 // (bg-surface-2, border-border, text-text-muted, ...) so it stays consistent
-// with the rest of the OpenProxy dashboard.
+// with the rest of the CipherRoute dashboard.
 
 export const USAGE_COLORS = {
   input: "#f43f5e", // rose-500  — INPUT tokens

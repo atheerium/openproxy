@@ -52,7 +52,7 @@ pub(super) async fn get_kilo_settings(
 
     match read_auth().await {
         Ok(auth) => {
-            let has_openproxy = has_openproxy_config(&auth);
+            let has_cipherroute = has_cipherroute_config(&auth);
             let auth_keys = auth
                 .as_ref()
                 .and_then(|value| value.as_object())
@@ -61,7 +61,7 @@ pub(super) async fn get_kilo_settings(
             Json(json!({
                 "installed": true,
                 "settings": { "auth": auth_keys },
-                "hasOpenProxy": has_openproxy,
+                "hasCipherRoute": has_cipherroute,
                 "authPath": auth_path().to_string_lossy().to_string(),
             }))
             .into_response()
@@ -144,11 +144,11 @@ async fn read_auth() -> AnyhowResult<Option<Value>> {
     read_json_optional(&auth_path()).await
 }
 
-fn has_openproxy_config(auth: &Option<Value>) -> bool {
+fn has_cipherroute_config(auth: &Option<Value>) -> bool {
     let Some(auth) = auth else { return false };
     let entry = auth
         .get("openai-compatible")
-        .or_else(|| auth.get("openproxy"))
+        .or_else(|| auth.get("cipherroute"))
         .or_else(|| auth.get("9router"));
     let Some(entry) = entry else { return false };
     let base_url = entry
@@ -158,7 +158,7 @@ fn has_openproxy_config(auth: &Option<Value>) -> bool {
         .unwrap_or("");
     base_url.contains("localhost")
         || base_url.contains("127.0.0.1")
-        || base_url.contains("openproxy")
+        || base_url.contains("cipherroute")
 }
 
 async fn write_kilo_settings(body: &SaveKiloSettingsRequest) -> AnyhowResult<()> {
@@ -194,7 +194,7 @@ async fn write_kilo_settings(body: &SaveKiloSettingsRequest) -> AnyhowResult<()>
             vscode.insert(
                 "kilocode.customProvider".to_string(),
                 json!({
-                    "name": "OpenProxy",
+                    "name": "CipherRoute",
                     "baseURL": normalized_base_url,
                     "apiKey": body.api_key,
                 }),
@@ -219,7 +219,7 @@ async fn reset_kilo_settings() -> AnyhowResult<Value> {
         }));
     };
     auth.remove("openai-compatible");
-    auth.remove("openproxy");
+    auth.remove("cipherroute");
     auth.remove("9router");
     write_json(&auth_path(), &Value::Object(auth)).await?;
 
@@ -235,7 +235,7 @@ async fn reset_kilo_settings() -> AnyhowResult<Value> {
 
     Ok(json!({
         "success": true,
-        "message": "OpenProxy settings removed from Kilo Code",
+        "message": "CipherRoute settings removed from Kilo Code",
     }))
 }
 

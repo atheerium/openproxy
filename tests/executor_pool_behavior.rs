@@ -7,13 +7,13 @@ use std::sync::Barrier;
 use std::thread;
 use std::time::Duration;
 
-use openproxy::core::executor::{
+use cipherroute::core::executor::{
     provider_config_base_url, ClientPool, DefaultExecutor, ExecutionRequest, ExecutorError,
     TransportKind, CLIENT_POOL_IDLE_TIMEOUT, CLIENT_POOL_MAX_IDLE_PER_HOST,
     CLIENT_POOL_TCP_KEEPALIVE,
 };
-use openproxy::core::proxy::{normalize, resolve_proxy_target, ProxyTarget};
-use openproxy::types::{AppDb, ProviderConnection, ProviderNode, ProxyPool, Settings};
+use cipherroute::core::proxy::{normalize, resolve_proxy_target, ProxyTarget};
+use cipherroute::types::{AppDb, ProviderConnection, ProviderNode, ProxyPool, Settings};
 use serde_json::json;
 use tokio::sync::oneshot;
 use wiremock::matchers::{body_json, header, method, path};

@@ -1,4 +1,4 @@
-// Shared TypeScript types for the OpenProxy Astro dashboard
+// Shared TypeScript types for the CipherRoute Astro dashboard
 
 // Theme types
 export type Theme = "light" | "dark" | "system";

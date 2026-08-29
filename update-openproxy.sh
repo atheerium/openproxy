@@ -1,20 +1,20 @@
 #!/usr/bin/env bash
-# update-openproxy.sh — pull latest upstream, rebuild from source, swap the binary in.
+# update-cipherroute.sh — pull latest upstream, rebuild from source, swap the binary in.
 #
-#   - Tracks upstream quangdang46/openproxy (main) even though origin is your fork.
+#   - Tracks upstream quangdang46/cipherroute (main) even though origin is your fork.
 #   - Fast-forwards when possible; falls back to a merge commit if you have local commits.
 #   - Skips the whole rebuild when HEAD is unchanged and the installed binary already
 #     matches the last source build (daily no-op is instant).
-#   - Restarts the detached server only if it was already running. Data in ~/.openproxy
+#   - Restarts the detached server only if it was already running. Data in ~/.cipherroute
 #     is untouched.
 #
 # Overridable env: UPSTREAM_URL, UPSTREAM_BRANCH, DEST_BIN
 set -euo pipefail
 
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-UPSTREAM_URL="${UPSTREAM_URL:-https://github.com/quangdang46/openproxy.git}"
+UPSTREAM_URL="${UPSTREAM_URL:-https://github.com/quangdang46/cipherroute.git}"
 UPSTREAM_BRANCH="${UPSTREAM_BRANCH:-main}"
-DEST_BIN="${DEST_BIN:-$HOME/.local/bin/openproxy}"
+DEST_BIN="${DEST_BIN:-$HOME/.local/bin/cipherroute}"
 
 cd "$REPO_DIR"
 
@@ -47,10 +47,10 @@ fi
 # --- 3. decide whether anything needs doing ----------------------------------
 NEED_BUILD=false
 NEED_SWAP=false
-if [[ "$HEAD_CHANGED" == true || ! -f target/release/openproxy ]]; then
+if [[ "$HEAD_CHANGED" == true || ! -f target/release/cipherroute ]]; then
   NEED_BUILD=true
 fi
-if [[ ! -f "$DEST_BIN" ]] || ! cmp -s target/release/openproxy "$DEST_BIN"; then
+if [[ ! -f "$DEST_BIN" ]] || ! cmp -s target/release/cipherroute "$DEST_BIN"; then
   NEED_SWAP=true
 fi
 
@@ -87,7 +87,7 @@ fi
 
 # --- 7. swap the binary in -----------------------------------------------------
 log "installing to $DEST_BIN"
-cp target/release/openproxy "$DEST_BIN"
+cp target/release/cipherroute "$DEST_BIN"
 chmod +x "$DEST_BIN"
 NEW_VERSION="$("$DEST_BIN" --version)"
 log "installed $NEW_VERSION"

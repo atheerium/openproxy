@@ -7,15 +7,15 @@ Unit locks live under `src/**` with `mod parity_tests` / `#[cfg(test)]` so `carg
 ```bash
 ./scripts/parity-smoke.sh
 # or individually:
-cargo test -p openproxy --lib stream_flags
-cargo test -p openproxy --lib parity_tests
-cargo test -p openproxy --lib chat::
-cargo test -p openproxy --lib combo
+cargo test -p cipherroute --lib stream_flags
+cargo test -p cipherroute --lib parity_tests
+cargo test -p cipherroute --lib chat::
+cargo test -p cipherroute --lib combo
 ```
 
 ## Decision logging
 
-Use `RUST_LOG=openproxy::chat=debug,openproxy::fusion=debug,openproxy::github=debug` when debugging live.
+Use `RUST_LOG=cipherroute::chat=debug,cipherroute::fusion=debug,cipherroute::github=debug` when debugging live.
 
 ## Covered matrices
 
@@ -29,4 +29,4 @@ Use `RUST_LOG=openproxy::chat=debug,openproxy::fusion=debug,openproxy::github=de
 
 ## Live (optional)
 
-`OPENPROXY_LIVE_PARITY=1` reserved for future e2e; not required for CI.
+`CIPHERROUTE_LIVE_PARITY=1` reserved for future e2e; not required for CI.

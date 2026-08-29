@@ -8,8 +8,8 @@ use std::sync::Arc;
 
 use axum::body::Body;
 use axum::http::{Request, StatusCode};
-use openproxy::db::Db;
-use openproxy::server::state::AppState;
+use cipherroute::db::Db;
+use cipherroute::server::state::AppState;
 use serde_json::json;
 use tempfile::tempdir;
 use tower::util::ServiceExt;
@@ -19,7 +19,7 @@ async fn app_state() -> AppState {
     let db = Arc::new(Db::load_from(temp.path()).await.expect("db"));
     db.update(|state| {
         state.settings.require_login = true;
-        state.api_keys = vec![openproxy::types::ApiKey {
+        state.api_keys = vec![cipherroute::types::ApiKey {
             id: "admin-1".into(),
             name: "Local".into(),
             key: "admin-key".into(),
@@ -37,7 +37,7 @@ async fn app_state() -> AppState {
 
 #[tokio::test]
 async fn a2a_task_endpoints_require_auth() {
-    let app = openproxy::build_app(app_state().await);
+    let app = cipherroute::build_app(app_state().await);
 
     // POST /api/a2a/tasks/send without any auth → 401.
     let response = app
@@ -84,7 +84,7 @@ async fn a2a_task_endpoints_require_auth() {
 
 #[tokio::test]
 async fn a2a_task_send_with_valid_key_passes_auth() {
-    let app = openproxy::build_app(app_state().await);
+    let app = cipherroute::build_app(app_state().await);
 
     // Valid management API key → auth passes; the request reaches the handler
     // (a malformed body yields 400 from the handler, not 401 from auth).
@@ -105,7 +105,7 @@ async fn a2a_task_send_with_valid_key_passes_auth() {
 
 #[tokio::test]
 async fn a2a_discovery_endpoints_stay_public() {
-    let app = openproxy::build_app(app_state().await);
+    let app = cipherroute::build_app(app_state().await);
 
     // Agent card is discovery — no auth.
     let response = app

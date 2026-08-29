@@ -3,9 +3,9 @@ use std::sync::Arc;
 
 use axum::body::Body;
 use axum::http::{Method, Request, StatusCode};
-use openproxy::db::Db;
-use openproxy::server::state::AppState;
-use openproxy::types::{ApiKey, ModelAliasTarget, ProviderConnection, ProviderModelRef};
+use cipherroute::db::Db;
+use cipherroute::server::state::AppState;
+use cipherroute::types::{ApiKey, ModelAliasTarget, ProviderConnection, ProviderModelRef};
 use serde_json::json;
 use tempfile::tempdir;
 use tower::util::ServiceExt;
@@ -114,8 +114,8 @@ async fn response_json(response: axum::response::Response) -> (StatusCode, serde
 }
 
 #[tokio::test]
-async fn cloud_auth_matches_openproxy_payload() {
-    let app = openproxy::build_app(app_state().await);
+async fn cloud_auth_matches_cipherroute_payload() {
+    let app = cipherroute::build_app(app_state().await);
     let response = app
         .oneshot(authorized_request(
             Method::POST,
@@ -154,7 +154,7 @@ async fn cloud_auth_matches_openproxy_payload() {
 }
 
 #[tokio::test]
-async fn cloud_routes_require_authorization_bearer_like_openproxy() {
+async fn cloud_routes_require_authorization_bearer_like_cipherroute() {
     for request in [
         Request::builder()
             .method(Method::POST)
@@ -174,7 +174,7 @@ async fn cloud_routes_require_authorization_bearer_like_openproxy() {
             .body(Body::empty())
             .unwrap(),
     ] {
-        let app = openproxy::build_app(app_state().await);
+        let app = cipherroute::build_app(app_state().await);
         let response = app.oneshot(request).await.unwrap();
         let (status, json) = response_json(response).await;
         eprintln!("CLOUDCASE status={status} json={json}");
@@ -182,7 +182,7 @@ async fn cloud_routes_require_authorization_bearer_like_openproxy() {
         assert_eq!(json, json!({ "error": "Missing API key" }));
     }
 
-    let app = openproxy::build_app(app_state().await);
+    let app = cipherroute::build_app(app_state().await);
     let response = app
         .oneshot(
             Request::builder()
@@ -201,9 +201,9 @@ async fn cloud_routes_require_authorization_bearer_like_openproxy() {
 }
 
 #[tokio::test]
-async fn cloud_credentials_update_matches_openproxy_and_persists_tokens() {
+async fn cloud_credentials_update_matches_cipherroute_and_persists_tokens() {
     let state = app_state().await;
-    let app = openproxy::build_app(state.clone());
+    let app = cipherroute::build_app(state.clone());
     let response = app
         .clone()
         .oneshot(authorized_request(
@@ -249,8 +249,8 @@ async fn cloud_credentials_update_matches_openproxy_and_persists_tokens() {
 }
 
 #[tokio::test]
-async fn cloud_credentials_update_matches_openproxy_errors() {
-    let app = openproxy::build_app(app_state().await);
+async fn cloud_credentials_update_matches_cipherroute_errors() {
+    let app = cipherroute::build_app(app_state().await);
     let response = app
         .clone()
         .oneshot(authorized_request(
@@ -294,8 +294,8 @@ async fn cloud_credentials_update_matches_openproxy_errors() {
 }
 
 #[tokio::test]
-async fn cloud_model_resolve_matches_openproxy_contract() {
-    let app = openproxy::build_app(app_state().await);
+async fn cloud_model_resolve_matches_cipherroute_contract() {
+    let app = cipherroute::build_app(app_state().await);
     let response = app
         .clone()
         .oneshot(authorized_request(
@@ -347,9 +347,9 @@ async fn cloud_model_resolve_matches_openproxy_contract() {
 }
 
 #[tokio::test]
-async fn cloud_models_alias_routes_match_openproxy_contract() {
+async fn cloud_models_alias_routes_match_cipherroute_contract() {
     let state = app_state().await;
-    let app = openproxy::build_app(state.clone());
+    let app = cipherroute::build_app(state.clone());
 
     let response = app
         .clone()
@@ -435,7 +435,7 @@ async fn cloud_models_alias_routes_match_openproxy_contract() {
 
 #[tokio::test]
 async fn cloud_credentials_route_is_not_exposed() {
-    let app = openproxy::build_app(app_state().await);
+    let app = cipherroute::build_app(app_state().await);
     let response = app
         .oneshot(authorized_request(
             Method::GET,

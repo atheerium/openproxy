@@ -1,4 +1,4 @@
-use openproxy::core::tls::ensure_rustls_provider;
+use cipherroute::core::tls::ensure_rustls_provider;
 use std::path::PathBuf;
 use std::sync::Arc;
 
@@ -14,10 +14,10 @@ use hyper_rustls::HttpsConnectorBuilder;
 use hyper_util::client::legacy::{connect::HttpConnector, Client};
 use hyper_util::rt::TokioExecutor;
 use jsonwebtoken::{decode, encode, DecodingKey, EncodingKey, Header, Validation};
-use openproxy::cli::Cli;
-use openproxy::core::rtk::CompressionLevel;
-use openproxy::db::Db;
-use openproxy::server::state::AppState;
+use cipherroute::cli::Cli;
+use cipherroute::core::rtk::CompressionLevel;
+use cipherroute::db::Db;
+use cipherroute::server::state::AppState;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use tempfile::tempdir;
@@ -148,7 +148,7 @@ fn dependency_stack_smoke_test() {
 #[test]
 fn cli_parsing_supports_env_backed_flags() {
     let cli = Cli::try_parse_from([
-        "openproxy",
+        "cipherroute",
         "--host",
         "127.0.0.1",
         "--port",
@@ -169,7 +169,7 @@ async fn db_loader_creates_initial_files() {
     let db = Db::load_from(temp.path()).await.expect("db loads");
     let snapshot = db.snapshot();
 
-    assert!(db.data_dir.join("openproxy.sqlite").exists());
+    assert!(db.data_dir.join("cipherroute.sqlite").exists());
     assert!(snapshot.provider_connections.is_empty());
     assert!(snapshot.settings.rtk_enabled);
 

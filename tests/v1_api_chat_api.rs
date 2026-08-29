@@ -3,9 +3,9 @@ use std::sync::Arc;
 
 use axum::body::Body;
 use axum::http::{Request, StatusCode};
-use openproxy::db::Db;
-use openproxy::server::state::AppState;
-use openproxy::types::{ApiKey, ProviderConnection, ProviderNode};
+use cipherroute::db::Db;
+use cipherroute::server::state::AppState;
+use cipherroute::types::{ApiKey, ProviderConnection, ProviderNode};
 use serde_json::json;
 use tempfile::tempdir;
 use tower::util::ServiceExt;
@@ -95,7 +95,7 @@ async fn seeded_state(nodes: Vec<ProviderNode>, connections: Vec<ProviderConnect
 
 #[tokio::test]
 async fn v1_api_chat_options_exposes_cors_headers() {
-    let app = openproxy::build_app(seeded_state(Vec::new(), Vec::new()).await);
+    let app = cipherroute::build_app(seeded_state(Vec::new(), Vec::new()).await);
 
     let response = app
         .oneshot(
@@ -147,7 +147,7 @@ async fn v1_api_chat_defaults_to_streaming_and_returns_ollama_ndjson() {
         .mount(&upstream)
         .await;
 
-    let app = openproxy::build_app(
+    let app = cipherroute::build_app(
         seeded_state(
             vec![provider_node(
                 "node-openai",
@@ -243,7 +243,7 @@ async fn v1_api_chat_non_streaming_converts_openai_json_to_ollama_json() {
         .mount(&upstream)
         .await;
 
-    let app = openproxy::build_app(
+    let app = cipherroute::build_app(
         seeded_state(
             vec![provider_node(
                 "node-openai",

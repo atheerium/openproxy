@@ -1,4 +1,4 @@
-// Integration test for openproxy::db::watcher::spawn_watcher.
+// Integration test for cipherroute::db::watcher::spawn_watcher.
 //
 // NOTE: This test references the legacy JSON-file DB path (`db.json`). The
 // project now uses SQLite. The test body is intentionally absent because
@@ -14,8 +14,8 @@
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-use openproxy::db::watcher::spawn_watcher;
-use openproxy::db::Db;
+use cipherroute::db::watcher::spawn_watcher;
+use cipherroute::db::Db;
 use serde_json::json;
 use tempfile::tempdir;
 use tokio::time::sleep;

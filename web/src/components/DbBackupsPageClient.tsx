@@ -249,7 +249,7 @@ export default function DbBackupsPageClient() {
       const blob = await res.blob();
       const disposition = res.headers.get("content-disposition") || "";
       const match = disposition.match(/filename="?([^"]+)"?/i);
-      const filename = match?.[1] || `openproxy-db-${Date.now()}.json`;
+      const filename = match?.[1] || `cipherroute-db-${Date.now()}.json`;
       const url = URL.createObjectURL(blob);
       const anchor = document.createElement("a");
       anchor.href = url;

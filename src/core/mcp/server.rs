@@ -1,8 +1,8 @@
-//! Native MCP protocol handler for OpenProxy.
+//! Native MCP protocol handler for CipherRoute.
 //!
 //! Implements the JSON-RPC 2.0-based Model Context Protocol so external MCP
 //! clients (Claude Desktop, Cursor, Cline, etc.) can discover and invoke
-//! OpenProxy's built-in administrative tools directly — without going through
+//! CipherRoute's built-in administrative tools directly — without going through
 //! a child process bridge.
 //!
 //! Protocol verbs handled:
@@ -616,7 +616,7 @@ fn tool_table() -> Vec<ToolHandler> {
 
 // ─── Public API ────────────────────────────────────────────────────────────
 
-/// Handle an incoming JSON-RPC 2.0 MCP request against the OpenProxy tool
+/// Handle an incoming JSON-RPC 2.0 MCP request against the CipherRoute tool
 /// surface. Returns a JSON-serialised response.
 pub fn handle_mcp_request(state: &AppState, body: &Value) -> Value {
     let request: JsonRpcRequest = match serde_json::from_value(body.clone()) {
@@ -667,7 +667,7 @@ fn handle_initialize(id: Value) -> Value {
                 resources: [("listChanged".to_string(), json!(false))].into(),
             },
             server_info: McpServerInfo {
-                name: "openproxy",
+                name: "cipherroute",
                 version: env!("CARGO_PKG_VERSION"),
             },
         })
@@ -792,43 +792,43 @@ fn handle_tools_call(state: &AppState, id: Value, params: &Value) -> Value {
 fn handle_resources_list(id: Value) -> Value {
     let resources = vec![
         McpResource {
-            uri: "openproxy://health".to_string(),
+            uri: "cipherroute://health".to_string(),
             name: "Server Health".to_string(),
             description: "Server health status and version info".to_string(),
             mime_type: Some("application/json".to_string()),
         },
         McpResource {
-            uri: "openproxy://models".to_string(),
+            uri: "cipherroute://models".to_string(),
             name: "Available Models".to_string(),
             description: "List of available model aliases".to_string(),
             mime_type: Some("application/json".to_string()),
         },
         McpResource {
-            uri: "openproxy://providers".to_string(),
+            uri: "cipherroute://providers".to_string(),
             name: "Provider Connections".to_string(),
             description: "List of configured provider connections".to_string(),
             mime_type: Some("application/json".to_string()),
         },
         McpResource {
-            uri: "openproxy://combos".to_string(),
+            uri: "cipherroute://combos".to_string(),
             name: "Model Combos".to_string(),
             description: "List of model combos".to_string(),
             mime_type: Some("application/json".to_string()),
         },
         McpResource {
-            uri: "openproxy://pools".to_string(),
+            uri: "cipherroute://pools".to_string(),
             name: "Proxy Pools".to_string(),
             description: "List of proxy pools".to_string(),
             mime_type: Some("application/json".to_string()),
         },
         McpResource {
-            uri: "openproxy://keys".to_string(),
+            uri: "cipherroute://keys".to_string(),
             name: "API Keys".to_string(),
             description: "List of API keys (without secrets)".to_string(),
             mime_type: Some("application/json".to_string()),
         },
         McpResource {
-            uri: "openproxy://nodes".to_string(),
+            uri: "cipherroute://nodes".to_string(),
             name: "Provider Nodes".to_string(),
             description: "List of provider nodes".to_string(),
             mime_type: Some("application/json".to_string()),
@@ -858,27 +858,27 @@ fn handle_resources_read(state: &AppState, id: Value, params: &Value) -> Value {
     };
 
     let text = match uri {
-        "openproxy://health" => serde_json::to_string_pretty(&json!({
+        "cipherroute://health" => serde_json::to_string_pretty(&json!({
             "status": "ok",
             "version": env!("CARGO_PKG_VERSION"),
         })),
-        "openproxy://models" => {
+        "cipherroute://models" => {
             let snap = state.db.snapshot();
             serde_json::to_string_pretty(&snap.model_aliases)
         }
-        "openproxy://providers" => {
+        "cipherroute://providers" => {
             let snap = state.db.snapshot();
             serde_json::to_string_pretty(&snap.provider_connections)
         }
-        "openproxy://combos" => {
+        "cipherroute://combos" => {
             let snap = state.db.snapshot();
             serde_json::to_string_pretty(&snap.combos)
         }
-        "openproxy://pools" => {
+        "cipherroute://pools" => {
             let snap = state.db.snapshot();
             serde_json::to_string_pretty(&snap.proxy_pools)
         }
-        "openproxy://keys" => {
+        "cipherroute://keys" => {
             let snap = state.db.snapshot();
             let sanitised: Vec<Value> = snap
                 .api_keys
@@ -894,7 +894,7 @@ fn handle_resources_read(state: &AppState, id: Value, params: &Value) -> Value {
                 .collect();
             serde_json::to_string_pretty(&sanitised)
         }
-        "openproxy://nodes" => {
+        "cipherroute://nodes" => {
             let snap = state.db.snapshot();
             serde_json::to_string_pretty(&snap.provider_nodes)
         }

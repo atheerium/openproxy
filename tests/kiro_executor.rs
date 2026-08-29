@@ -12,8 +12,8 @@
 use std::collections::BTreeMap;
 use std::sync::Arc;
 
-use openproxy::core::executor::{AwsCredentials, ClientPool, KiroExecutionRequest, KiroExecutor};
-use openproxy::types::{ProviderConnection, ProviderNode};
+use cipherroute::core::executor::{AwsCredentials, ClientPool, KiroExecutionRequest, KiroExecutor};
+use cipherroute::types::{ProviderConnection, ProviderNode};
 use serde_json::json;
 use wiremock::matchers::{header, method, path};
 use wiremock::{Mock, MockServer, ResponseTemplate};
@@ -376,7 +376,7 @@ async fn kiro_executor_sign_request_with_session_token() {
 
 #[test]
 fn event_stream_decoder_empty_input() {
-    use openproxy::core::executor::EventStreamDecoder;
+    use cipherroute::core::executor::EventStreamDecoder;
 
     let events = EventStreamDecoder::decode_chunk(&[]).expect("should decode empty");
     assert!(events.is_empty());
@@ -385,7 +385,7 @@ fn event_stream_decoder_empty_input() {
 #[test]
 #[ignore = "EventStream format requires real AWS EventStream encoding - decoder expects prelude bytes"]
 fn event_stream_decoder_single_sse_event() {
-    use openproxy::core::executor::EventStreamDecoder;
+    use cipherroute::core::executor::EventStreamDecoder;
 
     let frame = build_eventstream_frame("assistantResponseEvent", r#"{"content":"test event"}"#);
     let events = EventStreamDecoder::decode_chunk(&frame).expect("should decode");
@@ -397,7 +397,7 @@ fn event_stream_decoder_single_sse_event() {
 #[test]
 #[ignore = "EventStream format requires real AWS EventStream encoding - decoder expects prelude bytes"]
 fn event_stream_decoder_multiple_sse_events() {
-    use openproxy::core::executor::EventStreamDecoder;
+    use cipherroute::core::executor::EventStreamDecoder;
 
     let mut chunk =
         build_eventstream_frame("assistantResponseEvent", r#"{"content":"first event"}"#);
@@ -445,7 +445,7 @@ fn build_eventstream_frame(event_type: &str, payload_json: &str) -> Vec<u8> {
 
 #[test]
 fn event_stream_decoder_handles_partial_prelude() {
-    use openproxy::core::executor::EventStreamDecoder;
+    use cipherroute::core::executor::EventStreamDecoder;
 
     // Send only partial prelude bytes
     let chunk = vec![0xFF, 0x00, 0x00];
@@ -455,7 +455,7 @@ fn event_stream_decoder_handles_partial_prelude() {
 
 #[test]
 fn event_stream_decoder_handles_truncated_payload() {
-    use openproxy::core::executor::EventStreamDecoder;
+    use cipherroute::core::executor::EventStreamDecoder;
 
     // A frame whose declared total length exceeds the available bytes must
     // yield no events (partial frame — buffered for the next chunk).
@@ -467,7 +467,7 @@ fn event_stream_decoder_handles_truncated_payload() {
 
 #[test]
 fn event_stream_decoder_malformed_prelude_errors() {
-    use openproxy::core::executor::EventStreamDecoder;
+    use cipherroute::core::executor::EventStreamDecoder;
 
     // A `data: [DONE]` SSE text blob is not a valid EventStream binary frame;
     // the decoder must reject it rather than decode garbage.
@@ -478,7 +478,7 @@ fn event_stream_decoder_malformed_prelude_errors() {
 #[test]
 #[ignore = "EventStream format requires real AWS EventStream encoding - decoder expects prelude bytes"]
 fn event_stream_decoder_ignores_non_prelude_bytes() {
-    use openproxy::core::executor::EventStreamDecoder;
+    use cipherroute::core::executor::EventStreamDecoder;
 
     // Garbage prefix bytes are not a valid prelude; the decoder must not
     // panic and must return no decoded events from a malformed buffer.
@@ -537,7 +537,7 @@ async fn kiro_executor_execute_request_success() {
     );
     assert_eq!(
         response.transport,
-        openproxy::core::executor::TransportKind::Reqwest
+        cipherroute::core::executor::TransportKind::Reqwest
     );
 }
 
@@ -662,7 +662,7 @@ async fn kiro_executor_execute_request_empty_credentials() {
 
 #[test]
 fn kiro_executor_error_debug() {
-    use openproxy::core::executor::KiroExecutorError;
+    use cipherroute::core::executor::KiroExecutorError;
 
     let err = KiroExecutorError::MissingCredentials("kiro".to_string());
     let debug = format!("{:?}", err);
@@ -679,7 +679,7 @@ fn kiro_executor_error_debug() {
 
 #[test]
 fn kiro_event_clone() {
-    use openproxy::core::executor::KiroEvent;
+    use cipherroute::core::executor::KiroEvent;
 
     let event = KiroEvent {
         message_type: "event".to_string(),
@@ -694,7 +694,7 @@ fn kiro_event_clone() {
 
 #[test]
 fn kiro_event_debug() {
-    use openproxy::core::executor::KiroEvent;
+    use cipherroute::core::executor::KiroEvent;
 
     let event = KiroEvent {
         message_type: "event".to_string(),

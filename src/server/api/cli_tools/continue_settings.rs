@@ -15,8 +15,8 @@ use tokio::fs;
 
 use crate::server::state::AppState;
 
-/// OpenProxy apiBase value — used to identify our own entries.
-const OPENPROXY_API_BASE: &str = "http://localhost:4623/v1";
+/// CipherRoute apiBase value — used to identify our own entries.
+const CIPHERROUTE_API_BASE: &str = "http://localhost:4623/v1";
 
 pub fn routes() -> Router<AppState> {
     Router::new().route(
@@ -49,11 +49,11 @@ async fn get_continue_settings(State(state): State<AppState>, headers: HeaderMap
 
     match read_json_optional(&settings_path).await {
         Ok(Some(settings)) => {
-            let has_openproxy = has_openproxy_config(&settings);
+            let has_cipherroute = has_cipherroute_config(&settings);
             Json(json!({
                 "installed": true,
                 "settings": settings,
-                "hasOpenProxy": has_openproxy,
+                "hasCipherRoute": has_cipherroute,
                 "settingsPath": settings_path.to_string_lossy().to_string(),
             }))
             .into_response()
@@ -147,20 +147,20 @@ async fn delete_continue_settings(State(state): State<AppState>, headers: Header
 // Helpers
 // ---------------------------------------------------------------------------
 
-/// Check whether the config has at least one OpenProxy model entry.
-fn has_openproxy_config(config: &Value) -> bool {
+/// Check whether the config has at least one CipherRoute model entry.
+fn has_cipherroute_config(config: &Value) -> bool {
     config
         .get("models")
         .and_then(Value::as_array)
         .map(|models| {
             models
                 .iter()
-                .any(|m| m.get("apiBase").and_then(Value::as_str) == Some(OPENPROXY_API_BASE))
+                .any(|m| m.get("apiBase").and_then(Value::as_str) == Some(CIPHERROUTE_API_BASE))
         })
         .unwrap_or(false)
 }
 
-/// Write (merge) an OpenProxy model entry into the Continue config.
+/// Write (merge) an CipherRoute model entry into the Continue config.
 ///
 /// - Loads the existing config (if any).
 /// - Removes any entry that already has `apiBase` set to ours.
@@ -186,7 +186,7 @@ async fn write_continue_settings(body: &SaveContinueSettingsRequest) -> AnyhowRe
         "provider": "openai",
         "model": body.model,
         "apiKey": body.api_key,
-        "apiBase": OPENPROXY_API_BASE,
+        "apiBase": CIPHERROUTE_API_BASE,
     });
 
     // Get or create the models array
@@ -199,7 +199,7 @@ async fn write_continue_settings(body: &SaveContinueSettingsRequest) -> AnyhowRe
         .unwrap_or_default();
 
     // Remove any existing entry with the same apiBase
-    models.retain(|m| m.get("apiBase").and_then(Value::as_str) != Some(OPENPROXY_API_BASE));
+    models.retain(|m| m.get("apiBase").and_then(Value::as_str) != Some(CIPHERROUTE_API_BASE));
 
     // Append the new entry
     models.push(new_entry);
@@ -212,7 +212,7 @@ async fn write_continue_settings(body: &SaveContinueSettingsRequest) -> AnyhowRe
     Ok(config_path)
 }
 
-/// Remove all OpenProxy model entries from the Continue config, preserving all others.
+/// Remove all CipherRoute model entries from the Continue config, preserving all others.
 async fn reset_continue_settings() -> AnyhowResult<Value> {
     let config_path = continue_config_path();
 
@@ -230,7 +230,7 @@ async fn reset_continue_settings() -> AnyhowResult<Value> {
 
     if let Some(Value::Array(models)) = config.get_mut("models") {
         let before = models.len();
-        models.retain(|m| m.get("apiBase").and_then(Value::as_str) != Some(OPENPROXY_API_BASE));
+        models.retain(|m| m.get("apiBase").and_then(Value::as_str) != Some(CIPHERROUTE_API_BASE));
         if models.len() != before {
             changed = true;
         }
@@ -239,7 +239,7 @@ async fn reset_continue_settings() -> AnyhowResult<Value> {
     if !changed {
         return Ok(json!({
             "success": true,
-            "message": "No OpenProxy entries found in Continue settings",
+            "message": "No CipherRoute entries found in Continue settings",
         }));
     }
 
@@ -248,7 +248,7 @@ async fn reset_continue_settings() -> AnyhowResult<Value> {
 
     Ok(json!({
         "success": true,
-        "message": "OpenProxy entries removed from Continue settings",
+        "message": "CipherRoute entries removed from Continue settings",
     }))
 }
 

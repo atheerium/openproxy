@@ -3,9 +3,9 @@ use std::sync::Arc;
 
 use axum::body::Body;
 use axum::http::{Request, StatusCode};
-use openproxy::db::Db;
-use openproxy::server::state::AppState;
-use openproxy::types::ApiKey;
+use cipherroute::db::Db;
+use cipherroute::server::state::AppState;
+use cipherroute::types::ApiKey;
 use tempfile::tempdir;
 use tower::util::ServiceExt;
 
@@ -35,7 +35,7 @@ async fn seeded_state() -> AppState {
 
 #[tokio::test]
 async fn public_v1_endpoints_expose_cors_preflight() {
-    let app = openproxy::build_app(seeded_state().await);
+    let app = cipherroute::build_app(seeded_state().await);
 
     for (path, methods, status) in [
         // JS OPTIONS handlers use `new Response(null, {headers})` — the
@@ -84,7 +84,7 @@ async fn public_v1_endpoints_expose_cors_preflight() {
 
 #[tokio::test]
 async fn missing_model_errors_keep_cors_headers_on_public_v1_routes() {
-    let app = openproxy::build_app(seeded_state().await);
+    let app = cipherroute::build_app(seeded_state().await);
 
     for path in [
         "/v1/chat/completions",

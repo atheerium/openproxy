@@ -1,6 +1,6 @@
 # Residual 9router parity gaps (post ultracode)
 
-Evidence-based synthesis of logic / web / API scans against **9router v0.5.30** (`/tmp/9router`) and **OpenProxy `main`**.  
+Evidence-based synthesis of logic / web / API scans against **9router v0.5.30** (`/tmp/9router`) and **CipherRoute `main`**.  
 Adversarially re-verified on current tree — outdated doc claims that already landed are listed under **Confirmed fixed**, not as open debt.
 
 | Bucket | Count |
@@ -39,7 +39,7 @@ Adversarially re-verified on current tree — outdated doc claims that already l
 
 | ID | Area | Gap | Evidence |
 |----|------|-----|----------|
-| ~~`i18n-zh-cn-key-coverage`~~ | Locales | ~~zh-CN leaf keys ~872 vs 9r ~1389~~ — **Fixed**: now 1346 keys after merging relevant 9router keys with brand adaptation (9Router→OpenProxy), filtering out 9r-only Qwen/Amp/jcode strings. | `web/public/i18n/literals/zh-CN.json` — 474 new keys added, all original 872 preserved. |
+| ~~`i18n-zh-cn-key-coverage`~~ | Locales | ~~zh-CN leaf keys ~872 vs 9r ~1389~~ — **Fixed**: now 1346 keys after merging relevant 9router keys with brand adaptation (9Router→CipherRoute), filtering out 9r-only Qwen/Amp/jcode strings. | `web/public/i18n/literals/zh-CN.json` — 474 new keys added, all original 872 preserved. |
 | `models-card-media-no-caps` | Media providers UI | Legacy `ModelsCard` inlined `ModelRow` has no `CapacityBadges` / `thinkingSuffix`. Still used by media-provider detail; main provider detail uses full `ModelRow.tsx`. | OP: `web/src/components/providers/ModelsCard.tsx` ~31; `MediaProvidersKindIdPageClient.tsx` imports it; full row: `web/src/components/providers/ModelRow.tsx` ~54. |
 | `cli-tools-all-statuses` | CLI Tools API | Missing batch `GET /api/cli-tools/all-statuses`. OP N+1 fetches each `*-settings` — functional, slower load only. | 9r: `src/app/api/cli-tools/all-statuses/route.js` + `CLIToolsPageClient.js` `ALL_STATUSES_URL`. OP: path absent under `src/server/api`; `web/src/components/CLIToolsPageClient.tsx` per-tool map. |
 | `headroom-proxy` | Token Saver | No same-origin `/api/headroom/proxy/*` reverse proxy + HTML rewrite. OP links browser directly to `headroomUrl/dashboard` (fine on loopback; weaker when Headroom is remote). | OP: headroom routes status/start/stop/restart/extras only; `TokenSaverPageClient.tsx` `headroomDashboardHref` = raw URL. 9r: `src/app/api/headroom/proxy/[...path]/route.js`. |
@@ -128,7 +128,7 @@ Fixed in commit on `main` via merge of `wf_bfdf460e-f32-{2..8}` worktrees on 202
 | `models-card-media-no-caps` (P2) | ModelsCard inlined ModelRow now passes caps via useModelCaps |
 | `cli-all-statuses` (P2) | — (deferred; functional N+1 equivalent) |
 | `headroom-proxy-dashboard` (P2) | — (deferred; local loopback fine) |
-| `i18n-zh-cn-key-coverage` (P2) | zh-CN expanded from 872 to 1343 keys by merging filtered 9router zh-CN keys with brand adaptation (9Router→OpenProxy), filtering out 9r-only Qwen/Amp/jcode/CLIProxyAPI brand strings |
+| `i18n-zh-cn-key-coverage` (P2) | zh-CN expanded from 872 to 1343 keys by merging filtered 9router zh-CN keys with brand adaptation (9Router→CipherRoute), filtering out 9r-only Qwen/Amp/jcode/CLIProxyAPI brand strings |
 
 ### Still open (residual after 3+4 passes)
 
@@ -148,7 +148,7 @@ Against 9router v0.5.30 (`~/Projects/9router`, `9845a17`). Confirmed 18 real res
 
 | ID | What changed |
 |----|--------------|
-| `brand-config-openrouter` | `config.ts` install/changelog → `quangdang46/openproxy` + `install.sh` (was wrong `openrouter` / decolua) |
+| `brand-config-openrouter` | `config.ts` install/changelog → `quangdang46/cipherroute` + `install.sh` (was wrong `openrouter` / decolua) |
 | `model-availability-badge-dead` | Restored trigger button on ModelAvailabilityBadge |
 | `web-cookie-providers-grid` | Un-commented Web Cookie Providers section; cookie+apikey stats/toggle |
 | `cookie-auth-type-create` | `create_provider_api` sets `auth_type: "cookie"` for grok-web/perplexity-web |
@@ -182,7 +182,7 @@ Confirmed high-severity web gaps fixed on main:
 | `grok-cli-missing-web` | `grok-cli` added to OAUTH_PROVIDERS |
 | `ep-login-unsafe-*` / `ep-ts-require-api-key` | CF+TS Enable gated on login+password+API key; pre-enable banner |
 | `nav-dual-profile-settings` | Removed duplicate Profile nav entry |
-| `update-modal-openrouter-branding` | OpenRouter → OpenProxy in update UI |
+| `update-modal-openrouter-branding` | OpenRouter → CipherRoute in update UI |
 | `connection-row-per-auth-type` | Auth icon/name from `connection.authType` |
 
 ### New features in 9router v0.5.35 (not yet ported, significant backend work)
