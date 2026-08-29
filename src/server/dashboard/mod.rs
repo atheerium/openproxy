@@ -408,3 +408,43 @@ fn connection_header_tokens(headers: &HeaderMap) -> Vec<String> {
         .filter(|token| !token.is_empty())
         .collect()
 }
+
+#[cfg(test)]
+mod tests {
+    #[cfg(feature = "embed-web")]
+    #[test]
+    fn dashboard_html_references_embedded_chunk() {
+        // Regression guard for the "blank /dashboard/providers" failure. The
+        // served `dashboard/providers.html` references a content-hashed JS chunk
+        // (e.g. `/_astro/ProvidersPageClient.DgABw8Gj.js`). If `web/dist/` is
+        // stale when the binary is built, the HTML points at a chunk hash that
+        // is NOT baked into the binary — the browser loads a 404/mismatched
+        // chunk and the page throws a ReferenceError. Assert every `/_astro/`
+        // chunk referenced by the providers HTML is actually embedded.
+        let html = super::WebAssets::get("dashboard/providers.html")
+            .expect("dashboard/providers.html must be embedded")
+            .data;
+        let html = String::from_utf8_lossy(&html);
+        let mut found = false;
+        for (i, part) in html.split("/_astro/").enumerate() {
+            if i == 0 {
+                continue;
+            }
+            let end = part.find(['"', '?', '#']).unwrap_or(part.len());
+            let token = &part[..end];
+            if token.is_empty() {
+                continue;
+            }
+            let path = format!("_astro/{token}");
+            assert!(
+                super::WebAssets::get(&path).is_some(),
+                "dashboard/providers.html references /{path} but it is not embedded"
+            );
+            found = true;
+        }
+        assert!(
+            found,
+            "dashboard/providers.html references no /_astro/ chunk"
+        );
+    }
+}

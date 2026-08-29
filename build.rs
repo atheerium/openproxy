@@ -37,4 +37,73 @@ fn main() {
     // and the binary will keep serving stale assets.
     println!("cargo:rerun-if-changed=web/dist");
     println!("cargo:rerun-if-env-changed=CARGO_FEATURE_EMBED_WEB");
+
+    // Guard: when building the embedded (release) dashboard, refuse to bake a
+    // `web/dist/` that is OLDER than the source `web/src/`. Stale embedding is
+    // the classic "blank /dashboard/providers, chunk ReferenceError" failure:
+    // a developer edits web/src, rebuilds the binary WITHOUT rerunning
+    // `pnpm build`, and ships a dashboard predating their fix. Dev (debug)
+    // builds are exempt so the normal edit-loop isn't blocked.
+    let is_release = std::env::var("PROFILE")
+        .map(|p| p == "release")
+        .unwrap_or(false);
+    if is_release {
+        if let Some(msg) = newest_src_newer_than_dist() {
+            println!(
+                "cargo:warning=web/src is newer than web/dist — embedded dashboard will be STALE. Rebuild it: (cd web && pnpm install && pnpm run build)"
+            );
+            panic!(
+                "web/src is newer than web/dist ({msg}).\n  \
+                 The embedded dashboard would be stale and the running server\n  \
+                 would serve an old chunk (blank page / ReferenceError).\n  \
+                 Fix: (cd web && pnpm install && pnpm run build) then rebuild.\n  \
+                 To skip the embed entirely: cargo build --release --no-default-features"
+            );
+        }
+    }
+}
+
+/// Returns `Some(reason)` if any file under `web/src` has an mtime strictly
+/// newer than `web/dist/index.html` (the build output marker). Walks `web/src`
+/// recursively; tolerates missing source dir.
+fn newest_src_newer_than_dist() -> Option<String> {
+    let dist_marker = std::path::Path::new("web/dist/index.html");
+    let dist_mtime = match std::fs::metadata(dist_marker).and_then(|m| m.modified()) {
+        Ok(t) => t,
+        Err(_) => return Some("web/dist/index.html missing".to_string()),
+    };
+    let src_dir = std::path::Path::new("web/src");
+    if !src_dir.exists() {
+        return None;
+    }
+    let mut newest_src: Option<std::time::SystemTime> = None;
+    let mut stack = vec![src_dir.to_path_buf()];
+    while let Some(dir) = stack.pop() {
+        let entries = match std::fs::read_dir(&dir) {
+            Ok(e) => e,
+            Err(_) => continue,
+        };
+        for entry in entries.flatten() {
+            let path = entry.path();
+            let md = match std::fs::metadata(&path) {
+                Ok(m) => m,
+                Err(_) => continue,
+            };
+            if md.is_dir() {
+                stack.push(path);
+            } else if let Ok(mt) = md.modified() {
+                newest_src = Some(match newest_src {
+                    Some(n) => n.max(mt),
+                    None => mt,
+                });
+            }
+        }
+    }
+    match newest_src {
+        Some(src_mt) if src_mt > dist_mtime => Some(format!(
+            "src mtime {:?} > dist mtime {:?}",
+            src_mt, dist_mtime
+        )),
+        _ => None,
+    }
 }
