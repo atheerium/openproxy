@@ -27,16 +27,21 @@ pub enum DbCmd {
     Init,
     /// Download the full server snapshot. With `--out <path>` writes the
     /// pretty-printed JSON to disk; otherwise the JSON is emitted as the
-    /// envelope's `data`.
+    /// envelope's `data`. Pass `--scopes apiKeys,combos` to export only
+    /// selected domains (apiKeys, providerCredentials, combos, usage, all).
     Export {
         #[arg(long)]
         out: Option<PathBuf>,
+        /// Comma-separated scopes to export (see help). Omit for full export.
+        #[arg(long, value_delimiter = ',')]
+        scopes: Option<Vec<String>>,
     },
     /// Upload a snapshot to the server. The server's import is *merge by
     /// default*: only collections explicitly present in the file overwrite
     /// the server-side data. `--replace` is reserved for the future when the
     /// server learns a destructive overwrite mode; today it errors out so
-    /// scripts don't silently fall back to merge.
+    /// scripts don't silently fall back to merge. Also accepts scoped exports
+    /// (e.g. only `combos`) and merges via `/api/data/import`.
     Import {
         /// Path to the JSON snapshot (or `-` for stdin).
         path: String,
@@ -46,6 +51,20 @@ pub enum DbCmd {
         /// Reserved for a future destructive overwrite mode. Errors today.
         #[arg(long)]
         replace: bool,
+    },
+    /// Wipe selected scopes for a fresh start. Creates a pre-reset backup
+    /// first and requires `confirm` to be exactly `RESET`. Example:
+    /// `db reset --scopes combos,usage --confirm RESET`
+    Reset {
+        /// Comma-separated scopes to wipe (apiKeys, providerCredentials, combos, usage, all).
+        #[arg(long, value_delimiter = ',')]
+        scopes: Option<Vec<String>>,
+        /// Must be exactly `RESET` (safety guard).
+        #[arg(long)]
+        confirm: String,
+        /// Required when `requireLogin` is enabled.
+        #[arg(long, hide_env_values = true)]
+        password: Option<String>,
     },
     /// Print a single resource slice from the server's snapshot.
     Dump {
@@ -160,12 +179,17 @@ pub async fn run(cmd: DbCmd, cfg: &ResolvedConfig, ctx: OutputCtx) -> anyhow::Re
     };
     match cmd {
         DbCmd::Init => run_init(&rt, ctx).await,
-        DbCmd::Export { out } => run_export(&rt, ctx, out).await,
+        DbCmd::Export { out, scopes } => run_export(&rt, ctx, out, scopes).await,
         DbCmd::Import {
             path,
             merge,
             replace,
         } => run_import(&rt, ctx, path, merge, replace).await,
+        DbCmd::Reset {
+            scopes,
+            confirm,
+            password,
+        } => run_reset(&rt, ctx, scopes, confirm, password).await,
         DbCmd::Dump { resource } => run_dump(&rt, ctx, resource).await,
         DbCmd::Migrate => run_migrate(ctx),
         DbCmd::Cloud { cmd } => run_cloud(&rt, ctx, cmd).await,
@@ -200,8 +224,22 @@ async fn run_init(rt: &Runtime, ctx: OutputCtx) -> anyhow::Result<i32> {
     }
 }
 
-async fn run_export(rt: &Runtime, ctx: OutputCtx, out: Option<PathBuf>) -> anyhow::Result<i32> {
-    match rt.get_json("/api/db/export").await {
+async fn run_export(
+    rt: &Runtime,
+    ctx: OutputCtx,
+    out: Option<PathBuf>,
+    scopes: Option<Vec<String>>,
+) -> anyhow::Result<i32> {
+    let endpoint = if let Some(sc) = &scopes {
+        if sc.is_empty() {
+            "/api/db/export".to_string()
+        } else {
+            format!("/api/data/export?scopes={}", sc.join(","))
+        }
+    } else {
+        "/api/db/export".to_string()
+    };
+    match rt.get_json(&endpoint).await {
         Ok(payload) => {
             if let Some(path) = out {
                 let pretty = serde_json::to_string_pretty(&payload).unwrap_or_default();
@@ -277,15 +315,72 @@ async fn run_import(
         )?);
     }
 
-    match rt.post_json("/api/settings/database", &body).await {
+    // Scoped exports (history / combos-only) are best merged via the scoped
+    // import path which handles usageHistory separately; full snapshots go
+    // through the legacy /api/settings/database merge path.
+    let is_scoped = [
+        "history",
+        "apiKeys",
+        "providerConnections",
+        "combos",
+        "customModels",
+    ]
+    .iter()
+    .any(|k| body.get(*k).is_some())
+        && body.get("settings").is_none()
+        || body.get("history").is_some();
+    let endpoint = if is_scoped {
+        "/api/data/import"
+    } else {
+        "/api/settings/database"
+    };
+    match rt.post_json(endpoint, &body).await {
         Ok(payload) => {
             if ctx.is_robot() {
                 emit_robot(
                     "cipherroute.v1.db.import",
-                    json!({"mode": "merge", "result": payload}),
+                    json!({"mode": "merge", "endpoint": endpoint, "result": payload}),
                 )?;
             } else {
-                humanln(ctx, "db import: ok (merge)");
+                humanln(ctx, format!("db import: ok (merge via {endpoint})"));
+            }
+            Ok(0)
+        }
+        Err(e) => rt_error_to_exit(ctx, e),
+    }
+}
+
+async fn run_reset(
+    rt: &Runtime,
+    ctx: OutputCtx,
+    scopes: Option<Vec<String>>,
+    confirm: String,
+    password: Option<String>,
+) -> anyhow::Result<i32> {
+    if confirm != "RESET" {
+        return Ok(emit_error(
+            ctx,
+            "validation",
+            "confirm must be exactly \"RESET\"",
+        )?);
+    }
+    let body = json!({
+        "scopes": scopes.unwrap_or_default(),
+        "confirm": confirm,
+        "password": password,
+    });
+    match rt.post_json("/api/data/reset", &body).await {
+        Ok(payload) => {
+            if ctx.is_robot() {
+                emit_robot("cipherroute.v1.db.reset", payload)?;
+            } else {
+                humanln(
+                    ctx,
+                    format!(
+                        "db reset: ok — {}",
+                        serde_json::to_string(&payload).unwrap_or_default()
+                    ),
+                );
             }
             Ok(0)
         }

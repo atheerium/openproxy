@@ -19,7 +19,22 @@ Parity work: epic `cipherroute-9router-parity-v0550-pnc` (9router v0.5.50 → ci
 ## Key References
 - `docs/parity-9router.md` — intentional divergences, pipeline order, executor dispatch
 - 9router reference: `/tmp/9router` (open-sse) — do NOT copy JS bugs blindly
-- **OmniRoute v3.8.50** (`/tmp/omniroute_v3850`, SHA `6cd4d38`) — authoritative reference for provider parity. When a provider behaves unexpectedly, compare against OmniRoute's `src/managed/` implementations, not the legacy JS `9router`. Key files: `credentialHealth.ts` (`HealthStatus`: 200/401/429/503/500), `healthCheck.ts`, `modelDiscovery.ts` (`discoverProviderModels` — GET `/v1/models` with provider-specific headers), `managedModelImport.ts` (merge/sync remote catalog → local config, `preserveRemovedCustomModelCompat`). Header-fidelity rules for parity: OpenRouter must send `HTTP-Referer` + `X-Title`; nvidia/llm7 omit `HTTP-Referer`; gemini sends `x-goog-api-key`; kiro/opencode/free-providers use the appropriate OAuth token flow. Always check `/tmp/omniroute_v3850` before making provider-specific decisions.
+- **OmniRoute v3.8.50** (`~/dev/OmniRoute`, fallback `/tmp/omniroute_v3850` SHA `6cd4d38`) — authoritative reference for provider parity. When a provider behaves unexpectedly, compare against OmniRoute's implementations, not the legacy JS `9router`. Key areas: `open-sse/services/` + `src/lib/db/` + `open-sse/executors/` (credential health `HealthStatus`: 200/401/429/503/500, health checks, `discoverProviderModels` GET `/v1/models` with provider-specific headers, model-import merge/sync via `preserveRemovedCustomModelCompat`). Header-fidelity rules for parity: OpenRouter must send `HTTP-Referer` + `X-Title`; nvidia/llm7 omit `HTTP-Referer`; gemini sends `x-goog-api-key`; kiro/opencode/free-providers use the appropriate OAuth token flow. Always check `~/dev/OmniRoute` (fallback `/tmp/omniroute_v3850`) before making provider-specific decisions.
+
+## Guiding Principle — Lightweight OmniRoute Clone
+
+CipherRoute's end goal is a lightweight, stripped Rust clone of OmniRoute — **avoid OmniRoute's bloat**. When any feature's objective or implementation is unclear/ambiguous, the agent **must consult `~/dev/OmniRoute` (fallback `/tmp/omniroute_v3850`) first** rather than reinventing. No feature should be built from scratch without first checking OmniRoute — every future feature already exists there in some form.
+
+**Lookup order:** `~/dev/OmniRoute/src/` + `~/dev/OmniRoute/open-sse/` → `/tmp/omniroute_v3850/src/managed/` (legacy).
+
+**Explicitly out-of-scope / do NOT port (OmniRoute bloat to avoid):**
+- MCP servers, A2A server, ACP protocol
+- Electron/PWA/desktop, VNC
+- Memory persistence, skills/conductor frameworks
+- Gamification, analytics/telemetry/monitoring (beyond minimal usage stats)
+- Cloud/sync/relay/storage backends
+- Telegram bots, webhooks, third-party notifiers
+- Chaos engineering, headroom, and any compression beyond RTK/Caveman (the only two kept).
 
 ## Dev Workflow — backend + dashboard rebuild
 

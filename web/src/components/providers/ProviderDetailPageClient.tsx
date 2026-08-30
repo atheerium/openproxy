@@ -1079,6 +1079,7 @@ export default function ProviderDetailPageClient() {
           onDeleteAlias={handleDeleteAlias}
           onAddCustomModel={(modelId) => handleAddCustomModel(modelId, "llm", providerStorageAlias)}
           onDeleteCustomModel={(modelId) => handleDeleteCustomModel(modelId, "llm", providerStorageAlias)}
+          reloadCustomModels={fetchCustomModels}
           connections={connections}
           isAnthropic={isAnthropicCompatible}
         />

@@ -56,7 +56,11 @@ fn client_for(mock: &MockServer) -> OidcClient {
 /// the router and the state.
 async fn boot_with_oidc(oidc: Option<Arc<OidcClient>>) -> (axum::Router, AppState) {
     let temp = tempfile::tempdir().expect("tempdir");
-    let db = Arc::new(cipherroute::db::Db::load_from(temp.path()).await.expect("db"));
+    let db = Arc::new(
+        cipherroute::db::Db::load_from(temp.path())
+            .await
+            .expect("db"),
+    );
     let state = AppState::new(db).with_oidc_client(oidc);
     (cipherroute::build_app(state.clone()), state)
 }

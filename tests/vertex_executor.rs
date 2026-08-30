@@ -368,7 +368,8 @@ fn vertex_executor_error_display() {
     let debug_fmt2 = format!("{:?}", err2);
     assert!(debug_fmt2.contains("JwtGenerationFailed"));
 
-    let err3 = cipherroute::core::executor::VertexExecutorError::RequestFailed("failed".to_string());
+    let err3 =
+        cipherroute::core::executor::VertexExecutorError::RequestFailed("failed".to_string());
     let debug_fmt3 = format!("{:?}", err3);
     assert!(debug_fmt3.contains("RequestFailed"));
 
@@ -377,7 +378,8 @@ fn vertex_executor_error_display() {
     let debug_fmt4 = format!("{:?}", err4);
     assert!(debug_fmt4.contains("RsaPemParse"));
 
-    let err5 = cipherroute::core::executor::VertexExecutorError::InvalidToken("invalid".to_string());
+    let err5 =
+        cipherroute::core::executor::VertexExecutorError::InvalidToken("invalid".to_string());
     let debug_fmt5 = format!("{:?}", err5);
     assert!(debug_fmt5.contains("InvalidToken"));
 }

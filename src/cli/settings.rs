@@ -252,7 +252,10 @@ async fn run_apply(rt: &Runtime, ctx: OutputCtx, from_file: &str) -> anyhow::Res
     match rt.patch_json("/api/settings", &body).await {
         Ok(payload) => {
             if ctx.is_robot() {
-                emit_robot("cipherroute.v1.settings.apply", json!({"settings": payload}))?;
+                emit_robot(
+                    "cipherroute.v1.settings.apply",
+                    json!({"settings": payload}),
+                )?;
             } else {
                 humanln(ctx, "settings applied");
             }

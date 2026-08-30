@@ -2,7 +2,7 @@ use std::collections::BTreeMap;
 use std::sync::Arc;
 
 use axum::{
-    extract::{Path, State},
+    extract::{Path, Query, State},
     http::{HeaderMap, StatusCode},
     response::{IntoResponse, Response},
     Json,
@@ -93,15 +93,38 @@ pub(super) async fn list_provider_models(
     }
 }
 
+/// Query parameter for `POST /api/providers/{id}/import-models`.
+/// Mirrors OmniRoute's `ManagedModelImportMode` (`src/lib/providerModels/managedModelImport.ts:32`).
+/// - `merge` (default): add models that are missing; leave existing ones untouched.
+/// - `sync`: replace all previously-imported models for this provider, so models
+///   removed upstream are pruned locally (parities `replaceSyncedAvailableModelsForConnection`
+///   + `pruneStaleSyncedAvailableModelsForProvider`).
+#[derive(Debug, Clone, Default, serde::Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub(super) struct ImportMode {
+    pub mode: Option<String>,
+}
+
+impl ImportMode {
+    fn is_sync(&self) -> bool {
+        self.mode
+            .as_deref()
+            .map(|m| m.eq_ignore_ascii_case("sync"))
+            .unwrap_or(false)
+    }
+}
+
 pub(super) async fn import_provider_models(
     State(state): State<AppState>,
     headers: HeaderMap,
+    Query(query): Query<ImportMode>,
     Path(id): Path<String>,
 ) -> Response {
     if let Err(response) = super::require_dashboard_or_management_api_key(&headers, &state) {
         return response;
     }
 
+    let sync_mode = query.is_sync();
     let snapshot = state.db.snapshot();
     let Some(connection) = snapshot
         .provider_connections
@@ -114,14 +137,15 @@ pub(super) async fn import_provider_models(
 
     let provider = connection.provider.clone();
     let provider_alias = storage_alias_for_provider(&provider);
+
+    // Normalize legacy alias on imported rows once (9router parity: a connection
+    // renamed in the catalog still maps its old custom models).
     let legacy_alias = connection.name.clone().unwrap_or_else(|| provider.clone());
     if legacy_alias != provider_alias {
-        let has_legacy = state
-            .db
-            .snapshot()
-            .custom_models
-            .iter()
-            .any(|m| m.provider_alias == legacy_alias);
+        let has_legacy = state.db.snapshot().custom_models.iter().any(|m| {
+            m.provider_alias == legacy_alias
+                && m.extra.get("source").and_then(|v| v.as_str()) == Some("imported")
+        });
         if has_legacy {
             let legacy = legacy_alias.clone();
             let correct = provider_alias.clone();
@@ -129,7 +153,9 @@ pub(super) async fn import_provider_models(
                 .db
                 .update(move |db| {
                     for m in &mut db.custom_models {
-                        if m.provider_alias == legacy {
+                        if m.provider_alias == legacy
+                            && m.extra.get("source").and_then(|v| v.as_str()) == Some("imported")
+                        {
                             m.provider_alias = correct.clone();
                         }
                     }
@@ -139,8 +165,8 @@ pub(super) async fn import_provider_models(
     }
 
     let Ok(payload) = fetch_provider_models_response(&state, &connection).await else {
-        let snapshot = state.db.snapshot();
-        let existing = snapshot
+        let sn = state.db.snapshot();
+        let existing = sn
             .custom_models
             .iter()
             .filter(|m| m.provider_alias == provider_alias)
@@ -148,83 +174,146 @@ pub(super) async fn import_provider_models(
         return Json(json!({
             "provider": provider,
             "connectionId": connection.id,
+            "mode": if sync_mode { "sync" } else { "merge" },
+            "added": 0,
+            "updated": 0,
+            "unchanged": existing,
+            "total": existing,
             "imported": 0,
             "skipped": existing,
-            "total": existing,
         }))
         .into_response();
     };
 
     let now = chrono::Utc::now().to_rfc3339();
-    let mut imported = 0usize;
-    let mut skipped = 0usize;
     let total = payload.models.len();
 
+    // Collect incoming model ids to (id -> ProviderModel). Dedup upstream by id.
+    let mut incoming: BTreeMap<String, ProviderModel> = BTreeMap::new();
     for model in payload.models {
         let model_id = model.id.trim().to_string();
         if model_id.is_empty() {
             continue;
         }
-
-        // Snapshot read to decide import vs skip (mirrors create_custom_model).
-        let exists_before =
-            state.db.snapshot().custom_models.iter().any(|m| {
-                m.provider_alias == provider_alias && m.id == model_id && m.r#type == "llm"
-            });
-        if exists_before {
-            skipped += 1;
-            continue;
-        }
-
-        let mut extra = model.extra.clone();
-        extra
-            .entry("source".to_string())
-            .or_insert_with(|| serde_json::Value::String("imported".to_string()));
-        extra
-            .entry("importedAt".to_string())
-            .or_insert_with(|| serde_json::Value::String(now.clone()));
-
-        let name = if model.name.is_empty() {
-            None
-        } else {
-            Some(model.name)
-        };
-
-        let model_id_owned = model_id.clone();
-        let alias = provider_alias.clone();
-        let result = state
-            .db
-            .update(move |db| {
-                // Re-check inside the write lock to guard a concurrent insert.
-                let exists = db.custom_models.iter().any(|m| {
-                    m.provider_alias == alias && m.id == model_id_owned && m.r#type == "llm"
-                });
-                if exists {
-                    return;
-                }
-
-                db.custom_models.push(CustomModel {
-                    provider_alias: alias,
-                    id: model_id_owned,
-                    r#type: "llm".to_string(),
-                    name,
-                    extra,
-                });
-            })
-            .await;
-
-        match result {
-            Ok(_) => imported += 1,
-            Err(_) => skipped += 1,
-        }
+        incoming.entry(model_id).or_insert(model);
     }
+
+    // Snapshot of pre-existing imported models for this provider (for counts).
+    let prev_ids: std::collections::HashSet<String> = state
+        .db
+        .snapshot()
+        .custom_models
+        .iter()
+        .filter(|m| {
+            m.provider_alias == provider_alias
+                && m.extra.get("source").and_then(|v| v.as_str()) == Some("imported")
+                && m.r#type == "llm"
+        })
+        .map(|m| m.id.clone())
+        .collect();
+
+    let mut added: usize = 0;
+    let mut updated: usize = 0;
+    let mut unchanged: usize = 0;
+
+    let result = state
+        .db
+        .update(|db| {
+            // sync mode: replace prior imported rows for this provider before
+            // re-inserting current upstream models (parities `replaceCustomModels` +
+            // `pruneStaleSyncedAvailableModelsForProvider`).
+            if sync_mode {
+                let alias = provider_alias.clone();
+                db.custom_models.retain(|m| {
+                    !(m.provider_alias == alias
+                        && m.extra.get("source").and_then(|v| v.as_str()) == Some("imported")
+                        && m.r#type == "llm")
+                });
+            }
+
+            for (model_id, model) in &incoming {
+                // Decide added/updated/unchanged against the *pre-update* snapshot
+                // (prev_ids), not the live db state, so sync mode's prune doesn't
+                // make every model count as "added".
+                let pre_existing = prev_ids.contains(model_id);
+
+                let mut extra = model.extra.clone();
+                extra
+                    .entry("source".to_string())
+                    .or_insert_with(|| serde_json::Value::String("imported".to_string()));
+                extra
+                    .entry("importedAt".to_string())
+                    .or_insert_with(|| serde_json::Value::String(now.clone()));
+
+                let name = if model.name.is_empty() {
+                    None
+                } else {
+                    Some(model.name.clone())
+                };
+
+                if pre_existing {
+                    // Exists already — update its metadata in place so stale fields
+                    // (name, extra) track upstream (merge semantics: refresh).
+                    let mut touched = false;
+                    for m in &mut db.custom_models {
+                        if m.provider_alias == provider_alias
+                            && m.id == *model_id
+                            && m.r#type == "llm"
+                        {
+                            let changed = m.name != name || m.extra != extra;
+                            m.name = name.clone();
+                            m.extra = extra.clone();
+                            if changed {
+                                touched = true;
+                            }
+                        }
+                    }
+                    if touched {
+                        updated += 1;
+                    } else {
+                        unchanged += 1;
+                    }
+                } else {
+                    db.custom_models.push(CustomModel {
+                        provider_alias: provider_alias.clone(),
+                        id: model_id.clone(),
+                        r#type: "llm".to_string(),
+                        name,
+                        extra,
+                    });
+                    added += 1;
+                }
+            }
+        })
+        .await;
+
+    if let Err(e) = result {
+        return json_error(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            &format!("Failed to persist imported models: {e}"),
+        );
+    }
+
+    let imported = added;
+    let skipped = incoming.len().saturating_sub(added + updated + unchanged);
+    let now_count = state
+        .db
+        .snapshot()
+        .custom_models
+        .iter()
+        .filter(|m| m.provider_alias == provider_alias && m.r#type == "llm")
+        .count();
 
     Json(json!({
         "provider": provider,
         "connectionId": connection.id,
+        "mode": if sync_mode { "sync" } else { "merge" },
+        "added": added,
+        "updated": updated,
+        "unchanged": unchanged,
+        "total": now_count,
         "imported": imported,
         "skipped": skipped,
-        "total": total,
     }))
     .into_response()
 }

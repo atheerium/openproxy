@@ -27,10 +27,10 @@ mod platform {
 
 use axum::body::Body;
 use axum::http::{Method, Request, StatusCode};
-use once_cell::sync::Lazy;
 use cipherroute::db::Db;
 use cipherroute::server::state::AppState;
 use cipherroute::types::ApiKey;
+use once_cell::sync::Lazy;
 use serde_json::{json, Value};
 use tempfile::tempdir;
 use tower::util::ServiceExt;
@@ -947,7 +947,10 @@ async fn opencode_settings_post_patch_and_delete_match_cipherroute_file_behavior
         saved["provider"]["cipherroute"]["npm"],
         "@ai-sdk/openai-compatible"
     );
-    assert_eq!(saved["provider"]["cipherroute"]["options"]["region"], "keep");
+    assert_eq!(
+        saved["provider"]["cipherroute"]["options"]["region"],
+        "keep"
+    );
     assert_eq!(
         saved["provider"]["cipherroute"]["options"]["baseURL"],
         "https://proxy.example.com/v1"

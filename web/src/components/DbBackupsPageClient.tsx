@@ -79,6 +79,20 @@ export default function DbBackupsPageClient() {
     password: string;
   }>({ open: false, mode: "", password: "" });
   const fileInputRef = useRef<HTMLInputElement>(null);
+  // Scoped data-management (fresh-start export/import/reset per domain)
+  const SCOPED_OPTIONS = [
+    { value: "apiKeys", label: "API Keys" },
+    { value: "providerCredentials", label: "Provider Credentials" },
+    { value: "combos", label: "Combos" },
+    { value: "usage", label: "Usage" },
+  ] as const;
+  const [scopedScopes, setScopedScopes] = useState<string[]>(["apiKeys", "providerCredentials", "combos", "usage"]);
+  const [scopedPassword, setScopedPassword] = useState("");
+  const [resetConfirm, setResetConfirm] = useState("");
+  const [scopedStatus, setScopedStatus] = useState<StatusMessage | null>(null);
+  const [scopedImportFile, setScopedImportFile] = useState<File | null>(null);
+  const [showResetConfirm, setShowResetConfirm] = useState(false);
+  const scopedImportInputRef = useRef<HTMLInputElement>(null);
 
   const fetchList = useCallback(async () => {
     setLoading(true);
@@ -358,6 +372,135 @@ export default function DbBackupsPageClient() {
     }
   }, [dbAuth, runExport, runImport, pendingImport]);
 
+  const toggleScopedScope = useCallback((value: string) => {
+    setScopedScopes((prev) => (prev.includes(value) ? prev.filter((v) => v !== value) : [...prev, value]));
+  }, []);
+
+  const handleScopedExport = useCallback(async () => {
+    if (scopedScopes.length === 0) {
+      setScopedStatus({ type: "error", text: "Pick at least one scope to export." });
+      return;
+    }
+    if (needsDbPasswordReauth && !scopedPassword) {
+      setScopedStatus({ type: "error", text: "Password required for export (requireLogin is enabled)." });
+      return;
+    }
+    setBusy(true);
+    setScopedStatus(null);
+    try {
+      const qs = encodeURIComponent(scopedScopes.join(","));
+      const headers: Record<string, string> = {};
+      if (scopedPassword) headers["x-op-password"] = scopedPassword;
+      const res = await fetch(`/api/data/export?scopes=${qs}`, { headers });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error((data as { error?: string }).error || `Server returned ${res.status}`);
+      }
+      const blob = await res.blob();
+      const disposition = res.headers.get("content-disposition") || "";
+      const m = disposition.match(/filename="?([^"]+)"?/i);
+      const filename = m?.[1] || `cipherroute-data-${scopedScopes.join("-")}-${Date.now()}.json`;
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      setScopedStatus({ type: "success", text: `Exported ${scopedScopes.join(", ")} → ${filename}` });
+    } catch (err) {
+      setScopedStatus({ type: "error", text: err instanceof Error ? `Export failed: ${err.message}` : "Export failed" });
+    } finally {
+      setBusy(false);
+    }
+  }, [scopedScopes, scopedPassword, needsDbPasswordReauth]);
+
+  const handleScopedImportFileChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const f = e.target.files?.[0] || null;
+    e.target.value = "";
+    if (f) setScopedImportFile(f);
+  }, []);
+
+  const handleScopedImport = useCallback(async () => {
+    const file = scopedImportFile;
+    if (!file) {
+      setScopedStatus({ type: "error", text: "Pick a JSON file to import." });
+      return;
+    }
+    if (needsDbPasswordReauth && !scopedPassword) {
+      setScopedStatus({ type: "error", text: "Password required for import." });
+      return;
+    }
+    setBusy(true);
+    setScopedStatus(null);
+    try {
+      const text = await file.text();
+      const payload = JSON.parse(text);
+      if (scopedPassword) (payload as Record<string, unknown>).password = scopedPassword;
+      const res = await fetch("/api/data/import", {
+        method: "POST",
+        headers: { "content-type": "application/json", ...(scopedPassword ? { "x-op-password": scopedPassword } : {}) },
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(async () => ({ error: await res.text().catch(() => "") }));
+        throw new Error((data as { error?: string }).error || `Server returned ${res.status}`);
+      }
+      const json = await res.json();
+      setScopedStatus({ type: "success", text: `Imported ${file.name} — ${json?.imported?.providerConnections ?? 0} providers, ${json?.imported?.combos ?? 0} combos, ${json?.imported?.apiKeys ?? 0} keys, ${json?.imported?.usageEntries ?? 0} usage.` });
+      setScopedImportFile(null);
+      await fetchList();
+    } catch (err) {
+      setScopedStatus({ type: "error", text: err instanceof Error ? `Import failed: ${err.message}` : "Import failed" });
+    } finally {
+      setBusy(false);
+    }
+  }, [scopedImportFile, scopedPassword, needsDbPasswordReauth, fetchList]);
+
+  const handleScopedReset = useCallback(async () => {
+    if (scopedScopes.length === 0) {
+      setScopedStatus({ type: "error", text: "Pick at least one scope to reset." });
+      return;
+    }
+    if (resetConfirm.trim() !== "RESET") {
+      setScopedStatus({ type: "error", text: 'Type RESET to confirm.' });
+      return;
+    }
+    if (needsDbPasswordReauth && !scopedPassword) {
+      setScopedStatus({ type: "error", text: "Password required to reset." });
+      return;
+    }
+    setShowResetConfirm(false);
+    setBusy(true);
+    setScopedStatus(null);
+    try {
+      const res = await fetch("/api/data/reset", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          ...(scopedPassword ? { "x-op-password": scopedPassword } : {}),
+        },
+        body: JSON.stringify({ scopes: scopedScopes, confirm: "RESET", password: scopedPassword || undefined }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(async () => ({ error: await res.text().catch(() => "") }));
+        throw new Error((data as { error?: string }).error || `Server returned ${res.status}`);
+      }
+      const json = await res.json();
+      setScopedStatus({
+        type: "success",
+        text: `Reset done — cleared ${json?.reset?.cleared?.join(", ") || scopedScopes.join(", ")} (now ${json?.reset?.provider_count ?? 0} providers, ${json?.reset?.combo_count ?? 0} combos, ${json?.reset?.api_key_count ?? 0} keys, ${json?.reset?.usage_entries ?? 0} usage). A pre-reset backup was saved.`,
+      });
+      setResetConfirm("");
+      await fetchList();
+    } catch (err) {
+      setScopedStatus({ type: "error", text: err instanceof Error ? `Reset failed: ${err.message}` : "Reset failed" });
+    } finally {
+      setBusy(false);
+    }
+  }, [scopedScopes, resetConfirm, scopedPassword, needsDbPasswordReauth, fetchList]);
+
   const backups = data?.backups ?? [];
 
   return (
@@ -411,6 +554,92 @@ export default function DbBackupsPageClient() {
           </div>
         </div>
         <StatusAlert status={status} />
+      </Card>
+
+      <Card>
+        <div className="p-4 space-y-4">
+          <div>
+            <h2 className="text-base font-semibold text-ink">Fresh start · scoped data management</h2>
+            <p className="text-sm text-body mt-1">
+              Clear all cache for a fresh start, or export / import only the domains you need: <code>API keys + provider credentials</code>, <code>combos</code>, <code>usage</code>.
+              Exports are filtered server-side via <code>/api/data/export?scopes=…</code>; imports merge only the domains present; reset wipes only the chosen scopes (requires <code>RESET</code> + password when login is required). A pre-reset / pre-import snapshot is saved automatically.
+            </p>
+          </div>
+
+          <div className="flex flex-wrap gap-2">
+            {SCOPED_OPTIONS.map((o) => (
+              <label key={o.value} className="inline-flex items-center gap-1.5 rounded border px-2.5 py-1.5 text-sm cursor-pointer select-none border-line hover:bg-surface-soft">
+                <input
+                  type="checkbox"
+                  checked={scopedScopes.includes(o.value)}
+                  onChange={() => toggleScopedScope(o.value)}
+                  className="rounded"
+                />
+                {o.label}
+                <span className="font-mono text-[11px] text-body">({o.value})</span>
+              </label>
+            ))}
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setScopedScopes(SCOPED_OPTIONS.map((o) => o.value))}
+              disabled={busy}
+            >
+              All
+            </Button>
+            <Button variant="ghost" size="sm" onClick={() => setScopedScopes([])} disabled={busy}>
+              None
+            </Button>
+          </div>
+
+          {needsDbPasswordReauth && (
+            <div className="flex flex-wrap items-center gap-2">
+              <Input
+                type="password"
+                placeholder="Current password (required for export/import/reset)"
+                value={scopedPassword}
+                onChange={(e) => setScopedPassword(e.target.value)}
+                className="max-w-sm"
+              />
+              <span className="text-xs text-body">Used as <code>x-op-password</code> + <code>password</code> field for re-auth.</span>
+            </div>
+          )}
+
+          <div className="flex flex-wrap gap-2">
+            <Button variant="secondary" onClick={() => void handleScopedExport()} disabled={busy || scopedScopes.length === 0}>
+              Export scoped JSON
+            </Button>
+            <Button variant="secondary" onClick={() => scopedImportInputRef.current?.click()} disabled={busy}>
+              Pick import file
+            </Button>
+            <input ref={scopedImportInputRef} type="file" accept=".json,application/json" className="hidden" onChange={handleScopedImportFileChange} />
+            {scopedImportFile && (
+              <span className="self-center text-sm text-body">
+                <span className="font-mono text-xs">{scopedImportFile.name}</span> · {(scopedImportFile.size / 1024).toFixed(1)} KB
+              </span>
+            )}
+            <Button variant="secondary" onClick={() => void handleScopedImport()} disabled={busy || !scopedImportFile}>
+              Import scoped file
+            </Button>
+            <Button variant="danger" onClick={() => setShowResetConfirm(true)} disabled={busy || scopedScopes.length === 0}>
+              Reset selected scopes
+            </Button>
+          </div>
+
+          {needsDbPasswordReauth && (
+            <div className="flex items-center gap-2">
+              <Input placeholder='Type RESET to confirm' value={resetConfirm} onChange={(e) => setResetConfirm(e.target.value)} className="max-w-[200px]" />
+              <span className="text-xs text-body">Reset needs <code>RESET</code> + password. A pre-reset backup is saved.</span>
+            </div>
+          )}
+          {!needsDbPasswordReauth && (
+            <div className="flex items-center gap-2">
+              <Input placeholder='Type RESET to confirm' value={resetConfirm} onChange={(e) => setResetConfirm(e.target.value)} className="max-w-[200px]" />
+            </div>
+          )}
+
+          <StatusAlert status={scopedStatus} />
+        </div>
       </Card>
 
       <Card>
@@ -522,6 +751,27 @@ export default function DbBackupsPageClient() {
         title="Prune backups?"
         message="Prune backups using the current retention settings? Snapshots beyond the retention window will be removed."
         confirmText="Prune"
+        variant="danger"
+        loading={busy}
+      />
+
+      <ConfirmModal
+        isOpen={showResetConfirm}
+        onClose={() => setShowResetConfirm(false)}
+        onConfirm={() => void handleScopedReset()}
+        title="Reset selected scopes?"
+        message={
+          <>
+            <p>
+              This will wipe <span className="font-mono font-medium">{scopedScopes.join(", ") || "(nothing selected)"}</span>. A pre-reset snapshot will be saved first.
+            </p>
+            <p className="mt-2 text-sm text-body">
+              Type <code>RESET</code> in the field above and confirm. {needsDbPasswordReauth ? "Password re-auth is required." : ""}
+            </p>
+            {resetConfirm.trim() !== "RESET" && <p className="mt-2 text-sm text-red-600">You must type RESET exactly.</p>}
+          </>
+        }
+        confirmText="Reset"
         variant="danger"
         loading={busy}
       />

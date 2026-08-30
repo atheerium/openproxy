@@ -94,6 +94,9 @@ interface CompatibleModelsSectionProps {
   onDeleteAlias: (alias: string) => Promise<void>;
   onAddCustomModel: (modelId: string) => Promise<void>;
   onDeleteCustomModel: (modelId: string) => Promise<void>;
+  /** Refresh the model list after a server-side import/sync. Mirrors OmniRoute
+   * `managedModelImport` persistence + `replaceSyncedAvailableModelsForProvider`. */
+  reloadCustomModels?: () => Promise<void>;
   connections: Array<{ id?: string; isActive?: boolean }>;
   isAnthropic: boolean;
 }
@@ -114,6 +117,7 @@ export default function CompatibleModelsSection({
   const [newModel, setNewModel] = useState<string>("");
   const [adding, setAdding] = useState<boolean>(false);
   const [importing, setImporting] = useState<boolean>(false);
+  const [importMode, setImportMode] = useState<"merge" | "sync">("sync");
   const [testingModelIds, setTestingModelIds] = useState(new Set<string>());
   const [modelTestResults, setModelTestResults] = useState<Record<string, "ok" | "error">>({});
   const notify = useNotificationStore();
@@ -172,32 +176,30 @@ export default function CompatibleModelsSection({
 
     setImporting(true);
     try {
-      const res = await fetch(`/api/providers/${activeConnection.id}/models`);
-      const data = await res.json();
+      // Delegate discovery + normalize + merge/sync to the server (parities
+      // OmniRoute `importManagedModels`). In `sync` mode the server prunes
+      // prior `src:import` rows for this provider then re-imports; in `merge`
+      // it only adds/updates and keeps existing manual rows.
+      const res = await fetch(
+        `/api/providers/${activeConnection.id}/import-models?mode=${importMode}`,
+        { method: "POST" },
+      );
+      const data = await res.json().catch(() => null);
       if (!res.ok) {
-        notify.error(data.error || "Failed to import models");
+        notify.error(data?.error || "Failed to import models");
         return;
       }
-      const models = data.models || [];
-      if (models.length === 0) {
-        notify.warning("No models returned from /models.");
-        return;
-      }
-      let importedCount = 0;
-      for (const model of models) {
-        const modelId = model.id || model.name || model.model;
-        if (!modelId) continue;
-        if (allModels.some((entry) => entry.id === modelId)) continue;
-        await onAddCustomModel(modelId);
-        importedCount += 1;
-      }
-      if (importedCount === 0) {
-        notify.info("No new models were added.");
+      const { added = 0, updated = 0, unchanged = 0, total = 0 } = data;
+      const verb = importMode === "sync" ? "Synced" : "Imported";
+      if (added + updated === 0) {
+        notify.info(`${verb} ${unchanged}/${total}, no new models added.`);
       } else {
-        notify.success(`Imported ${importedCount} model(s).`);
+        notify.success(`${verb} ${added} added, ${updated} updated, ${unchanged} unchanged (of ${total}).`);
       }
+      await reloadCustomModels?.();
     } catch (error) {
       console.log("Error importing models:", error);
+      notify.error("Failed to import models");
     } finally {
       setImporting(false);
     }
@@ -230,6 +232,16 @@ export default function CompatibleModelsSection({
         <Button size="sm" variant="secondary" icon="download" onClick={handleImport} disabled={!canImport || importing}>
           {importing ? "Importing..." : "Import from /models"}
         </Button>
+        {/* OmniRoute parity: import mode toggle (merge keeps manual rows; sync prunes stale imports). */}
+        <label className="flex items-center gap-1.5 text-xs text-text-muted">
+          <input
+            type="checkbox"
+            checked={importMode === "sync"}
+            onChange={(e) => setImportMode(e.target.checked ? "sync" : "merge")}
+            disabled={importing}
+          />
+          <span>Sync (prune stale)</span>
+        </label>
       </div>
 
       {!canImport && (

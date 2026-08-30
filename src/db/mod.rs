@@ -166,92 +166,12 @@ impl Db {
             .await
             .context("spawn_blocking for initial SQLite snapshot")??;
 
-        // Seed default provider connections from the static catalog for any
-        // providers that are registered in provider_catalog.json but not present
-        // in the persisted SQLite store. This ensures the dashboard provider
-        // list and API always reflect the full catalog even after a fresh install.
-        let catalog = crate::core::model::catalog::provider_catalog();
-        let existing_providers: std::collections::HashSet<&str> = app_db
-            .provider_connections
-            .iter()
-            .map(|c| c.provider.as_str())
-            .collect();
-
-        let mut seeded_count = 0usize;
-        let now = chrono::Utc::now().to_rfc3339();
-        let enc_key = crate::db::crypto::encryption_key().unwrap_or_default();
-
-        for provider_id in catalog.provider_ids() {
-            if existing_providers.contains(provider_id) {
-                continue;
-            }
-
-            let id = uuid::Uuid::new_v4().to_string();
-            let mut conn = crate::types::ProviderConnection::default();
-            conn.id = id.clone();
-            conn.provider = provider_id.to_string();
-            conn.auth_type = "apikey".to_string();
-            conn.name = Some(format!("{} (default)", provider_id));
-            conn.priority = Some(1);
-            conn.is_active = Some(false); // inactive placeholder — not usable without a real key
-            conn.created_at = Some(now.clone());
-            conn.updated_at = Some(now.clone());
-            conn.test_status = Some("unknown".to_string());
-            crate::db::crypto::encrypt_connection(&mut conn, &enc_key);
-            let data_json = serde_json::to_string(&conn).unwrap_or_default();
-
-            let result = sqlite.with_conn(|c: &mut rusqlite::Connection| -> rusqlite::Result<()> {
-                c.execute(
-                    "INSERT OR IGNORE INTO providerConnections(id, provider, authType, name, email, priority, isActive, data, createdAt, updatedAt) VALUES(?1,?2,?3,?4,?5,?6,?7,?8,?9,?10)",
-                    rusqlite::params![
-                        conn.id,
-                        conn.provider,
-                        conn.auth_type,
-                        conn.name,
-                        conn.email,
-                        conn.priority,
-                        conn.is_active.map(|v| v as i32).unwrap_or(0),
-                        data_json,
-                        conn.created_at.unwrap_or_default(),
-                        conn.updated_at.unwrap_or_default(),
-                    ],
-                )?;
-                Ok(())
-            });
-
-            match result {
-                Ok(_) => {
-                    seeded_count += 1;
-                }
-                Err(e) => {
-                    tracing::warn!(
-                        target: "cipherroute::db",
-                        "Failed to seed provider connection for {}: {}",
-                        provider_id, e
-                    );
-                }
-            }
-        }
-
-        if seeded_count > 0 {
-            tracing::info!(
-                target: "cipherroute::db",
-                "Seeded {} default provider connection(s) from provider_catalog.json",
-                seeded_count
-            );
-            // Re-read the snapshot to include newly inserted connections
-            app_db = sqlite
-                .with_conn(
-                    |conn: &mut rusqlite::Connection| -> rusqlite::Result<AppDb> {
-                        let json_val = crate::db::sqlite::export::export_all(conn)
-                            .map_err(|e| rusqlite::Error::ToSqlConversionFailure(Box::new(e)))?;
-                        let mut app_db = AppDb::from_json_value(json_val);
-                        decrypt_snapshot_connections(&mut app_db);
-                        Ok(app_db)
-                    },
-                )
-                .map_err(|e| anyhow::anyhow!("SQLite read failed: {e}"))?;
-        }
+        // No catalog auto-seeding of provider connections. Providers appear in
+        // the dashboard picker via `/api/catalog` and the frontend catalog;
+        // only REAL credentials (operator-added API keys / OAuth / free-tier)
+        // create providerConnection rows. This prevents the dashboard listing
+        // inactive "fake" credentials that can never satisfy `no credentials
+        // defined for the provider`.
 
         Ok(Self {
             data_dir,
@@ -594,15 +514,6 @@ fn chrono_like_stamp() -> String {
     format!("{:04}-{:02}-{:02}T{:02}-{:02}-{:02}Z", y, m_civ, d, h, m, s)
 }
 
-/// Seed default provider connections from the static provider catalog.
-///
-/// For every provider registered in `provider_catalog.json` that does NOT already
-/// have a corresponding `providerConnection` row in SQLite, insert a placeholder
-/// connection so that the dashboard and API always reflect the full catalog.
-///
-/// This is additive only: existing connections (real credentials) are preserved,
-/// and the new placeholder connections are marked inactive so they do not
-/// interfere with request routing or health checks.
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -644,94 +555,50 @@ mod tests {
         assert!(usage_db.history.is_empty());
     }
 
-    /// Regression test for the catalog-seeding behavior added so the dashboard
-    /// provider list reflects every provider registered in
-    /// `provider_catalog.json` even on a fresh install (no SQLite pre-seeded).
+    /// A fresh database must NOT auto-seed `providerConnections` rows for
+    /// catalog providers. Providers are surfaced by the dashboard picker via
+    /// `/api/catalog` + the frontend `AI_PROVIDERS` catalog, and credential
+    /// rows are only created when an operator actually adds an API key /
+    /// OAuth / free-tier credential. Auto-seeding inactive placeholders caused
+    /// the dashboard to show `1 Added` for providers with no usable credentials,
+    /// while executors correctly refused to route (`no credentials defined`).
     #[tokio::test]
-    async fn load_from_seeds_catalog_providers_inactive() {
+    async fn load_does_not_seed_catalog_provider_connections() {
         let dir = tempfile::tempdir().unwrap();
         let db = Db::load_from(dir.path()).await.expect("load_from");
         let snapshot = db.snapshot();
 
         let catalog = crate::core::model::catalog::provider_catalog();
-        let catalog_ids: Vec<&str> = catalog.provider_ids().collect();
-
-        // Every catalog provider must have a connection after a fresh load.
         assert!(
-            !catalog_ids.is_empty(),
+            !catalog.provider_ids().collect::<Vec<_>>().is_empty(),
             "catalog must contain providers for this test to be meaningful"
         );
-        for id in &catalog_ids {
-            let conn = snapshot
-                .provider_connections
-                .iter()
-                .find(|c| c.provider == *id);
-            assert!(
-                conn.is_some(),
-                "catalog provider {id} should be seeded as a connection"
-            );
-            // Placeholders are inactive — they cannot route without a real key.
-            assert_eq!(
-                conn.unwrap().is_active,
-                Some(false),
-                "seeded placeholder for {id} must be inactive"
-            );
-        }
-    }
 
-    /// Seeding must be idempotent: reloading the same data dir must not create
-    /// duplicate placeholder connections for already-seeded providers.
-    #[tokio::test]
-    async fn load_from_is_idempotent_for_catalog_seeding() {
-        let dir = tempfile::tempdir().unwrap();
-
-        let db1 = Db::load_from(dir.path()).await.expect("first load");
-        let before = db1.snapshot().provider_connections.len();
-
-        // Reload from the same directory; the SQLite now already has the seeds.
-        let db2 = Db::load_from(dir.path()).await.expect("second load");
-        let after = db2.snapshot().provider_connections.len();
-
-        assert_eq!(
-            before, after,
-            "reloading must not duplicate seeded catalog connections"
+        // No provider_connections should be seeded merely by the catalog being
+        // present. (If any exist, they'd have to be operator-added real rows,
+        // which a fresh tempdir can't have.)
+        assert!(
+            snapshot.provider_connections.is_empty(),
+            "fresh load must not auto-seed provider connections from the catalog"
         );
-
-        let catalog = crate::core::model::catalog::provider_catalog();
-        let catalog_ids: Vec<&str> = catalog.provider_ids().collect();
-        let snap2 = db2.snapshot();
-        for id in &catalog_ids {
-            let matches: Vec<_> = snap2
-                .provider_connections
-                .iter()
-                .filter(|c| c.provider == *id)
-                .collect();
-            assert_eq!(
-                matches.len(),
-                1,
-                "catalog provider {id} must have exactly one connection after reload (idempotent)"
-            );
-        }
     }
 
-    /// A pre-existing real connection must survive seeding untouched — seeding
-    /// only inserts placeholders for providers NOT already present.
+    /// A real (operator-added, active) connection must survive `load_from` so
+    /// credentials added between restarts persist.
     #[tokio::test]
-    async fn load_from_preserves_existing_connections() {
+    async fn load_preserves_existing_connections() {
         let dir = tempfile::tempdir().unwrap();
 
-        // First load seeds placeholders.
+        // Start empty.
         let db = Db::load_from(dir.path()).await.expect("load_from");
 
-        // Inject a real (active) connection for a catalog provider, then reload.
-        let real_provider = crate::core::model::catalog::provider_catalog()
+        let mut conn = crate::types::ProviderConnection::default();
+        conn.id = "real-conn-1".into();
+        conn.provider = crate::core::model::catalog::provider_catalog()
             .provider_ids()
             .next()
             .expect("at least one catalog provider")
             .to_string();
-        let mut conn = crate::types::ProviderConnection::default();
-        conn.id = "real-conn-1".into();
-        conn.provider = real_provider.clone();
         conn.auth_type = "apikey".into();
         conn.name = Some("Real Key".into());
         conn.is_active = Some(true);
@@ -741,7 +608,8 @@ mod tests {
         .await
         .expect("update");
 
-        // Reload: the real connection must remain, still active.
+        // Reload from the same directory: the real connection must persist and
+        // remain active.
         let db2 = Db::load_from(dir.path()).await.expect("reload");
         let snap2 = db2.snapshot();
         let reloaded = snap2
@@ -750,6 +618,6 @@ mod tests {
             .find(|c| c.id == "real-conn-1")
             .expect("real connection preserved");
         assert_eq!(reloaded.is_active, Some(true));
-        assert_eq!(reloaded.provider, real_provider);
+        assert_eq!(reloaded.provider, conn.provider);
     }
 }

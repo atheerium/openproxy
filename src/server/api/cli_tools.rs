@@ -557,7 +557,9 @@ async fn get_droid_settings(State(state): State<AppState>, headers: HeaderMap) -
 
     match read_droid_settings().await {
         Ok(settings) => {
-            let has_cipherroute = settings.as_ref().is_some_and(has_cipherroute_droid_settings);
+            let has_cipherroute = settings
+                .as_ref()
+                .is_some_and(has_cipherroute_droid_settings);
             Json(json!({
                 "installed": true,
                 "settings": settings,

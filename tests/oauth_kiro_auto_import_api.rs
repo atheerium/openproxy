@@ -4,9 +4,9 @@ use std::sync::{Arc, Mutex};
 
 use axum::body::Body;
 use axum::http::{Method, Request, StatusCode};
-use once_cell::sync::Lazy;
 use cipherroute::db::Db;
 use cipherroute::server::state::AppState;
+use once_cell::sync::Lazy;
 use serde_json::json;
 use tempfile::tempdir;
 use tower::util::ServiceExt;

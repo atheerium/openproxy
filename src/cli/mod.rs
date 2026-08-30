@@ -114,7 +114,12 @@ pub struct Cli {
     pub url: Option<String>,
 
     /// API key for remote management. Read from $CIPHERROUTE_API_KEY by default.
-    #[arg(long, env = "CIPHERROUTE_API_KEY", global = true, hide_env_values = true)]
+    #[arg(
+        long,
+        env = "CIPHERROUTE_API_KEY",
+        global = true,
+        hide_env_values = true
+    )]
     pub api_key: Option<String>,
 
     /// Reverse-proxy dashboard requests to this URL instead of serving the
@@ -1513,7 +1518,10 @@ pub async fn run_pool(cmd: PoolCmd, db: &Db, ctx: output::OutputCtx) -> anyhow::
             .await?;
 
             if ctx.is_robot() {
-                output::emit_robot("cipherroute.v1.pool.create", serde_json::to_value(&new_pool)?)?;
+                output::emit_robot(
+                    "cipherroute.v1.pool.create",
+                    serde_json::to_value(&new_pool)?,
+                )?;
             } else if json {
                 println!("{}", serde_json::to_string_pretty(&new_pool)?);
             } else {

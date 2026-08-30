@@ -679,9 +679,10 @@ impl Default for Settings {
             provider_strategies: BTreeMap::new(),
             combo_strategy: default_combo_strategy(),
             combo_strategies: BTreeMap::new(),
-            // 9router settingsRepo.js:26 requireLogin defaults TRUE — a fresh
-            // install must not expose /v1/* or admin routes unauthenticated.
-            require_login: true,
+            // Default is FALSE for local-only installs (127.0.0.1) to avoid
+            // login friction; operators expose via tunnel should enable it
+            // via Settings or `settings.require_login = true`.
+            require_login: false,
             tunnel_dashboard_access: true,
             observability_enabled: true,
             observability_max_records: default_observability_max_records(),

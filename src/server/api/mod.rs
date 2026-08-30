@@ -9,6 +9,7 @@ pub mod cloud_credentials;
 pub mod cloud_sync;
 pub mod compat;
 pub mod cors;
+pub mod data_management;
 pub mod db_backups;
 pub mod guard;
 pub mod headroom;
@@ -333,6 +334,7 @@ pub fn routes(state: AppState) -> Router<AppState> {
         .merge(pricing::routes())
         .merge(tags::routes())
         .merge(translator::routes())
+        .merge(data_management::routes())
         .merge(oauth::routes())
         .merge(admin_local_only)
         .merge(performance::routes())

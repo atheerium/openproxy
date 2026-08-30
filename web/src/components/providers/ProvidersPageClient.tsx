@@ -109,6 +109,8 @@ export default function ProvidersPageClient() {
   const [showAddAnthropicCompatibleModal, setShowAddAnthropicCompatibleModal] =
     useState(false);
   const [showAddApiKeyModal, setShowAddApiKeyModal] = useState(false);
+  const [showImportEnvModal, setShowImportEnvModal] = useState(false);
+  const [importEnvFile, setImportEnvFile] = useState(null);
   const [addProviderId, setAddProviderId] = useState(null);
   const [testingMode, setTestingMode] = useState(null);
   const [testResults, setTestResults] = useState(null);
@@ -339,6 +341,51 @@ export default function ProvidersPageClient() {
     }
   };
 
+  // Bulk import API keys from a .env file for API-key (non-OAuth) providers.
+  // OAuth-only providers and web-cookie providers in the file are ignored by
+  // the server. See src/server/api/data_management.rs import-env.
+  const handleImportEnv = async () => {
+    if (!importEnvFile) {
+      notify.error("Pick a .env file first");
+      return;
+    }
+    const text = await importEnvFile.text().catch(() => "");
+    if (!text.trim()) {
+      notify.error("File is empty");
+      return;
+    }
+    try {
+      const res = await fetch("/api/data/import-env", {
+        method: "POST",
+        headers: { "Content-Type": "text/plain" },
+        body: text,
+      });
+      let data = null;
+      try {
+        data = await res.json();
+      } catch {
+        data = null;
+      }
+      if (res.ok) {
+        setShowImportEnvModal(false);
+        setImportEnvFile(null);
+        const added = data?.imported?.added ?? 0;
+        const skipped = data?.imported?.skipped ?? 0;
+        if (added > 0) {
+          notify.success(`${added} API key(s) imported from .env`);
+          fetchData();
+        } else {
+          notify.warning(`${skipped} env var(s) skipped (OAuth or no API key)`);
+        }
+      } else {
+        notify.error(data?.error || "Failed to import .env");
+      }
+    } catch (error) {
+      console.log("Error importing .env:", error);
+      notify.error("Failed to import .env");
+    }
+  };
+
   // Run a single test-batch mode. Always spins (even when count is 0) so the
   // section never appears skipped; empty sections just return a 0-total summary.
   const runBatchTest = async (mode: string, providerId: string | null = null) => {
@@ -554,11 +601,16 @@ export default function ProvidersPageClient() {
             <span className="material-symbols-outlined text-[18px]">error</span>
             Failed to load providers: {fetchError}
           </div>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
+            {/401|Missing auth token|Unauthorized/i.test(fetchError) ? (
+              <Button size="sm" variant="primary" onClick={() => (window.location.href = "/login")}>
+                Go to login
+              </Button>
+            ) : null}
             <Button size="sm" variant="secondary" onClick={fetchData}>
               Retry
             </Button>
-            <span className="text-xs text-red-600/70 dark:text-red-400/70 self-center">Check /api/providers (401 means missing login/API key)</span>
+            <span className="text-xs text-red-600/70 dark:text-red-400/70 self-center">Check /api/providers (401 means missing login/API key — set require_login false for local use or log in)</span>
           </div>
         </div>
       )}
@@ -757,24 +809,35 @@ export default function ProvidersPageClient() {
           <h2 className="text-lg sm:text-xl font-semibold flex items-center gap-2 leading-tight">
             API Key Providers{" "}
           </h2>
-          <button
-            onClick={() => handleBatchTest("apikey")}
-            disabled={!!testingMode}
-            title="Test all API Key connections"
-            className={`flex w-full items-center justify-center gap-1.5 rounded-lg border px-3 py-2 text-xs font-medium transition-colors sm:w-auto sm:py-1.5 disabled:cursor-not-allowed disabled:opacity-50 ${
-              testingMode === "apikey" || testingMode === "all"
-                ? "bg-primary/20 border-primary/40 text-primary animate-pulse"
-                : "bg-bg border-border text-text-muted hover:text-text-main hover:border-primary/40"
-            }`}
-            aria-label="Test all API Key connections"
-          >
-            <span
-              className={`material-symbols-outlined text-[14px]${testingMode === "apikey" || testingMode === "all" ? " animate-spin" : ""}`}
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              size="sm"
+              variant="secondary"
+              icon="upload_file"
+              onClick={() => setShowImportEnvModal(true)}
+              title="Import API keys from a .env file (API-key providers only)"
             >
-              play_arrow
-            </span>
-            {testingMode === "apikey" || testingMode === "all" ? "Testing..." : "Test All"}
-          </button>
+              Import .env
+            </Button>
+            <button
+              onClick={() => handleBatchTest("apikey")}
+              disabled={!!testingMode}
+              title="Test all API Key connections"
+              className={`flex w-full items-center justify-center gap-1.5 rounded-lg border px-3 py-2 text-xs font-medium transition-colors sm:w-auto sm:py-1.5 disabled:cursor-not-allowed disabled:opacity-50 ${
+                testingMode === "apikey" || testingMode === "all"
+                 ? "bg-primary/20 border-primary/40 text-primary animate-pulse"
+                 : "bg-bg border-border text-text-muted hover:text-text-main hover:border-primary/40"
+             }`}
+             aria-label="Test all API Key connections"
+            >
+              <span
+                className={`material-symbols-outlined text-[14px]${testingMode === "apikey" || testingMode === "all" ? " animate-spin" : ""}`}
+              >
+                play_arrow
+              </span>
+              {testingMode === "apikey" || testingMode === "all" ? "Testing..." : "Test All"}
+            </button>
+          </div>
         </div>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4 lg:grid-cols-3 xl:grid-cols-4">
           {visibleApikeyEntries.map(([key, info]) => (
@@ -873,6 +936,52 @@ export default function ProvidersPageClient() {
             .catch(() => {});
         }}
       />
+
+      {/* Import .env Modal — bulk-add API keys for API-key providers */}
+      <Modal
+        isOpen={showImportEnvModal}
+        title="Import API Keys from .env"
+        onClose={() => {
+          setShowImportEnvModal(false);
+          setImportEnvFile(null);
+        }}
+      >
+        <div className="flex flex-col gap-3">
+          <p className="text-sm text-text-secondary">
+            Select a .env file. API keys for API-key providers (openai, anthropic,
+            deepseek, gemini, etc.) are imported via POST /api/providers. OAuth
+            providers and web-cookie providers in the file are ignored.
+          </p>
+          <input
+            type="file"
+            accept=".env,.txt,application/octet-stream"
+            onChange={(e) => setImportEnvFile(e.target.files?.[0] || null)}
+          />
+          {importEnvFile ? (
+            <p className="text-xs text-text-secondary">{importEnvFile.name}</p>
+          ) : null}
+          <div className="flex gap-2 justify-end">
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={() => {
+                setShowImportEnvModal(false);
+                setImportEnvFile(null);
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              size="sm"
+              variant="primary"
+              onClick={handleImportEnv}
+              disabled={!importEnvFile}
+            >
+              Import
+            </Button>
+          </div>
+        </div>
+      </Modal>
 
       {/* Test Results Modal */}
       {testResults && (

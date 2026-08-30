@@ -72,6 +72,7 @@ export default function CombosPage() {
   const [comboStrategies, setComboStrategies] = useState<Record<string, any>>({});
   const [deleteTarget, setDeleteTarget] = useState<Combo | null>(null);
   const [deleting, setDeleting] = useState<boolean>(false);
+  const [fetchError, setFetchError] = useState<string | null>(null);
   const notify = useNotificationStore();
   const { copied, copy } = useCopyToClipboard();
   const { getCaps } = useModelCaps();
@@ -81,24 +82,42 @@ export default function CombosPage() {
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const fetchData = async () => {
+    setFetchError(null);
     try {
+      const parseJsonSafe = async (res: Response) => {
+        try { return await res.json(); } catch { return {} as any; }
+      };
       const [combosRes, providersRes, settingsRes] = await Promise.all([
         fetch("/api/combos"),
         fetch("/api/providers"),
         fetch("/api/settings"),
       ]);
-      const combosData = await combosRes.json();
-      const providersData = await providersRes.json();
-      const settingsData = settingsRes.ok ? await settingsRes.json() : {};
-      
-      // Only LLM combos here — webSearch/webFetch combos belong to media-providers/web
-      if (combosRes.ok) setCombos((combosData.combos || []).filter(c => !c.kind || c.kind === "llm"));
+      const [combosData, providersData, settingsDataRaw] = await Promise.all([
+        parseJsonSafe(combosRes),
+        parseJsonSafe(providersRes),
+        parseJsonSafe(settingsRes),
+      ]);
+      const settingsData = settingsRes.ok ? settingsDataRaw : {};
+
+      if (combosRes.ok) {
+        setCombos((combosData.combos || []).filter((c: any) => !c.kind || c.kind === "llm"));
+      } else {
+        const msg = (combosData as any)?.error || `Failed to load combos (${combosRes.status})`;
+        setFetchError(msg);
+        setCombos([]);
+      }
       if (providersRes.ok) {
         setActiveProviders(providersData.connections || []);
+      } else if (!combosRes.ok) {
+        // Keep provider error visible via same banner when combos also failed.
+        const msg = (providersData as any)?.error || `Failed to load providers (${providersRes.status})`;
+        setFetchError((prev) => prev || msg);
+        setActiveProviders([]);
       }
-      setComboStrategies(settingsData.comboStrategies || {});
-    } catch (error) {
+      setComboStrategies((settingsData as any).comboStrategies || {});
+    } catch (error: any) {
       console.log("Error fetching data:", error);
+      setFetchError(error?.message || "Network error loading combos");
     } finally {
       setLoading(false);
     }
@@ -211,6 +230,23 @@ export default function CombosPage() {
 
   return (
     <div className="flex min-w-0 flex-col gap-6 px-1 sm:px-0">
+      {fetchError && (
+        <div className="flex flex-col gap-2 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm dark:border-red-900 dark:bg-red-950/30">
+          <div className="flex items-center gap-2 font-medium text-red-700 dark:text-red-300">
+            <span className="material-symbols-outlined text-[18px]">error</span>
+            Failed to load combos: {fetchError}
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {/401|Missing auth token|Unauthorized/i.test(fetchError) ? (
+              <Button size="sm" variant="primary" onClick={() => (window.location.href = "/login")}>
+                Go to login
+              </Button>
+            ) : null}
+            <Button size="sm" variant="secondary" onClick={fetchData}>Retry</Button>
+            <span className="text-xs text-red-600/70 dark:text-red-400/70 self-center">Check /api/combos (401 means missing login/API key — set require_login false for local use or log in)</span>
+          </div>
+        </div>
+      )}
       {/* Header */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="min-w-0">

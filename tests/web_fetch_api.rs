@@ -78,7 +78,8 @@ async fn web_fetch_options_exposes_cors_and_post_method() {
 
 #[tokio::test]
 async fn web_fetch_requires_auth_when_require_login_is_true() {
-    let app = cipherroute::build_app(seeded_state(vec![active_key("valid-key")], vec![], true).await);
+    let app =
+        cipherroute::build_app(seeded_state(vec![active_key("valid-key")], vec![], true).await);
     let resp = app
         .oneshot(
             Request::builder()
