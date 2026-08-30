@@ -93,6 +93,8 @@ export default function ProviderDetailPageClient() {
   const [oneByOneSummary, setOneByOneSummary] = useState<null | { total: number; completed: number; passed: number; failed: number; stopped: boolean }>(null);
   const stopOneByOneRef = useRef(false);
   const [importingQoderModels, setImportingQoderModels] = useState(false);
+  const [importingProviderModels, setImportingProviderModels] = useState(false);
+  const FETCHABLE_PROVIDER_IDS = new Set(["nvidia", "opencode", "opencode-zen", "openrouter", "kilocode", "openai"]);
   const { copied, copy } = useCopyToClipboard();
   const notify = useNotificationStore();
   const AG_RISK_STORAGE_KEY = "ag_risk_confirmed";
@@ -496,6 +498,77 @@ export default function ProviderDetailPageClient() {
       notify.error(`Error fetching models: ${error?.message || "unknown"}`);
     } finally {
       setImportingQoderModels(false);
+    }
+  };
+
+  const handleFetchProviderModels = async () => {
+    if (importingProviderModels) return;
+    const activeConnection = connections.find((conn: any) => conn.isActive !== false) || connections[0];
+    if (!activeConnection && !isFreeNoAuth) {
+      notify.error("Please add an active connection first");
+      return;
+    }
+    setImportingProviderModels(true);
+    try {
+      if (!activeConnection && isFreeNoAuth) {
+        const fetcher = (FREE_PROVIDERS[providerId] || FREE_TIER_PROVIDERS[providerId] || OAUTH_PROVIDERS[providerId] || APIKEY_PROVIDERS[providerId])?.modelsFetcher as any;
+        let fetched: any[] = [];
+        if (fetcher?.url) {
+          try {
+            const res = await fetch(fetcher.url);
+            const data = await res.json();
+            const list = data.data || data.models || data;
+            fetched = Array.isArray(list) ? list : [];
+          } catch {}
+        }
+        if (!fetched.length) {
+          try {
+            const sm = await fetchSuggestedModels(fetcher);
+            fetched = (sm as any) || [];
+          } catch {}
+        }
+        if (!fetched.length) {
+          notify.error("No models returned");
+          return;
+        }
+        let importedCount = 0;
+        for (const model of fetched) {
+          const modelId = model.id || model.name;
+          if (!modelId) continue;
+          const cleanId = String(modelId).replace(new RegExp(`^${providerId}\\/`), "");
+          const alreadyExists = customModels.some((e: any) => e.providerAlias === providerStorageAlias && e.id === cleanId) || Object.values(modelAliases).includes(`${providerStorageAlias}/${cleanId}`);
+          if (alreadyExists) continue;
+          await handleAddCustomModel(cleanId, "llm", providerStorageAlias);
+          importedCount += 1;
+        }
+        if (importedCount === 0) notify.success("All models already exist, no new models added");
+        else {
+          notify.success(`Successfully added ${importedCount} models`);
+          await fetchCustomModels();
+          am.refresh();
+          if (typeof window !== "undefined") window.dispatchEvent(new CustomEvent("customModelChanged"));
+        }
+        return;
+      }
+      const res = await fetch(`/api/providers/${activeConnection.id}/import-models?mode=merge`, { method: "POST" });
+      const data = await res.json();
+      if (!res.ok) {
+        notify.error(data.error || "Failed to fetch models");
+        return;
+      }
+      const added = data.added ?? 0;
+      const updated = data.updated ?? 0;
+      const total = data.total ?? 0;
+      if (added === 0 && updated === 0) notify.success(`All models up to date — ${total} models`);
+      else notify.success(`Imported ${added} new, updated ${updated} — total ${total}`);
+      await fetchCustomModels();
+      am.refresh();
+      if (typeof window !== "undefined") window.dispatchEvent(new CustomEvent("customModelChanged"));
+    } catch (error: any) {
+      console.log("Error fetching provider models:", error);
+      notify.error(`Error fetching models: ${error?.message || "unknown"}`);
+    } finally {
+      setImportingProviderModels(false);
     }
   };
 
@@ -1171,6 +1244,20 @@ export default function ProviderDetailPageClient() {
               {importingQoderModels ? "progress_activity" : "download"}
             </span>
             {importingQoderModels ? "Fetching..." : "Fetch Qoder Models"}
+          </button>
+        )}
+
+        {/* Fetch newest models — 5 daily providers (persisted via POST import-models?mode=merge → SQLite custom_models) */}
+        {FETCHABLE_PROVIDER_IDS.has(providerId) && (connections.some((conn: any) => conn.isActive !== false) || isFreeNoAuth) && (
+          <button
+            onClick={handleFetchProviderModels}
+            disabled={importingProviderModels}
+            className="flex w-full items-center justify-center gap-1.5 rounded-lg border border-dashed border-violet-500/40 px-3 py-2 text-xs text-violet-600 dark:text-violet-400 transition-colors hover:border-violet-500 hover:bg-violet-500/5 sm:w-auto disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <span className="material-symbols-outlined text-sm" style={importingProviderModels ? { animation: "spin 1s linear infinite" } : undefined}>
+              {importingProviderModels ? "progress_activity" : "sync"}
+            </span>
+            {importingProviderModels ? "Fetching..." : "Fetch newest models"}
           </button>
         )}
 
