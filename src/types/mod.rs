@@ -783,6 +783,19 @@ pub type PricingTable = BTreeMap<String, BTreeMap<String, Value>>;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
 #[serde(rename_all = "camelCase")]
+pub struct ModelPricing {
+    pub input: f64,
+    pub output: f64,
+    pub latency: f64,
+    pub reliability_score: Option<f64>,
+    pub speed_score: Option<f64>,
+    pub intelligence_score: Option<f64>,
+    pub size_label: Option<String>,
+    pub intelligence_rank: Option<u32>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
+#[serde(rename_all = "camelCase")]
 pub struct UsageDb {
     #[serde(default, deserialize_with = "deserialize_null_default")]
     pub history: Vec<UsageEntry>,

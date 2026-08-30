@@ -11,6 +11,8 @@ use serde_json::{json, Value};
 use tokio::sync::mpsc;
 
 use crate::core::account_fallback::{BACKOFF_BASE_MS, BACKOFF_MAX_MS, MAX_BACKOFF_LEVEL};
+use crate::core::model::resolve_provider_alias;
+use crate::core::usage::{parse_model_pricing, CostModel};
 use crate::types::{AppDb, Combo, PricingTable};
 
 pub mod auto_combo;
@@ -21,7 +23,7 @@ pub mod hedging;
 pub mod ordering;
 pub mod shadow;
 
-pub use ordering::{sort_models_by_cost, sort_models_by_latency};
+pub use ordering::{sort_models_by_balanced, sort_models_by_cost, sort_models_by_latency};
 
 const LONG_COOLDOWN: Duration = Duration::from_secs(120);
 const SHORT_COOLDOWN: Duration = Duration::from_secs(5);
@@ -132,6 +134,8 @@ pub enum ComboStrategy {
     Fastest,
     /// Quality-first: keep capability-tier ordering (vision/pdf/audio/video aware).
     Quality,
+    /// Balanced: 0.5*reliability +0.25*speed +0.25*intelligence (FreeLLMAPI parity).
+    Balanced,
 }
 
 /// Map a strategy string (from `settings.combo_strategies`, `combo.extra["strategy"]`,
@@ -155,6 +159,8 @@ pub fn parse_combo_strategy(value: &str) -> ComboStrategy {
         ComboStrategy::Fastest
     } else if value.eq_ignore_ascii_case("quality") {
         ComboStrategy::Quality
+    } else if value.eq_ignore_ascii_case("balanced") {
+        ComboStrategy::Balanced
     } else {
         ComboStrategy::Fallback
     }
@@ -894,6 +900,9 @@ where
         }
         ComboStrategy::Fastest => {
             order = sort_models_by_latency(&order, pricing);
+        }
+        ComboStrategy::Balanced => {
+            order = sort_models_by_balanced(&order, pricing);
         }
         ComboStrategy::Quality => {
             if let Some(caps) = required_caps {

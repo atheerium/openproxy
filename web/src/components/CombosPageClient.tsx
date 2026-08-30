@@ -9,6 +9,55 @@ import { useModelCaps } from "@/shared/hooks/useModelCaps";
 import { isOpenAICompatibleProvider, isAnthropicCompatibleProvider } from "@/shared/constants/providers";
 import type { ComboStrategyConfig, ComboStrategyOption } from "@/types";
 
+function tierValue(label?: string): number {
+  switch ((label || "").toLowerCase()) {
+    case "frontier": return 4;
+    case "large": return 3;
+    case "medium": return 2;
+    case "small": return 1;
+    default: return 0;
+  }
+}
+function intelligenceComposite(sizeLabel?: string, rank?: number): number {
+  const tier = tierValue(sizeLabel);
+  const r = rank && rank > 0 ? rank : 1000;
+  return tier * 1000 - Math.sqrt(Math.max(1, r)) * 31;
+}
+function getPricingComposite(model: string, pricing: Record<string, any>): number | null {
+  const [prefix, name] = model.split("/");
+  if (!prefix || !name) return null;
+  const prov = pricing[prefix]?.[name] || pricing[prefix]?.["all"];
+  if (!prov) return null;
+  if (typeof prov.intelligenceScore === "number") return prov.intelligenceScore * 1000;
+  const sizeLabel = prov.sizeLabel || prov.size_label;
+  const rank = prov.intelligenceRank ?? prov.intelligence_rank ?? prov.intelligenceRank;
+  if (sizeLabel || rank) return intelligenceComposite(sizeLabel, rank);
+  return null;
+}
+function computeBalancedScores(models: string[], pricing: Record<string, any>): Record<string, number> {
+  if (models.length === 0) return {};
+  const composites = models.map(m => getPricingComposite(m, pricing));
+  const vals = composites.filter((v): v is number => v !== null);
+  const min = vals.length ? Math.min(...vals) : 0;
+  const max = vals.length ? Math.max(...vals) : 0;
+  const latencies = models.map(m => {
+    const [p, n] = m.split("/"); const e = pricing[p]?.[n] || pricing[p]?.["all"];
+    return e ? (e.latency ?? e.latencyMs ?? e.latency_ms) : undefined;
+  }).filter((v): v is number => typeof v === "number");
+  const maxLat = latencies.length ? Math.max(...latencies) : 0;
+  const out: Record<string, number> = {};
+  models.forEach((m, i) => {
+    const comp = composites[i];
+    const intel = comp === null ? 0.5 : (max > min ? (comp - min) / (max - min) : 1);
+    const entry = pricing[m.split("/")[0]]?.[m.split("/")[1]] || pricing[m.split("/")[0]]?.["all"];
+    const rel = typeof entry?.reliabilityScore === "number" ? entry.reliabilityScore : typeof entry?.reliability_score === "number" ? entry.reliability_score : 0.5;
+    const lat = latencies[i] as any;
+    const speed = typeof lat === "number" && maxLat > 0 ? 1 - (lat / maxLat) : 0.5;
+    out[m] = rel * 0.5 + speed * 0.25 + intel * 0.25;
+  });
+  return out;
+}
+
 // Validate combo name: only a-z, A-Z, 0-9, -, _
 const VALID_NAME_REGEX = /^[a-zA-Z0-9_.\-]+$/;
 
@@ -19,6 +68,7 @@ const STRATEGY_OPTIONS: ComboStrategyOption[] = [
   { value: "cheapest", label: "Cheapest — free/lowest cost first" },
   { value: "fastest", label: "Fastest — lowest latency first" },
   { value: "quality", label: "Quality — capability tier first" },
+  { value: "balanced", label: "Balanced — 50% reliability · 25% speed · 25% intelligence" },
 ];
 
 interface Combo {
@@ -70,6 +120,7 @@ export default function CombosPage() {
   const [editingCombo, setEditingCombo] = useState<Combo | null>(null);
   const [activeProviders, setActiveProviders] = useState<Provider[]>([]);
   const [comboStrategies, setComboStrategies] = useState<Record<string, any>>({});
+  const [pricing, setPricing] = useState<Record<string, any>>({});
   const [deleteTarget, setDeleteTarget] = useState<Combo | null>(null);
   const [deleting, setDeleting] = useState<boolean>(false);
   const [fetchError, setFetchError] = useState<string | null>(null);
@@ -87,17 +138,22 @@ export default function CombosPage() {
       const parseJsonSafe = async (res: Response) => {
         try { return await res.json(); } catch { return {} as any; }
       };
-      const [combosRes, providersRes, settingsRes] = await Promise.all([
+      const [combosRes, providersRes, settingsRes, pricingRes] = await Promise.all([
         fetch("/api/combos"),
         fetch("/api/providers"),
         fetch("/api/settings"),
+        fetch("/api/pricing").catch(() => null as any),
       ]);
-      const [combosData, providersData, settingsDataRaw] = await Promise.all([
+      const [combosData, providersData, settingsDataRaw, pricingData] = await Promise.all([
         parseJsonSafe(combosRes),
         parseJsonSafe(providersRes),
         parseJsonSafe(settingsRes),
+        pricingRes ? parseJsonSafe(pricingRes) : Promise.resolve({}),
       ]);
       const settingsData = settingsRes.ok ? settingsDataRaw : {};
+      if (pricingData && typeof pricingData === "object") {
+        setPricing((pricingData as any).pricing || pricingData);
+      }
 
       if (combosRes.ok) {
         setCombos((combosData.combos || []).filter((c: any) => !c.kind || c.kind === "llm"));
@@ -303,6 +359,7 @@ export default function CombosPage() {
               strategy={normalizeStrategy(comboStrategies[combo.name])}
               onSetStrategy={(patch) => handleSetComboStrategy(combo.name, patch)}
               getCaps={getCaps}
+              pricing={pricing}
             />
           ))}
         </div>
@@ -355,6 +412,7 @@ interface ComboCardProps {
   strategy: ComboStrategyConfig;
   onSetStrategy: (patch: Partial<ComboStrategyConfig>) => void;
   getCaps?: (model: string) => import("@/shared/constants/models").ModelCaps | null | undefined;
+  pricing?: Record<string, any>;
 }
 
 function ComboCard({
@@ -367,6 +425,7 @@ function ComboCard({
   strategy,
   onSetStrategy,
   getCaps,
+  pricing,
 }: ComboCardProps) {
   const [health, setHealth] = useState<ComboHealthEntry[]>([]);
   const [showJudgeSelect, setShowJudgeSelect] = useState(false);
@@ -400,6 +459,7 @@ function ComboCard({
 
   const disabled = combo.disabledModels || [];
   const quarantined = health;
+  const balancedScores = current === "balanced" && pricing ? computeBalancedScores(combo.models, pricing) : null;
 
   return (
     <Card padding="sm" className="group">
@@ -437,6 +497,14 @@ function ComboCard({
                     >
                       <span className="truncate">{model}</span>
                       {getCaps && <CapacityBadges caps={getCaps(model)} size={11} colorOverride="text-text-muted/70" />}
+                      {balancedScores && (
+                        <span
+                          className="ml-1 inline-flex items-center rounded bg-violet-500/10 px-1 py-0.5 text-[9px] font-medium text-violet-600 dark:text-violet-400"
+                          title={`Balanced score: ${balancedScores[model]?.toFixed(3)} (0.5*reliability +0.25*speed +0.25*intelligence)`}
+                        >
+                          {balancedScores[model]?.toFixed(3) ?? "—"}
+                        </span>
+                      )}
                     </code>
                   );
                 })
