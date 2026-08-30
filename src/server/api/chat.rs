@@ -1315,6 +1315,29 @@ async fn forward_with_provider_fallback(
                     || (node.r#type.ends_with("-compatible") && node.name == provider)
             })
             .cloned();
+        // OmniRoute #8681 parity: gate premium opencode models behind a usable key (402).
+        if matches!(provider, "opencode" | "opencode-zen" | "opencode-go")
+            && is_premium_opencode_model(model, provider)
+            && is_keyless_connection(&connection)
+        {
+            let body = serde_json::to_vec(&serde_json::json!({
+                "error": {
+                    "message": "This model requires an opencode API key — add one in Settings → Providers.",
+                    "type": "invalid_request_error",
+                    "code": "premium_model_requires_key"
+                }
+            }))
+            .unwrap_or_default();
+            return Err(ComboAttemptError {
+                status: 402,
+                message:
+                    "This model requires an opencode API key — add one in Settings → Providers."
+                        .to_string(),
+                retry_after: None,
+                upstream_body: Some(body),
+            });
+        }
+
         let proxy = resolve_proxy_target(&snapshot, &connection, &snapshot.settings);
 
         let (rate_limit_remaining, rate_limit_reset) = registry.rate_limit_info(&connection.id);
@@ -2610,6 +2633,7 @@ fn is_no_auth_provider(provider: &str) -> bool {
     matches!(
         provider,
         "opencode"
+            | "opencode-zen"
             | "opencode-go"
             | "edge-tts"
             | "google-tts"
@@ -2631,6 +2655,55 @@ fn virtual_no_auth_connection(provider: &str) -> ProviderConnection {
     connection.is_active = Some(true);
     connection.access_token = Some("public".to_string());
     connection
+}
+
+/// OmniRoute parity `isPremiumOpencodeModel` (open-sse/executors/opencode.ts:125).
+/// - `opencode-go`: every model requires a key.
+/// - `opencode` / `opencode-zen`: free if endsWith `-free` OR in the 6-model free set.
+/// Unknown models are premium (fail-safe).
+fn is_premium_opencode_model(model: &str, provider: &str) -> bool {
+    if provider == "opencode-go" {
+        return true;
+    }
+    if model.ends_with("-free") {
+        return false;
+    }
+    const OPENCODE_FREE_MODELS: &[&str] = &[
+        "big-pickle",
+        "deepseek-v4-flash-free",
+        "mimo-v2.5-free",
+        "hy3-free",
+        "nemotron-3-ultra-free",
+        "north-mini-code-free",
+    ];
+    !OPENCODE_FREE_MODELS.contains(&model)
+}
+
+fn is_keyless_connection(connection: &ProviderConnection) -> bool {
+    let has_api_key = connection
+        .api_key
+        .as_deref()
+        .map(str::trim)
+        .filter(|v| !v.is_empty())
+        .is_some();
+    let raw_token = connection
+        .access_token
+        .as_deref()
+        .map(str::trim)
+        .filter(|v| !v.is_empty());
+    // virtual_no_auth_connection synthesizes access_token "public" — treat as keyless.
+    let has_access_token = raw_token.is_some_and(|v| v != "public");
+    let has_extra = connection
+        .provider_specific_data
+        .get("extraApiKeys")
+        .and_then(|v| v.as_array())
+        .is_some_and(|arr| !arr.is_empty())
+        || connection
+            .extra
+            .get("extraApiKeys")
+            .and_then(|v| v.as_array())
+            .is_some_and(|arr| !arr.is_empty());
+    !has_api_key && !has_access_token && !has_extra
 }
 
 fn connection_has_credentials(connection: &ProviderConnection) -> bool {
