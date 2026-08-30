@@ -31,12 +31,6 @@ export const FREE_TIER_PROVIDERS: Record<string, Provider> = {
   "cloudflare-ai": { id: "cloudflare-ai", alias: "cf", name: "Cloudflare", icon: "cloud", color: "#F38020", textIcon: "CF", website: "https://developers.cloudflare.com/workers-ai/", notice: { text: "Workers AI free tier. Requires a Cloudflare API token and Account ID.", apiKeyUrl: "https://dash.cloudflare.com/profile/api-tokens" }, serviceKinds: ["llm"], hasProviderSpecificData: true },
   byteplus: { id: "byteplus", alias: "bpm", name: "BytePlus ModelArk", icon: "cloud", color: "#2563EB", textIcon: "BP", website: "https://console.byteplus.com/ark", notice: { text: "Free credits for new accounts. Access to Seed 2.0, Kimi K2 Thinking, GLM 4.7, GPT-OSS-120B models.", apiKeyUrl: "https://console.byteplus.com/ark/region:ark+ap-southeast-1/apiKey" }, serviceKinds: ["llm"] },
   tokenrouter: { id: "tokenrouter", alias: "tr", name: "TokenRouter", icon: "router", color: "#EF4444", textIcon: "TR", website: "https://tokenrouter.com", notice: { text: "Free promotional models: qwen/qwen3.8-max-free, moonshotai/kimi-k3-free. Requires Bearer token authentication.", apiKeyUrl: "https://tokenrouter.com/settings/api-keys" }, serviceKinds: ["llm"] },
-  // Free-tier providers whose canonical definitions live elsewhere
-  // (FREE_PROVIDERS / OAUTH_PROVIDERS / APIKEY_PROVIDERS). Duplicated here so
-  // the dashboard can categorize them as free tier without touching their
-  // auth behavior. AI_PROVIDERS spreads OAUTH_PROVIDERS after this, so
-  // kilocode's oauth+apikey authModes are preserved.
-  "opencode-zen": { id: "opencode-zen", alias: "opencode-zen", name: "OpenCode Zen", icon: "terminal", color: "#E87040", textIcon: "OC", noAuth: true, passthroughModels: true, modelsFetcher: { url: "https://opencode.ai/zen/v1/models", type: "opencode-free" } },
   kilocode: { id: "kilocode", alias: "kc", name: "Kilo Code", icon: "code", color: "#FF6B35", textIcon: "KC", website: "https://kilocode.ai", notice: { signupUrl: "https://kilocode.ai", apiKeyUrl: "https://kilocode.ai" }, authModes: ["oauth", "apikey"], hasOAuth: true, priority: 40 },
 };
 

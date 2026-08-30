@@ -552,12 +552,8 @@ export default function ProvidersPageClient() {
       if (ca !== cb) return ca - cb;
       return (a.name || "").localeCompare(b.name || "");
     });
-  const filteredFreeEntries = filterFreeOnly
-    ? []
-    : freeEntries;
-  const filteredFreeTierEntries = filterFreeOnly
-    ? []
-    : freeTierEntries;
+  const filteredFreeEntries = freeEntries;
+  const filteredFreeTierEntries = freeTierEntries;
   const filteredApikeyEntries = filterFreeOnly
     ? apikeyEntries.filter(([key]) => isFreeTierProvider(key))
     : apikeyEntries;
@@ -614,6 +610,19 @@ export default function ProvidersPageClient() {
           </div>
         </div>
       )}
+      {/* Global free-tier filter — OmniRoute parity: ProviderSummaryCard above all sections */}
+      <div className="flex items-center justify-end">
+        <label className="flex items-center gap-2 text-sm cursor-pointer select-none">
+          <input
+            type="checkbox"
+            checked={filterFreeOnly}
+            onChange={(e) => setFilterFreeOnly(e.target.checked)}
+            className="w-4 h-4 text-green-600 bg-gray-100 border-gray-300 rounded focus:ring-green-500"
+          />
+          <span>Show only free tier</span>
+        </label>
+      </div>
+
       {!hasAnyResult && (
         <div className="text-center py-8 border border-dashed border-border rounded-xl">
           <span className="material-symbols-outlined text-[32px] text-text-muted mb-2">
@@ -738,15 +747,6 @@ export default function ProvidersPageClient() {
             Free Tier Providers
           </h2>
           <div className="flex items-center gap-4">
-            <label className="flex items-center gap-2 text-sm cursor-pointer">
-              <input
-                type="checkbox"
-                checked={filterFreeOnly}
-                onChange={(e) => setFilterFreeOnly(e.target.checked)}
-                className="w-4 h-4 text-green-600 bg-gray-100 border-gray-300 rounded focus:ring-green-500"
-              />
-              <span>Show only free tier</span>
-            </label>
             <button
               onClick={() => handleBatchTest("free")}
               disabled={!!testingMode}
