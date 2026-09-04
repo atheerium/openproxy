@@ -962,10 +962,17 @@ where
     // Track actual backoff level across consecutive failures (H21).
     let mut consecutive_backoff_level: u32 = 0;
 
-    for model in order {
+    for (idx, model) in order.iter().enumerate() {
+        tracing::debug!(target: "cipherroute::combo", "COMBO attempt {}/{} model={} ", idx + 1, order.len(), model);
         match handle_single_model(model).await {
-            Ok(result) => return Ok(result),
+            Ok(result) => {
+                if idx > 0 {
+                    tracing::info!(target: "cipherroute::combo", "COMBO attempt {}/{} model={} succeeded after {} failures", idx + 1, order.len(), model, idx);
+                }
+                return Ok(result);
+            }
             Err(error) => {
+                tracing::warn!(target: "cipherroute::combo", "COMBO attempt {}/{} model={} failed status={} msg={}", idx + 1, order.len(), model, error.status, error.message);
                 if first_error.is_none() {
                     first_error = Some(ComboAttemptError {
                         status: error.status,
@@ -1013,8 +1020,12 @@ where
         }
     }
 
-    // 9router keeps the *first* failure status for the final response.
-    let first_status = first_error.as_ref().map(|e| e.status);
+    // Return *last* failure status so the final error reflects the most recent
+    // provider (user chose B: avoids masking a 429/503 with an earlier 502).
+    let last_status = last_error
+        .as_ref()
+        .map(|e| e.status)
+        .or_else(|| first_error.as_ref().map(|e| e.status));
     let message = last_error
         .as_ref()
         .map(|e| e.message.clone())
@@ -1024,11 +1035,20 @@ where
     let status = if message.to_lowercase().contains("no credentials") {
         503
     } else {
-        match first_status.unwrap_or(503) {
+        match last_status.unwrap_or(503) {
             0 => 503,
             s => s,
         }
     };
+
+    tracing::warn!(
+        target: "cipherroute::combo",
+        "COMBO exhausted {}/{} attempts status={} msg={}",
+        order.len(),
+        order.len(),
+        status,
+        message
+    );
 
     // Preserve upstream_body from the last error if available (H23).
     let final_upstream_body = last_error

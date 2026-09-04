@@ -412,6 +412,9 @@ async fn main() -> anyhow::Result<()> {
     // Provider health daemon: probe API-key providers every 3 min and degrade
     // them per observed status (429 → 2 min, 503 → 10 min, 5xx → 5 min).
     cipherroute::core::health::spawn_health_daemon(state.clone());
+    // Daily model sync: fetch available models from upstream providers every 24h
+    // and persist as custom_models (source: "auto_sync").
+    cipherroute::core::model_sync::spawn_model_sync(state.clone());
 
     // Background proactive OAuth token refresh (9router
     // backgroundTokenRefresh.js): tick every 5 min, refresh tokens expiring
@@ -682,6 +685,8 @@ async fn seed_default_api_key_if_missing(db: &Db) -> anyhow::Result<()> {
         is_active: Some(true),
         created_at: Some(chrono::Utc::now().to_rfc3339()),
         monthly_budget_usd: None,
+        daily_budget_usd: None,
+        daily_request_limit: None,
         extra: std::collections::BTreeMap::new(),
     };
 

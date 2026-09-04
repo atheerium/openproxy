@@ -24,4 +24,5 @@ pub mod circuit_breaker;
 pub mod eval;
 pub mod guardrails;
 pub mod health;
+pub mod model_sync;
 pub mod tls;

@@ -396,6 +396,8 @@ fn tool_table() -> Vec<ToolHandler> {
                     is_active: Some(true),
                     created_at: Some(now),
                     monthly_budget_usd: None,
+                    daily_budget_usd: None,
+                    daily_request_limit: None,
                     extra: std::collections::BTreeMap::new(),
                 };
                 db_update_sync(&state.db, move |db| {

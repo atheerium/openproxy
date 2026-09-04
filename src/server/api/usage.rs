@@ -122,6 +122,7 @@ pub fn routes() -> Router<AppState> {
         )
         .route("/api/usage/logs", routing::get(get_usage_logs))
         .route("/api/usage/request-logs", routing::get(get_usage_logs))
+        .route("/api/usage/daily-quota", routing::get(get_daily_quota))
         .route("/api/compression/stats", routing::get(compression_stats))
 }
 
@@ -241,7 +242,11 @@ async fn compression_stats(State(state): State<AppState>, _query: Query<StatsQue
     Json(payload).into_response()
 }
 
-async fn stream_usage_stats(State(state): State<AppState>, headers: HeaderMap) -> Response {
+async fn stream_usage_stats(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Query(query): Query<StatsQuery>,
+) -> Response {
     if let Err(response) = require_usage_access(&headers, &state) {
         return response;
     }
@@ -251,7 +256,13 @@ async fn stream_usage_stats(State(state): State<AppState>, headers: HeaderMap) -
 
     let body = Body::from_stream(async_stream::stream! {
         // No mutex lock — copy initial data, then stream without holding any lock.
-        let period = UsagePeriod::Last7Days;
+        let period = query.period.as_deref().unwrap_or("7d");
+        let period = match period {
+            "today" | "24h" | "7d" | "30d" | "60d" | "all" => {
+                UsagePeriod::parse(period).expect("validated usage period must parse")
+            }
+            _ => UsagePeriod::Last7Days,
+        };
         let mut cached_stats = Some(build_dashboard_usage_stats(&stream_state, period).await);
         if let Some(initial) = &cached_stats {
             yield Ok::<Bytes, std::io::Error>(Bytes::from(format!("data: {}\n\n", serde_json::to_string(initial).unwrap_or_else(|_| "{}".to_string()))));
@@ -1782,6 +1793,15 @@ fn usage_completion_tokens(entry: &UsageEntry) -> u64 {
         .as_ref()
         .and_then(|tokens| tokens.completion_tokens.or(tokens.output_tokens))
         .unwrap_or(0)
+}
+
+// Handler for GET /api/usage/daily-quota — per-provider daily spend + request
+// count summary with configured limits and remaining budget.
+async fn get_daily_quota(State(state): State<AppState>, headers: HeaderMap) -> Response {
+    if let Err(response) = require_usage_access(&headers, &state) {
+        return response;
+    }
+    Json(super::daily_quota_guard::daily_quota_summary(&state)).into_response()
 }
 
 #[cfg(test)]

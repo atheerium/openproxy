@@ -438,6 +438,8 @@ pub async fn run_init(ctx: OutputCtx, cfg: &ResolvedConfig, force: bool) -> anyh
         is_active: Some(true),
         created_at: Some(chrono::Utc::now().to_rfc3339()),
         monthly_budget_usd: None,
+        daily_budget_usd: None,
+        daily_request_limit: None,
         extra: std::collections::BTreeMap::new(),
     };
 

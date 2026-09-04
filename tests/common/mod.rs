@@ -32,6 +32,8 @@ pub fn test_api_key() -> ApiKey {
         is_active: Some(true),
         created_at: None,
         monthly_budget_usd: None,
+        daily_budget_usd: None,
+        daily_request_limit: None,
         extra: BTreeMap::new(),
     }
 }

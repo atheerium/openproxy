@@ -431,6 +431,15 @@ pub struct ApiKey {
     /// it (free-tier Feature 3: budget caps & hard kill-switch).
     #[serde(default)]
     pub monthly_budget_usd: Option<f64>,
+    /// Per-key daily spend cap in USD. When set, requests are hard-blocked
+    /// with HTTP 429 once today's tracked spend reaches it. Resets at UTC
+    /// midnight (free-tier Feature 3: daily quota).
+    #[serde(default)]
+    pub daily_budget_usd: Option<f64>,
+    /// Per-key daily request-count cap. Hard-blocks with HTTP 429 when
+    /// today's request count for this key reaches the limit.
+    #[serde(default)]
+    pub daily_request_limit: Option<u64>,
     #[serde(flatten)]
     pub extra: BTreeMap<String, Value>,
 }
@@ -449,6 +458,33 @@ impl ApiKey {
         }
         for key in ["monthlyBudgetUsd", "monthly_budget_usd"] {
             if let Some(value) = self.extra.get(key).and_then(|v| v.as_f64()) {
+                return Some(value);
+            }
+        }
+        None
+    }
+
+    /// Effective daily budget in USD, resolving the typed field first and
+    /// then the `extra` fallbacks. Returns `None` when no budget is set.
+    pub fn daily_budget(&self) -> Option<f64> {
+        if let Some(value) = self.daily_budget_usd {
+            return Some(value);
+        }
+        for key in ["dailyBudgetUsd", "daily_budget_usd"] {
+            if let Some(value) = self.extra.get(key).and_then(|v| v.as_f64()) {
+                return Some(value);
+            }
+        }
+        None
+    }
+
+    /// Effective daily request-count limit. Returns `None` when no limit is set.
+    pub fn daily_request_limit(&self) -> Option<u64> {
+        if let Some(value) = self.daily_request_limit {
+            return Some(value);
+        }
+        for key in ["dailyRequestLimit", "daily_request_limit"] {
+            if let Some(value) = self.extra.get(key).and_then(|v| v.as_u64()) {
                 return Some(value);
             }
         }
@@ -802,6 +838,8 @@ pub struct UsageDb {
     #[serde(default, deserialize_with = "deserialize_null_default")]
     pub total_requests_lifetime: u64,
     #[serde(default, deserialize_with = "deserialize_null_default")]
+    pub failed_requests: u64,
+    #[serde(default, deserialize_with = "deserialize_null_default")]
     pub daily_summary: BTreeMap<String, DailySummary>,
     #[serde(flatten)]
     pub extra: BTreeMap<String, Value>,
@@ -812,11 +850,22 @@ impl UsageDb {
         if self.total_requests_lifetime < self.history.len() as u64 {
             self.total_requests_lifetime = self.history.len() as u64;
         }
-
+        // Recompute failed_requests from history
+        self.failed_requests = self
+            .history
+            .iter()
+            .filter(|e| e.status.as_deref().map(|s| s != "success").unwrap_or(false))
+            .count() as u64;
         self.daily_summary.clear();
+
         for entry in &self.history {
             aggregate_usage_entry(&mut self.daily_summary, entry);
         }
+    }
+
+    /// A: rebuild daily_summary from history for stale overviews (post-T2 streaming fix).
+    pub fn backfill_daily_summary_from_history(&mut self) {
+        self.normalize();
     }
 
     pub fn from_json_value(value: Value) -> Self {
@@ -828,6 +877,7 @@ impl UsageDb {
             history: extract_named_field(&mut fields, "history"),
             total_requests_lifetime: extract_named_field(&mut fields, "totalRequestsLifetime"),
             daily_summary: extract_named_field(&mut fields, "dailySummary"),
+            failed_requests: 0,
             extra: fields.into_iter().collect(),
         };
         usage.normalize();
@@ -898,6 +948,14 @@ pub struct DailySummary {
     #[serde(default)]
     pub requests: u64,
     #[serde(default)]
+    pub failed_requests: u64,
+    #[serde(default)]
+    pub latency_total_sum: u64,
+    #[serde(default)]
+    pub latency_ttft_sum: u64,
+    #[serde(default)]
+    pub latency_count: u64,
+    #[serde(default)]
     pub prompt_tokens: u64,
     #[serde(default)]
     pub completion_tokens: u64,
@@ -930,6 +988,14 @@ pub struct DailySummary {
 pub struct SummaryCounter {
     #[serde(default)]
     pub requests: u64,
+    #[serde(default)]
+    pub failed_requests: u64,
+    #[serde(default)]
+    pub latency_total_sum: u64,
+    #[serde(default)]
+    pub latency_ttft_sum: u64,
+    #[serde(default)]
+    pub latency_count: u64,
     #[serde(default)]
     pub prompt_tokens: u64,
     #[serde(default)]
@@ -1130,6 +1196,10 @@ fn aggregate_usage_entry(daily_summary: &mut BTreeMap<String, DailySummary>, ent
         .entry(date_key)
         .or_insert_with(|| DailySummary {
             requests: 0,
+            failed_requests: 0,
+            latency_total_sum: 0,
+            latency_ttft_sum: 0,
+            latency_count: 0,
             prompt_tokens: 0,
             completion_tokens: 0,
             reasoning_tokens: 0,
@@ -1176,8 +1246,33 @@ fn aggregate_usage_entry(daily_summary: &mut BTreeMap<String, DailySummary>, ent
         .and_then(|tokens| tokens.cache_creation_input_tokens)
         .unwrap_or(0);
     let cost = entry.cost.unwrap_or(0.0);
+    let is_failed = entry
+        .status
+        .as_deref()
+        .map(|s| s != "success")
+        .unwrap_or(false);
+
+    // Extract latency from entry.extra["latency"] = {total: ms, ttft: ms}
+    let (latency_total_ms, latency_ttft_ms) = entry
+        .extra
+        .get("latency")
+        .and_then(|v| v.as_object())
+        .map(|obj| {
+            let total = obj.get("total").and_then(|v| v.as_u64()).unwrap_or(0);
+            let ttft = obj.get("ttft").and_then(|v| v.as_u64()).unwrap_or(0);
+            (total, ttft)
+        })
+        .unwrap_or((0, 0));
 
     summary.requests += 1;
+    if is_failed {
+        summary.failed_requests += 1;
+    }
+    if latency_total_ms > 0 {
+        summary.latency_total_sum += latency_total_ms;
+        summary.latency_ttft_sum += latency_ttft_ms;
+        summary.latency_count += 1;
+    }
     summary.prompt_tokens += prompt_tokens;
     summary.completion_tokens += completion_tokens;
     summary.reasoning_tokens += reasoning_tokens;
@@ -1197,6 +1292,9 @@ fn aggregate_usage_entry(daily_summary: &mut BTreeMap<String, DailySummary>, ent
             cache_read_input_tokens,
             cache_creation_input_tokens,
             cost,
+            is_failed,
+            latency_total_ms,
+            latency_ttft_ms,
             None,
         );
     }
@@ -1215,6 +1313,9 @@ fn aggregate_usage_entry(daily_summary: &mut BTreeMap<String, DailySummary>, ent
         cache_read_input_tokens,
         cache_creation_input_tokens,
         cost,
+        is_failed,
+        latency_total_ms,
+        latency_ttft_ms,
         Some((
             Some(entry.model.clone()),
             entry.provider.clone(),
@@ -1234,6 +1335,9 @@ fn aggregate_usage_entry(daily_summary: &mut BTreeMap<String, DailySummary>, ent
             cache_read_input_tokens,
             cache_creation_input_tokens,
             cost,
+            is_failed,
+            latency_total_ms,
+            latency_ttft_ms,
             Some((
                 Some(entry.model.clone()),
                 entry.provider.clone(),
@@ -1263,6 +1367,9 @@ fn aggregate_usage_entry(daily_summary: &mut BTreeMap<String, DailySummary>, ent
         cache_read_input_tokens,
         cache_creation_input_tokens,
         cost,
+        is_failed,
+        latency_total_ms,
+        latency_ttft_ms,
         Some((
             Some(entry.model.clone()),
             entry.provider.clone(),
@@ -1288,6 +1395,9 @@ fn aggregate_usage_entry(daily_summary: &mut BTreeMap<String, DailySummary>, ent
         cache_read_input_tokens,
         cache_creation_input_tokens,
         cost,
+        is_failed,
+        latency_total_ms,
+        latency_ttft_ms,
         Some((
             Some(entry.model.clone()),
             entry.provider.clone(),
@@ -1314,12 +1424,19 @@ fn add_to_counter(
     cache_read_input_tokens: u64,
     cache_creation_input_tokens: u64,
     cost: f64,
+    is_failed: bool,
+    latency_total_ms: u64,
+    latency_ttft_ms: u64,
     metadata: Option<SummaryMetadata>,
 ) {
     let counter = target
         .entry(key.to_string())
         .or_insert_with(|| SummaryCounter {
             requests: 0,
+            failed_requests: 0,
+            latency_total_sum: 0,
+            latency_ttft_sum: 0,
+            latency_count: 0,
             prompt_tokens: 0,
             completion_tokens: 0,
             reasoning_tokens: 0,
@@ -1335,6 +1452,14 @@ fn add_to_counter(
         });
 
     counter.requests += 1;
+    if is_failed {
+        counter.failed_requests += 1;
+    }
+    if latency_total_ms > 0 {
+        counter.latency_total_sum += latency_total_ms;
+        counter.latency_ttft_sum += latency_ttft_ms;
+        counter.latency_count += 1;
+    }
     counter.prompt_tokens += prompt_tokens;
     counter.completion_tokens += completion_tokens;
     counter.reasoning_tokens += reasoning_tokens;

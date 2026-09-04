@@ -9,6 +9,7 @@ pub mod cloud_credentials;
 pub mod cloud_sync;
 pub mod compat;
 pub mod cors;
+pub mod daily_quota_guard;
 pub mod data_management;
 pub mod db_backups;
 pub mod guard;
@@ -30,7 +31,7 @@ pub mod pricing;
 mod provider_connection_test;
 pub mod provider_filters;
 mod provider_model_tests;
-mod provider_models;
+pub(crate) mod provider_models;
 pub mod provider_nodes;
 mod provider_validate;
 pub mod providers;
@@ -330,6 +331,7 @@ pub fn routes(state: AppState) -> Router<AppState> {
         .merge(settings_payload_rules::routes())
         .merge(tunnel::routes())
         .merge(usage::routes())
+        .merge(mitm_config::routes())
         .merge(admin_items::routes())
         .merge(pricing::routes())
         .merge(tags::routes())
@@ -393,7 +395,6 @@ pub fn routes(state: AppState) -> Router<AppState> {
         .merge(cloud_credentials::routes())
         .merge(media_providers::routes())
         .merge(observability::routes())
-        .merge(mitm_config::routes())
         .merge(mcp::routes())
         .merge(mcp_server::routes())
         .merge(auth::routes())
@@ -1617,6 +1618,8 @@ async fn create_key_api(
         is_active: Some(true),
         created_at: Some(now),
         monthly_budget_usd: req.monthly_budget_usd,
+        daily_budget_usd: None,
+        daily_request_limit: None,
         extra: std::collections::BTreeMap::new(),
     };
 
@@ -2788,7 +2791,10 @@ fn bad_request_response(message: &str) -> Response {
 /// Providers that authenticate with a browser session cookie (stored in the
 /// `api_key` field). Must match `WEB_COOKIE_PROVIDERS` in the dashboard.
 fn is_web_cookie_provider(provider: &str) -> bool {
-    matches!(provider, "grok-web" | "perplexity-web")
+    matches!(
+        provider,
+        "grok-web" | "perplexity-web" | "deepseek-web" | "kimi-web"
+    )
 }
 
 fn normalize_create_provider_proxy(

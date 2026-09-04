@@ -22,6 +22,8 @@ fn active_key(key: &str) -> ApiKey {
         created_at: None,
         extra: BTreeMap::new(),
         monthly_budget_usd: None,
+        daily_budget_usd: None,
+        daily_request_limit: None,
     }
 }
 

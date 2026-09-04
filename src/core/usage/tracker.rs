@@ -46,6 +46,116 @@ impl UsageTracker {
         status: Option<&str>,
         error_class: Option<&str>,
     ) {
+        let entry = self.build_usage_entry(
+            provider,
+            model,
+            tokens,
+            connection_id,
+            api_key,
+            endpoint,
+            compression,
+            latency_ms,
+            ttft_ms,
+            status,
+            error_class,
+        );
+        let entry_status = entry.status.clone();
+        if let Err(e) = self
+            .db
+            .update_usage(move |db| {
+                // 9router usageRepo.js saveRequestUsage dedupe — skip inserting
+                // a row identical (timestamp/provider/model/connectionId/apiKey/
+                // promptTokens/completionTokens) to one already present.
+                // Skip exact-duplicate rows (9router usageRepo.js dedupe).
+                if db.history.iter().any(|e| same_usage_row(e, &entry)) {
+                    return;
+                }
+                let is_failed = entry_status
+                    .as_deref()
+                    .map(|s| s != "success")
+                    .unwrap_or(false);
+                db.history.push(entry);
+                if db.total_requests_lifetime < db.history.len() as u64 {
+                    db.total_requests_lifetime = db.history.len() as u64;
+                }
+                if is_failed {
+                    db.failed_requests += 1;
+                }
+            })
+            .await
+        {
+            tracing::error!("usage tracker: failed to persist usage entry: {e}");
+        }
+    }
+
+    pub fn track_request_detached(
+        &self,
+        provider: &str,
+        model: &str,
+        tokens: Option<&TokenUsage>,
+        connection_id: Option<&str>,
+        api_key: Option<&str>,
+        endpoint: Option<&str>,
+        compression: Option<CompressionStats>,
+        latency_ms: Option<u64>,
+        ttft_ms: Option<u64>,
+        status: Option<&str>,
+        error_class: Option<&str>,
+    ) {
+        let entry = self.build_usage_entry(
+            provider,
+            model,
+            tokens,
+            connection_id,
+            api_key,
+            endpoint,
+            compression,
+            latency_ms,
+            ttft_ms,
+            status,
+            error_class,
+        );
+        let db = self.db.clone();
+        tokio::spawn(async move {
+            if let Err(e) = db
+                .update_usage(move |db| {
+                    if db.history.iter().any(|e| same_usage_row(e, &entry)) {
+                        return;
+                    }
+                    let is_failed = entry
+                        .status
+                        .as_deref()
+                        .map(|s| s != "success")
+                        .unwrap_or(false);
+                    db.history.push(entry);
+                    if db.total_requests_lifetime < db.history.len() as u64 {
+                        db.total_requests_lifetime = db.history.len() as u64;
+                    }
+                    if is_failed {
+                        db.failed_requests += 1;
+                    }
+                })
+                .await
+            {
+                tracing::error!("usage tracker: detached persist failed: {e}");
+            }
+        });
+    }
+
+    fn build_usage_entry(
+        &self,
+        provider: &str,
+        model: &str,
+        tokens: Option<&TokenUsage>,
+        connection_id: Option<&str>,
+        api_key: Option<&str>,
+        endpoint: Option<&str>,
+        compression: Option<CompressionStats>,
+        latency_ms: Option<u64>,
+        ttft_ms: Option<u64>,
+        status: Option<&str>,
+        error_class: Option<&str>,
+    ) -> UsageEntry {
         let prompt_tokens = tokens
             .and_then(|t| t.prompt_tokens.or(t.input_tokens))
             .unwrap_or(0);
@@ -76,7 +186,23 @@ impl UsageTracker {
             None => (0, 0, 0, 0),
         };
 
-        let entry = UsageEntry {
+        let mut extra: std::collections::BTreeMap<String, serde_json::Value> = Default::default();
+        if latency_ms.is_some() || ttft_ms.is_some() {
+            let latency_value = serde_json::json!({
+                "total": latency_ms.unwrap_or(0),
+                "ttft": ttft_ms.unwrap_or(0),
+            });
+            extra.insert("latency".to_string(), latency_value);
+        }
+        if let Some(ec) = error_class {
+            extra.insert(
+                "error_class".to_string(),
+                serde_json::Value::String(ec.to_string()),
+            );
+        }
+        let status_value = status.map(|s| s.to_string());
+
+        UsageEntry {
             timestamp: Some(Utc::now().to_rfc3339()),
             provider: Some(provider.to_string()),
             model: model.to_string(),
@@ -85,30 +211,13 @@ impl UsageTracker {
             api_key: api_key.map(String::from),
             endpoint: endpoint.map(String::from),
             cost: Some(cost),
-            status: None,
+            status: status_value.or_else(|| Some("success".to_string())),
             bytes_before,
             bytes_after,
             bytes_saved,
             image_prompts,
-            extra: Default::default(),
-        };
-
-        let _ = self
-            .db
-            .update_usage(move |db| {
-                // 9router usageRepo.js saveRequestUsage dedupe — skip inserting
-                // a row identical (timestamp/provider/model/connectionId/apiKey/
-                // promptTokens/completionTokens) to one already present.
-                // Skip exact-duplicate rows (9router usageRepo.js dedupe).
-                if db.history.iter().any(|e| same_usage_row(e, &entry)) {
-                    return;
-                }
-                db.history.push(entry);
-                if db.total_requests_lifetime < db.history.len() as u64 {
-                    db.total_requests_lifetime = db.history.len() as u64;
-                }
-            })
-            .await;
+            extra,
+        }
     }
 
     pub fn get_usage_db(&self) -> Arc<UsageDb> {

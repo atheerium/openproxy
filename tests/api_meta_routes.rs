@@ -23,6 +23,8 @@ async fn build_test_app() -> axum::Router {
             created_at: None,
             extra: Default::default(),
             monthly_budget_usd: None,
+            daily_budget_usd: None,
+            daily_request_limit: None,
         }];
         state.settings.require_login = false;
     })

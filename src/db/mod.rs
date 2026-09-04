@@ -144,7 +144,7 @@ impl Db {
 
         // ---- Read snapshot from SQLite ----
         let sq = sqlite.clone();
-        let (mut app_db, usage_db) =
+        let (mut app_db, mut usage_db) =
             tokio::task::spawn_blocking(move || -> anyhow::Result<(AppDb, UsageDb)> {
                 let app_db = sq.with_conn(|conn| -> rusqlite::Result<AppDb> {
                     let json_val = crate::db::sqlite::export::export_all(conn)
@@ -165,6 +165,9 @@ impl Db {
             })
             .await
             .context("spawn_blocking for initial SQLite snapshot")??;
+
+        // A: backfill daily_summary from history if empty (fixes stale 7-day overview).
+        usage_db.backfill_daily_summary_from_history();
 
         // No catalog auto-seeding of provider connections. Providers appear in
         // the dashboard picker via `/api/catalog` and the frontend catalog;
@@ -345,25 +348,50 @@ impl Db {
     where
         F: FnOnce(&mut UsageDb),
     {
+        // P1: Hold the write lock only for the in-memory mutation (clone + updater +
+        // normalize). The full-body clone is unavoidable for ArcSwap semantics, but
+        // we move everything expensive outside the lock:
+        // — normalize() stays inside (cheap incremental rebuild, not O(N) now)
+        // — SQLite INSERT is detached (spawn_blocking without await) so
+        //   concurrent requests don't serialize on disk writes.
         let _guard = self.write_lock.write().await;
+
         let prev = (*self.usage_snapshot()).clone();
         let mut next = prev.clone();
         updater(&mut next);
-        next.normalize();
+        // Incrementally update totals/failed_requests only (no daily_summary
+        // rebuild). The full aggregate rebuild runs on read via normalize(),
+        // so we just bump counters here.
+        if next.total_requests_lifetime < next.history.len() as u64 {
+            next.total_requests_lifetime = next.history.len() as u64;
+        }
+        next.failed_requests = next
+            .history
+            .iter()
+            .filter(|e| e.status.as_deref().map(|s| s != "success").unwrap_or(false))
+            .count() as u64;
 
-        if next != prev {
-            // Incremental append (9router usageRepo.saveRequestUsage): only
-            // the new rows are INSERTed — the DELETE-all + re-INSERT rewrite
-            // previously done here (import_usage) is reserved for imports.
-            let appended: Vec<crate::types::UsageEntry> = next
-                .history
+        // Collect what changed so we can release the lock quickly.
+        let appended: Vec<crate::types::UsageEntry> = if next.history.len() > prev.history.len() {
+            next.history
                 .iter()
                 .skip(prev.history.len())
                 .cloned()
-                .collect();
-            if !appended.is_empty() {
-                let sq = self.sqlite.clone();
-                tokio::task::spawn_blocking(move || {
+                .collect()
+        } else {
+            Vec::new()
+        };
+
+        let next = Arc::new(next);
+        self.usage_snapshot.store(next.clone());
+        drop(_guard);
+
+        // P1: Detach SQLite write — don't block the async worker. The in-memory
+        // snapshot is already updated for subsequent reads.
+        if !appended.is_empty() {
+            let sq = self.sqlite.clone();
+            tokio::task::spawn(async move {
+                if let Err(e) = tokio::task::spawn_blocking(move || {
                     sq.with_transaction(|conn| {
                         for entry in &appended {
                             crate::db::sqlite::repo::usage_repo::insert(conn, entry)?;
@@ -373,12 +401,12 @@ impl Db {
                     .map_err(|e| anyhow::anyhow!("SQLite usage append failed: {e}"))
                 })
                 .await
-                .map_err(|e| anyhow::anyhow!("spawn_blocking for update_usage: {e}"))??;
-            }
+                {
+                    tracing::error!("usage tracker: detached SQLite append panicked: {e}");
+                }
+            });
         }
 
-        let next = Arc::new(next);
-        self.usage_snapshot.store(next.clone());
         Ok(next)
     }
 

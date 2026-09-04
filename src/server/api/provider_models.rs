@@ -382,7 +382,7 @@ pub(super) async fn fetch_discovered_model_ids(
 /// Mirrors the match arms in `fetch_provider_models_response`. Used by
 /// `/v1/models` to decide whether a catalog-less connection can fall back to
 /// live discovery without issuing doomed network requests.
-pub(super) fn supports_models_discovery(provider: &str) -> bool {
+pub(crate) fn supports_models_discovery(provider: &str) -> bool {
     is_openai_compatible_provider(provider)
         || is_anthropic_compatible_provider(provider)
         || matches!(
@@ -440,7 +440,7 @@ pub(super) fn supports_models_discovery(provider: &str) -> bool {
         )
 }
 
-pub(super) async fn fetch_models_for_connection(
+pub(crate) async fn fetch_models_for_connection(
     state: &AppState,
     connection: &ProviderConnection,
 ) -> Result<Vec<ProviderModel>, (StatusCode, String)> {
@@ -1887,7 +1887,7 @@ fn is_anthropic_compatible_provider(provider: &str) -> bool {
     provider.starts_with(ANTHROPIC_COMPATIBLE_PREFIX)
 }
 
-fn storage_alias_for_provider(provider: &str) -> String {
+pub(crate) fn storage_alias_for_provider(provider: &str) -> String {
     if is_openai_compatible_provider(provider) || is_anthropic_compatible_provider(provider) {
         return provider.to_string();
     }

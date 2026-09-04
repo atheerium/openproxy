@@ -11,6 +11,7 @@ use super::usage_live::{ActiveRequest, PendingSnapshot};
 #[serde(rename_all = "camelCase")]
 pub struct UsageStatsPayload {
     pub total_requests: u64,
+    pub total_failed_requests: u64,
     pub total_prompt_tokens: u64,
     pub total_completion_tokens: u64,
     pub total_reasoning_tokens: u64,
@@ -43,6 +44,7 @@ pub struct UsageStreamPatch {
 #[serde(rename_all = "camelCase")]
 pub struct AggregateStats {
     pub requests: u64,
+    pub failed_requests: u64,
     pub prompt_tokens: u64,
     pub completion_tokens: u64,
     pub reasoning_tokens: u64,
@@ -50,12 +52,16 @@ pub struct AggregateStats {
     pub cache_read_input_tokens: u64,
     pub cache_creation_input_tokens: u64,
     pub cost: f64,
+    pub latency_total_sum: u64,
+    pub latency_ttft_sum: u64,
+    pub latency_count: u64,
 }
 
 #[derive(Debug, Clone, Serialize, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct ModelStats {
     pub requests: u64,
+    pub failed_requests: u64,
     pub prompt_tokens: u64,
     pub completion_tokens: u64,
     pub reasoning_tokens: u64,
@@ -66,12 +72,16 @@ pub struct ModelStats {
     pub raw_model: String,
     pub provider: String,
     pub last_used: String,
+    pub latency_total_sum: u64,
+    pub latency_ttft_sum: u64,
+    pub latency_count: u64,
 }
 
 #[derive(Debug, Clone, Serialize, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct AccountStats {
     pub requests: u64,
+    pub failed_requests: u64,
     pub prompt_tokens: u64,
     pub completion_tokens: u64,
     pub reasoning_tokens: u64,
@@ -84,12 +94,16 @@ pub struct AccountStats {
     pub connection_id: String,
     pub account_name: String,
     pub last_used: String,
+    pub latency_total_sum: u64,
+    pub latency_ttft_sum: u64,
+    pub latency_count: u64,
 }
 
 #[derive(Debug, Clone, Serialize, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct ApiKeyStats {
     pub requests: u64,
+    pub failed_requests: u64,
     pub prompt_tokens: u64,
     pub completion_tokens: u64,
     pub reasoning_tokens: u64,
@@ -103,12 +117,16 @@ pub struct ApiKeyStats {
     pub key_name: String,
     pub api_key_key: String,
     pub last_used: String,
+    pub latency_total_sum: u64,
+    pub latency_ttft_sum: u64,
+    pub latency_count: u64,
 }
 
 #[derive(Debug, Clone, Serialize, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct EndpointStats {
     pub requests: u64,
+    pub failed_requests: u64,
     pub prompt_tokens: u64,
     pub completion_tokens: u64,
     pub reasoning_tokens: u64,
@@ -120,6 +138,9 @@ pub struct EndpointStats {
     pub raw_model: String,
     pub provider: String,
     pub last_used: String,
+    pub latency_total_sum: u64,
+    pub latency_ttft_sum: u64,
+    pub latency_count: u64,
 }
 
 #[derive(Debug, Clone, Serialize, Default)]
@@ -234,7 +255,8 @@ pub fn build_usage_stats(
     let recent_requests = build_recent_requests(&usage_db.history);
 
     let mut stats = UsageStatsPayload {
-        total_requests: usage_db.total_requests_lifetime,
+        total_requests: 0,
+        total_failed_requests: 0,
         total_prompt_tokens: 0,
         total_completion_tokens: 0,
         total_reasoning_tokens: 0,
@@ -269,6 +291,10 @@ pub fn build_usage_stats(
                     .and_then(parse_timestamp)
                     .is_some_and(|ts| ts >= cutoff)
             }) {
+                stats.total_requests += 1;
+                if entry.status.as_deref() != Some("success") {
+                    stats.total_failed_requests += 1;
+                }
                 aggregate_live_entry(
                     &mut stats,
                     entry,
@@ -287,6 +313,10 @@ pub fn build_usage_stats(
                     .and_then(parse_timestamp)
                     .is_some_and(|ts| ts >= cutoff)
             }) {
+                stats.total_requests += 1;
+                if entry.status.as_deref() != Some("success") {
+                    stats.total_failed_requests += 1;
+                }
                 aggregate_live_entry(
                     &mut stats,
                     entry,
@@ -318,6 +348,8 @@ pub fn build_usage_stats(
                     }
                 }
 
+                stats.total_requests += day.requests;
+                stats.total_failed_requests += day.failed_requests;
                 stats.total_prompt_tokens += day.prompt_tokens;
                 stats.total_completion_tokens += day.completion_tokens;
                 stats.total_reasoning_tokens += day.reasoning_tokens;
@@ -428,6 +460,13 @@ fn aggregate_live_entry(
         .and_then(|tokens| tokens.cache_creation_input_tokens)
         .unwrap_or(0);
     let cost = entry.cost.unwrap_or(0.0);
+    let is_failed = entry
+        .status
+        .as_deref()
+        .map(|s| s != "success")
+        .unwrap_or(false);
+    let (latency_total_ms, latency_ttft_ms) = extract_latency_from_extra(&entry.extra);
+    let latency_count = if latency_total_ms > 0 { 1u64 } else { 0u64 };
     let provider = entry.provider.clone().unwrap_or_default();
     let provider_display = provider_names
         .get(&provider)
@@ -445,6 +484,9 @@ fn aggregate_live_entry(
 
     let provider_bucket = stats.by_provider.entry(provider.clone()).or_default();
     provider_bucket.requests += 1;
+    if is_failed {
+        provider_bucket.failed_requests += 1;
+    }
     provider_bucket.prompt_tokens += prompt_tokens;
     provider_bucket.completion_tokens += completion_tokens;
     provider_bucket.reasoning_tokens += reasoning_tokens;
@@ -452,6 +494,9 @@ fn aggregate_live_entry(
     provider_bucket.cache_read_input_tokens += cache_read_input_tokens;
     provider_bucket.cache_creation_input_tokens += cache_creation_input_tokens;
     provider_bucket.cost += cost;
+    provider_bucket.latency_total_sum += latency_total_ms;
+    provider_bucket.latency_ttft_sum += latency_ttft_ms;
+    provider_bucket.latency_count += latency_count;
 
     let model_key = if provider.is_empty() {
         entry.model.clone()
@@ -460,6 +505,9 @@ fn aggregate_live_entry(
     };
     let model_bucket = stats.by_model.entry(model_key).or_default();
     model_bucket.requests += 1;
+    if is_failed {
+        model_bucket.failed_requests += 1;
+    }
     model_bucket.prompt_tokens += prompt_tokens;
     model_bucket.completion_tokens += completion_tokens;
     model_bucket.reasoning_tokens += reasoning_tokens;
@@ -467,6 +515,9 @@ fn aggregate_live_entry(
     model_bucket.cache_read_input_tokens += cache_read_input_tokens;
     model_bucket.cache_creation_input_tokens += cache_creation_input_tokens;
     model_bucket.cost += cost;
+    model_bucket.latency_total_sum += latency_total_ms;
+    model_bucket.latency_ttft_sum += latency_ttft_ms;
+    model_bucket.latency_count += latency_count;
     model_bucket.raw_model = entry.model.clone();
     model_bucket.provider = provider_display.clone();
     update_last_used(&mut model_bucket.last_used, &timestamp);
@@ -484,6 +535,9 @@ fn aggregate_live_entry(
         let account_key = format!("{} ({} - {})", entry.model, provider, account_name);
         let account_bucket = stats.by_account.entry(account_key).or_default();
         account_bucket.requests += 1;
+        if is_failed {
+            account_bucket.failed_requests += 1;
+        }
         account_bucket.prompt_tokens += prompt_tokens;
         account_bucket.completion_tokens += completion_tokens;
         account_bucket.reasoning_tokens += reasoning_tokens;
@@ -491,6 +545,9 @@ fn aggregate_live_entry(
         account_bucket.cache_read_input_tokens += cache_read_input_tokens;
         account_bucket.cache_creation_input_tokens += cache_creation_input_tokens;
         account_bucket.cost += cost;
+        account_bucket.latency_total_sum += latency_total_ms;
+        account_bucket.latency_ttft_sum += latency_ttft_ms;
+        account_bucket.latency_count += latency_count;
         account_bucket.raw_model = entry.model.clone();
         account_bucket.provider = provider_display.clone();
         account_bucket.connection_id = connection_id.clone();
@@ -515,6 +572,9 @@ fn aggregate_live_entry(
     };
     let api_key_bucket = stats.by_api_key.entry(api_key_group).or_default();
     api_key_bucket.requests += 1;
+    if is_failed {
+        api_key_bucket.failed_requests += 1;
+    }
     api_key_bucket.prompt_tokens += prompt_tokens;
     api_key_bucket.completion_tokens += completion_tokens;
     api_key_bucket.reasoning_tokens += reasoning_tokens;
@@ -522,6 +582,9 @@ fn aggregate_live_entry(
     api_key_bucket.cache_read_input_tokens += cache_read_input_tokens;
     api_key_bucket.cache_creation_input_tokens += cache_creation_input_tokens;
     api_key_bucket.cost += cost;
+    api_key_bucket.latency_total_sum += latency_total_ms;
+    api_key_bucket.latency_ttft_sum += latency_ttft_ms;
+    api_key_bucket.latency_count += latency_count;
     api_key_bucket.raw_model = entry.model.clone();
     api_key_bucket.provider = provider_display.clone();
     api_key_bucket.api_key = api_key_value.clone();
@@ -553,6 +616,9 @@ fn aggregate_live_entry(
     );
     let endpoint_bucket = stats.by_endpoint.entry(endpoint_key).or_default();
     endpoint_bucket.requests += 1;
+    if is_failed {
+        endpoint_bucket.failed_requests += 1;
+    }
     endpoint_bucket.prompt_tokens += prompt_tokens;
     endpoint_bucket.completion_tokens += completion_tokens;
     endpoint_bucket.reasoning_tokens += reasoning_tokens;
@@ -560,10 +626,32 @@ fn aggregate_live_entry(
     endpoint_bucket.cache_read_input_tokens += cache_read_input_tokens;
     endpoint_bucket.cache_creation_input_tokens += cache_creation_input_tokens;
     endpoint_bucket.cost += cost;
+    endpoint_bucket.latency_total_sum += latency_total_ms;
+    endpoint_bucket.latency_ttft_sum += latency_ttft_ms;
+    endpoint_bucket.latency_count += latency_count;
     endpoint_bucket.endpoint = endpoint;
     endpoint_bucket.raw_model = entry.model.clone();
     endpoint_bucket.provider = provider_display;
     update_last_used(&mut endpoint_bucket.last_used, &timestamp);
+}
+
+fn extract_latency_from_extra(extra: &BTreeMap<String, serde_json::Value>) -> (u64, u64) {
+    if let Some(latency) = extra.get("latency") {
+        if let Some(obj) = latency.as_object() {
+            let total = obj
+                .get("total")
+                .and_then(|v| v.as_u64())
+                .or_else(|| obj.get("totalMs").and_then(|v| v.as_u64()))
+                .unwrap_or(0);
+            let ttft = obj
+                .get("ttft")
+                .and_then(|v| v.as_u64())
+                .or_else(|| obj.get("ttftMs").and_then(|v| v.as_u64()))
+                .unwrap_or(0);
+            return (total, ttft);
+        }
+    }
+    (0, 0)
 }
 
 fn merge_by_provider(
@@ -573,6 +661,7 @@ fn merge_by_provider(
     for (provider, counter) in by_provider {
         let bucket = target.entry(provider.clone()).or_default();
         bucket.requests += counter.requests;
+        bucket.failed_requests += counter.failed_requests;
         bucket.prompt_tokens += counter.prompt_tokens;
         bucket.completion_tokens += counter.completion_tokens;
         bucket.reasoning_tokens += counter.reasoning_tokens;
@@ -580,6 +669,9 @@ fn merge_by_provider(
         bucket.cache_read_input_tokens += counter.cache_read_input_tokens;
         bucket.cache_creation_input_tokens += counter.cache_creation_input_tokens;
         bucket.cost += counter.cost;
+        bucket.latency_total_sum += counter.latency_total_sum;
+        bucket.latency_ttft_sum += counter.latency_ttft_sum;
+        bucket.latency_count += counter.latency_count;
     }
 }
 
@@ -609,6 +701,7 @@ fn merge_by_model(
         };
         let bucket = target.entry(stats_key).or_default();
         bucket.requests += counter.requests;
+        bucket.failed_requests += counter.failed_requests;
         bucket.prompt_tokens += counter.prompt_tokens;
         bucket.completion_tokens += counter.completion_tokens;
         bucket.reasoning_tokens += counter.reasoning_tokens;
@@ -616,6 +709,9 @@ fn merge_by_model(
         bucket.cache_read_input_tokens += counter.cache_read_input_tokens;
         bucket.cache_creation_input_tokens += counter.cache_creation_input_tokens;
         bucket.cost += counter.cost;
+        bucket.latency_total_sum += counter.latency_total_sum;
+        bucket.latency_ttft_sum += counter.latency_ttft_sum;
+        bucket.latency_count += counter.latency_count;
         bucket.raw_model = raw_model;
         bucket.provider = provider_display;
         update_last_used(&mut bucket.last_used, last_used);
@@ -648,6 +744,7 @@ fn merge_by_account(
         let stats_key = format!("{} ({} - {})", raw_model, provider, account_name);
         let bucket = target.entry(stats_key).or_default();
         bucket.requests += counter.requests;
+        bucket.failed_requests += counter.failed_requests;
         bucket.prompt_tokens += counter.prompt_tokens;
         bucket.completion_tokens += counter.completion_tokens;
         bucket.reasoning_tokens += counter.reasoning_tokens;
@@ -689,6 +786,7 @@ fn merge_by_api_key(
             .unwrap_or_else(|| "Local (No API Key)".to_string());
         let bucket = target.entry(api_key_group.clone()).or_default();
         bucket.requests += counter.requests;
+        bucket.failed_requests += counter.failed_requests;
         bucket.prompt_tokens += counter.prompt_tokens;
         bucket.completion_tokens += counter.completion_tokens;
         bucket.reasoning_tokens += counter.reasoning_tokens;
@@ -727,6 +825,7 @@ fn merge_by_endpoint(
         });
         let bucket = target.entry(endpoint_group.clone()).or_default();
         bucket.requests += counter.requests;
+        bucket.failed_requests += counter.failed_requests;
         bucket.prompt_tokens += counter.prompt_tokens;
         bucket.completion_tokens += counter.completion_tokens;
         bucket.cost += counter.cost;

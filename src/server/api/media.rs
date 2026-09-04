@@ -630,22 +630,19 @@ async fn execute_media_provider(
                     cache_creation_input_tokens: None,
                     extra: Default::default(),
                 };
-                state
-                    .usage_tracker()
-                    .track_request(
-                        provider,
-                        model,
-                        Some(&token_usage),
-                        Some(connection_id),
-                        Some(&api_key),
-                        Some(url.as_str()),
-                        None,
-                        None, // latency_ms
-                        None, // ttft_ms
-                        None, // status
-                        None, // error_class
-                    )
-                    .await;
+                state.usage_tracker().track_request_detached(
+                    provider,
+                    model,
+                    Some(&token_usage),
+                    Some(connection_id),
+                    Some(&api_key),
+                    Some(url.as_str()),
+                    None,
+                    None,            // latency_ms
+                    None,            // ttft_ms
+                    Some("success"), // status — inside is_success() block
+                    None,            // error_class
+                );
             }
         }
         return rebuild_json_response(status, bytes.to_vec());
