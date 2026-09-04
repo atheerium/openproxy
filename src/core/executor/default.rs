@@ -294,6 +294,14 @@ static PROVIDER_CONFIGS: Lazy<BTreeMap<&'static str, ProviderConfig>> = Lazy::ne
             ProviderConfig::openai("https://www.perplexity.ai"),
         ),
         (
+            "kimi-web",
+            ProviderConfig::openai("https://www.kimi.ai"),
+        ),
+        (
+            "deepseek-web",
+            ProviderConfig::openai("https://chat.deepseek.com"),
+        ),
+        (
             "xiaomi-mimo",
             ProviderConfig::openai("https://api.xiaomimimo.com/v1/chat/completions"),
         ),

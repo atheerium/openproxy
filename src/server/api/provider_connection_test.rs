@@ -746,6 +746,8 @@ async fn test_api_key_connection(
         "perplexity-web" => {
             test_perplexity_web_connection(state, connection, effective_proxy).await
         }
+        "kimi-web" => test_kimi_web_connection(state, connection, effective_proxy).await,
+        "deepseek-web" => test_deepseek_web_connection(state, connection, effective_proxy).await,
         "opencode-go" => {
             openai_chat_status_test(
                 state,
@@ -1034,6 +1036,106 @@ async fn test_perplexity_web_connection(
                     new_tokens: None,
                 },
                 Ok(_) => invalid("Session expired — re-paste cookie"),
+                Err(error) => invalid(&error.to_string()),
+            }
+        }
+        Err(error) => invalid(&error),
+    }
+}
+
+async fn test_kimi_web_connection(
+    state: &AppState,
+    connection: &ProviderConnection,
+    effective_proxy: &EffectiveProxy,
+) -> ConnectionTestResult {
+    let mut token = connection.api_key.clone().unwrap_or_default();
+    if let Some(value) = token.strip_prefix("access_token=") {
+        token = value.to_string();
+    }
+
+    let request = PreparedRequest {
+        method: Method::POST,
+        url: "https://www.kimi.ai/apiv2/kimi.gateway.chat.v1.ChatService/Chat".to_string(),
+        headers: vec![
+            ("Accept".to_string(), "*/*".to_string()),
+            ("Content-Type".to_string(), "application/json".to_string()),
+            (
+                "Authorization".to_string(),
+                format!("Bearer {token}"),
+            ),
+            ("Origin".to_string(), "https://www.kimi.ai".to_string()),
+            ("Referer".to_string(), "https://www.kimi.ai/".to_string()),
+            (
+                "User-Agent".to_string(),
+                "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36".to_string(),
+            ),
+        ],
+        body: Some(PreparedBody::Json(json!({
+            "message": "ping"
+        }))),
+    };
+
+    match execute_request(state, &connection.provider, effective_proxy, request).await {
+        Ok(response) => {
+            let valid = !matches!(
+                response.status(),
+                StatusCode::UNAUTHORIZED | StatusCode::FORBIDDEN
+            );
+            ConnectionTestResult {
+                valid,
+                error: if valid {
+                    None
+                } else {
+                    Some("Invalid access token".to_string())
+                },
+                refreshed: false,
+                new_tokens: None,
+            }
+        }
+        Err(error) => invalid(&error),
+    }
+}
+
+async fn test_deepseek_web_connection(
+    state: &AppState,
+    connection: &ProviderConnection,
+    effective_proxy: &EffectiveProxy,
+) -> ConnectionTestResult {
+    let mut token = connection.api_key.clone().unwrap_or_default();
+    if let Some(value) = token.strip_prefix("userToken=") {
+        token = value.to_string();
+    }
+
+    let request = PreparedRequest {
+        method: Method::GET,
+        url: "https://chat.deepseek.com/api/v0/users/current".to_string(),
+        headers: vec![
+            (
+                "User-Agent".to_string(),
+                "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36".to_string(),
+            ),
+            (
+                "Cookie".to_string(),
+                format!("userToken={token}"),
+            ),
+        ],
+        body: None,
+    };
+
+    match execute_request(state, &connection.provider, effective_proxy, request).await {
+        Ok(response) => {
+            if !response.status().is_success() {
+                return invalid("Invalid userToken — re-paste from localStorage");
+            }
+
+            match response.json::<Value>().await {
+                Ok(payload) if payload.get("data").is_some() => ConnectionTestResult {
+                    valid: true,
+                    error: None,
+                    refreshed: false,
+                    new_tokens: None,
+                },
+                Ok(_) => invalid("Token expired — re-paste from localStorage"),
                 Err(error) => invalid(&error.to_string()),
             }
         }
