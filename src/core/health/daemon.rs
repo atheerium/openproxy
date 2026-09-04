@@ -164,6 +164,14 @@ fn apply_to_breaker(
 ) {
     let key = breaker_key(&conn.provider, &conn.id);
     breaker.record_status(&key, record.http_status);
+    // Mirror the current state into Prometheus so operators can see breaker
+    // health without scraping the in-process registry.
+    let state = match breaker.state(&key) {
+        crate::core::circuit_breaker::CircuitState::Closed => 0,
+        crate::core::circuit_breaker::CircuitState::Open => 1,
+        crate::core::circuit_breaker::CircuitState::HalfOpen => 2,
+    };
+    crate::server::metrics::record_circuit_state(&conn.provider, &conn.id, BREAKER_ENDPOINT, state);
 }
 
 /// Circuit-breaker key used for health-driven transitions.

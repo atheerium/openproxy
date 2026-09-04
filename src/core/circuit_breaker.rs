@@ -348,6 +348,25 @@ impl CircuitBreakerRegistry {
         }
     }
 
+    /// How long the circuit will stay Open before the next probe is allowed.
+    ///
+    /// Returns `None` when the key is unknown, Closed, or HalfOpen. Callers can
+    /// use this to align a temporary quarantine TTL with the breaker's natural
+    /// recovery window so a skipped member doesn't come back before the breaker
+    /// would let it through again.
+    pub fn open_duration_remaining(&self, key: &str) -> Option<Duration> {
+        let mut entry = self.entries.get(key)?;
+        let now = Instant::now();
+        let mut entry = entry.lock();
+        self.maybe_transition_to_half_open(&mut entry, now);
+        if entry.state != CircuitState::Open {
+            return None;
+        }
+        let opened_at = entry.opened_at?;
+        let elapsed = now.duration_since(opened_at);
+        entry.open_timeout().checked_sub(elapsed)
+    }
+
     /// Number of registered circuit breaker entries.
     pub fn len(&self) -> usize {
         self.entries.len()

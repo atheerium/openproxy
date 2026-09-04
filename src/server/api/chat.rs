@@ -1465,6 +1465,27 @@ async fn forward_with_provider_fallback(
 
         let proxy = resolve_proxy_target(&snapshot, &connection, &snapshot.settings);
 
+        // Circuit breaker: skip this connection+endpoint when its breaker is
+        // open. The breaker is keyed `{provider}:{connection_id}:{endpoint}`
+        // and is fed by both the health daemon and the per-request status
+        // recorder below. Without this guard the breaker is informational only
+        // and never actually fast-rejects traffic.
+        let breaker_key = crate::core::circuit_breaker::CircuitBreakerRegistry::key(
+            &format!("{}:{}", provider, connection.id),
+            endpoint.unwrap_or("default"),
+        );
+        if !state.circuit_breaker.allow_request(&breaker_key) {
+            tracing::debug!(
+                target: "cipherroute::chat",
+                "circuit_open provider={} connection={} endpoint={}",
+                provider,
+                connection.id,
+                endpoint.unwrap_or("default")
+            );
+            excluded.insert(connection.id.clone());
+            continue;
+        }
+
         let (rate_limit_remaining, rate_limit_reset) = registry.rate_limit_info(&connection.id);
         let slot = registry.acquire_slot(
             &connection.id,
@@ -2350,6 +2371,15 @@ async fn forward_with_provider_fallback(
         match execution {
             Ok(result) => {
                 let status = result.response.status();
+                state
+                    .circuit_breaker
+                    .record_status(&breaker_key, Some(status.as_u16()));
+                crate::server::metrics::record_provider_request(
+                    provider,
+                    model,
+                    status.as_u16(),
+                    stream,
+                );
                 if status.is_success() {
                     if let Some(retry_after) = retry_after_from_headers(result.response.headers()) {
                         let remaining = 0;
@@ -2613,6 +2643,10 @@ async fn forward_with_provider_fallback(
                     .usage_live
                     .finish_request(model, provider, Some(connection.id.as_str()), true)
                     .await;
+                // Transport-level failure (timeout, conn refused, DNS, etc.) —
+                // `None` HTTP status maps to the same degrade policy as a 5xx.
+                state.circuit_breaker.record_status(&breaker_key, None);
+                crate::server::metrics::record_provider_request(provider, model, 502, stream);
                 let current_backoff = connection.backoff_level.unwrap_or(0);
                 let decision = check_fallback_error(502, &message, current_backoff);
                 let error_for_return = ComboAttemptError::new(502, message.clone());
