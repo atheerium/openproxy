@@ -15,6 +15,7 @@ fn combo(name: &str, models: &[&str]) -> Combo {
         name: name.to_string(),
         models: models.iter().map(|value| value.to_string()).collect(),
         disabled_models: Vec::new(),
+        thinking_level: None,
         kind: None,
         created_at: None,
         updated_at: None,
