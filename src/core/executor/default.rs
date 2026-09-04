@@ -1345,8 +1345,23 @@ impl DefaultExecutor {
                             }
                         }
                     }
-                    // No refresh or refresh didn't help — try next fallback URL.
-                    break;
+                    // No refresh or refresh didn't help — surface the upstream
+                    // error body instead of falling through to MaxRetriesExhausted.
+                    let body_text = upstream.text().await;
+                    let body_text = body_text.chars().take(2000).collect::<String>();
+                    return Err(ExecutorError::UpstreamStatus(
+                        status,
+                        if body_text.is_empty() {
+                            format!("upstream returned {} for URL {}", status.as_u16(), url)
+                        } else {
+                            format!(
+                                "upstream returned {} for URL {}: {}",
+                                status.as_u16(),
+                                url,
+                                body_text
+                            )
+                        },
+                    ));
                 }
 
                 // 429: tokenrouter free models get exponential backoff; other 429/404
@@ -1423,14 +1438,23 @@ impl DefaultExecutor {
                     });
                 }
 
-                // 504 Gateway Timeout: 2 retries x 3s
+                // 504 Gateway Timeout: 2 retries x 3s, then surface the raw 504.
                 if status == http::StatusCode::GATEWAY_TIMEOUT {
-                    if retry < 1 {
+                    if retry < 1 && url == urls.last().unwrap() {
                         tokio::time::sleep(Duration::from_secs(3)).await;
                         continue;
                     }
-                    // After 2 retries, fall through to next fallback URL.
-                    break;
+                    return Ok(ExecutionResponse {
+                        response: upstream,
+                        url: url.clone(),
+                        headers,
+                        transformed_body,
+                        transport: if use_hyper {
+                            TransportKind::Hyper
+                        } else {
+                            TransportKind::Reqwest
+                        },
+                    });
                 }
 
                 // Other non-success status: propagate the upstream error WITH

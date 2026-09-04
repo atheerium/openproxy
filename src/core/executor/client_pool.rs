@@ -17,7 +17,7 @@ pub const CLIENT_POOL_IDLE_TIMEOUT: Duration = Duration::from_secs(90);
 pub const CLIENT_POOL_MAX_IDLE_PER_HOST: usize = 8;
 pub const CLIENT_POOL_TCP_KEEPALIVE: Duration = Duration::from_secs(60);
 pub const DEFAULT_CONNECT_TIMEOUT: Duration = Duration::from_secs(30);
-pub const DEFAULT_STREAM_TIMEOUT: Duration = Duration::from_secs(180);
+pub const DEFAULT_STREAM_TIMEOUT: Duration = Duration::from_secs(600);
 
 /// How often the stale-connection cleaner runs.
 const CLEANUP_INTERVAL: Duration = Duration::from_secs(300); // 5 minutes

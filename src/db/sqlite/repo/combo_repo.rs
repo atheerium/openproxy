@@ -22,7 +22,20 @@ pub fn get_by_name(conn: &Connection, name: &str) -> rusqlite::Result<Option<Com
 
 pub fn create(conn: &Connection, c: &Combo) -> rusqlite::Result<()> {
     let models_json = serde_json::to_string(&c.models).unwrap_or_else(|_| "[]".into());
-    let data_json = serde_json::to_string(&c.extra).unwrap_or_else(|_| "{}".into());
+    let mut data = c.extra.clone();
+    if !c.disabled_models.is_empty() {
+        data.insert(
+            "disabledModels".into(),
+            serde_json::to_value(&c.disabled_models).unwrap_or_default(),
+        );
+    }
+    if let Some(tl) = &c.thinking_level {
+        data.insert(
+            "thinkingLevel".into(),
+            serde_json::Value::String(tl.clone()),
+        );
+    }
+    let data_json = serde_json::to_string(&data).unwrap_or_else(|_| "{}".into());
     conn.execute(
         "INSERT INTO combos(id, name, kind, models, data, createdAt, updatedAt) VALUES(?1,?2,?3,?4,?5,?6,?7)",
         params![c.id, c.name, c.kind, models_json, data_json, c.created_at.as_deref().unwrap_or(""), c.updated_at.as_deref().unwrap_or("")],
@@ -32,7 +45,20 @@ pub fn create(conn: &Connection, c: &Combo) -> rusqlite::Result<()> {
 
 pub fn update(conn: &Connection, c: &Combo) -> rusqlite::Result<()> {
     let models_json = serde_json::to_string(&c.models).unwrap_or_else(|_| "[]".into());
-    let data_json = serde_json::to_string(&c.extra).unwrap_or_else(|_| "{}".into());
+    let mut data = c.extra.clone();
+    if !c.disabled_models.is_empty() {
+        data.insert(
+            "disabledModels".into(),
+            serde_json::to_value(&c.disabled_models).unwrap_or_default(),
+        );
+    }
+    if let Some(tl) = &c.thinking_level {
+        data.insert(
+            "thinkingLevel".into(),
+            serde_json::Value::String(tl.clone()),
+        );
+    }
+    let data_json = serde_json::to_string(&data).unwrap_or_else(|_| "{}".into());
     conn.execute(
         "UPDATE combos SET kind=?2, models=?3, data=?4, updatedAt=?5 WHERE id=?1",
         params![
@@ -56,20 +82,30 @@ fn row_to_combo(row: &rusqlite::Row<'_>) -> rusqlite::Result<Combo> {
     let name: String = row.get(1)?;
     let kind: Option<String> = row.get(2)?;
     let models_json: String = row.get(3)?;
-    let _data: String = row.get(4)?;
+    let data_json: String = row.get(4)?;
     let created_at: String = row.get(5)?;
     let updated_at: String = row.get(6)?;
 
     let models: Vec<String> = serde_json::from_str(&models_json).unwrap_or_default();
+    let extra: std::collections::BTreeMap<String, serde_json::Value> =
+        serde_json::from_str(&data_json).unwrap_or_default();
 
     Ok(Combo {
         id,
         name,
         kind,
         models,
+        disabled_models: extra
+            .get("disabledModels")
+            .and_then(|v| serde_json::from_value(v.clone()).ok())
+            .unwrap_or_default(),
+        thinking_level: extra
+            .get("thinkingLevel")
+            .and_then(|v| v.as_str())
+            .map(String::from),
         created_at: Some(created_at),
         updated_at: Some(updated_at),
-        ..Default::default()
+        extra,
     })
 }
 

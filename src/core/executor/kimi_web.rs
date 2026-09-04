@@ -520,7 +520,7 @@ impl KimiWebExecutor {
             .credentials
             .api_key
             .as_deref()
-            .or_else(|| request.credentials.access_token.as_deref())
+            .or(request.credentials.access_token.as_deref())
             .ok_or_else(|| {
                 KimiWebExecutorError::MissingCredentials(
                     "kimi-web requires an access_token in api_key or access_token".to_string(),
@@ -536,7 +536,7 @@ impl KimiWebExecutor {
 
         // Check for tools (not supported)
         if let Some(tools) = request.body.get("tools") {
-            if tools.as_array().map_or(false, |a| !a.is_empty()) {
+            if tools.as_array().is_some_and(|a| !a.is_empty()) {
                 return Err(KimiWebExecutorError::UnsupportedModel(
                     "Kimi web does not support tool calling. Remove tools from the request."
                         .to_string(),

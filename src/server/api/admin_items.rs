@@ -298,6 +298,8 @@ struct UpdateComboRequest {
     /// `name`/`models`/`kind` independently.
     disabled_models: Option<Vec<String>>,
     kind: Option<String>,
+    /// Global thinking level for all combo members (none/minimal/low/medium/high/xhigh/max).
+    thinking_level: Option<String>,
 }
 
 async fn update_combo(
@@ -345,6 +347,9 @@ async fn update_combo(
                 }
                 if let Some(kind) = req.kind.clone() {
                     combo.kind = Some(kind);
+                }
+                if req.thinking_level.is_some() {
+                    combo.thinking_level = req.thinking_level.clone().filter(|tl| !tl.is_empty());
                 }
                 combo.updated_at = Some(Utc::now().to_rfc3339());
             }

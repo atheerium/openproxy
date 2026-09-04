@@ -467,6 +467,7 @@ fn tool_table() -> Vec<ToolHandler> {
                     name: name.to_string(),
                     models: model_ids,
                     disabled_models: Vec::new(),
+                    thinking_level: None,
                     kind,
                     created_at: Some(now.clone()),
                     updated_at: Some(now),

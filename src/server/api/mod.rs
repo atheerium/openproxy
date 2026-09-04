@@ -1370,6 +1370,9 @@ struct CreateComboRequest {
     /// Free-form extra fields (e.g. `strategy`) preserved on the created combo.
     #[serde(default)]
     extra: std::collections::BTreeMap<String, serde_json::Value>,
+    /// Global thinking level for all combo members (none/minimal/low/medium/high/xhigh/max).
+    #[serde(default)]
+    thinking_level: Option<String>,
 }
 
 async fn create_combo_api(
@@ -1429,6 +1432,7 @@ async fn create_combo_api(
         name: name.to_string(),
         models: req.models,
         disabled_models: Vec::new(),
+        thinking_level: req.thinking_level.filter(|tl| !tl.is_empty()),
         kind: req.kind.filter(|kind| !kind.is_empty()),
         created_at: Some(now.clone()),
         updated_at: Some(now),
