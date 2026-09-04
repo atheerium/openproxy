@@ -1490,4 +1490,94 @@ mod tests {
             "slow member must be quarantined"
         );
     }
+
+    #[test]
+    fn check_fallback_error_429_backoff_increments_level() {
+        // 429 (rate limit) → Backoff → fallback + bumped backoff level.
+        let d0 = check_fallback_error(429, "irrelevant", 0);
+        assert!(d0.should_fallback);
+        assert_eq!(d0.new_backoff_level, Some(1));
+        let d2 = check_fallback_error(429, "irrelevant", 2);
+        assert_eq!(d2.new_backoff_level, Some(3));
+    }
+
+    #[test]
+    fn check_fallback_error_401_uses_long_cooldown() {
+        let d = check_fallback_error(401, "wrong text", 0);
+        assert!(d.should_fallback);
+        assert_eq!(d.cooldown, Duration::from_millis(2 * 60 * 1000));
+        assert!(d.new_backoff_level.is_none());
+    }
+
+    #[test]
+    fn check_fallback_error_permanent_does_not_fallback() {
+        // 400 with no rule match → Permanent → no fallback.
+        let d = check_fallback_error(400, "weird payload", 0);
+        assert!(!d.should_fallback);
+        assert_eq!(d.cooldown, Duration::ZERO);
+    }
+
+    #[test]
+    fn check_fallback_error_unknown_uses_transient_cooldown() {
+        // 418 → NoMatch → fallback with 30s transient cooldown.
+        let d = check_fallback_error(418, "I'm a teapot", 0);
+        assert!(d.should_fallback);
+        assert_eq!(d.cooldown, Duration::from_secs(30));
+    }
+
+    #[test]
+    fn check_fallback_error_text_overrides_status() {
+        // Text "rate limit" wins over status 500 → Backoff.
+        let d = check_fallback_error(500, "rate limit exceeded", 0);
+        assert!(d.should_fallback);
+        assert_eq!(d.new_backoff_level, Some(1));
+    }
+
+    #[test]
+    fn combo_attempt_error_ttft_timeout_uses_508() {
+        let e = ComboAttemptError::ttft_timeout("openai/gpt-4o", 5000);
+        assert_eq!(e.status, 508);
+        assert!(e.message.contains("gpt-4o"));
+        assert!(e.message.contains("5000"));
+    }
+
+    #[tokio::test]
+    async fn iterate_combo_models_permanent_error_stops_dispatch() {
+        // Permanent (400-class) errors must NOT trigger fallback — the
+        // strategy returns the first permanent error immediately rather than
+        // burning through every combo member.
+        let models = vec![
+            "openai/gpt-4o".to_string(),
+            "anthropic/claude-3-haiku".to_string(),
+        ];
+        let attempted = Arc::new(Mutex::new(Vec::new()));
+        let attempted_clone = attempted.clone();
+        let result = execute_combo_strategy_full(
+            &models,
+            None,
+            ComboStrategy::Fallback,
+            &[],
+            1,
+            None,
+            &PricingTable::new(),
+            |_| ModelCapacity::Available,
+            move |model: &str| {
+                let attempted_clone = attempted_clone.clone();
+                let owned = model.to_string();
+                async move {
+                    attempted_clone.lock().push(owned.clone());
+                    Err::<String, _>(ComboAttemptError::new(400, "weird payload"))
+                }
+            },
+        )
+        .await;
+        let err = result.expect_err("permanent error must surface");
+        assert_eq!(err.status, 400);
+        let order = attempted.lock().clone();
+        assert_eq!(
+            order.len(),
+            1,
+            "permanent error must stop dispatch at the first member"
+        );
+    }
 }
