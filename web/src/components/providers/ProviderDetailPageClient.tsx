@@ -1340,12 +1340,12 @@ export default function ProviderDetailPageClient() {
   // Determine icon path: OpenAI Compatible providers use specialized icons
   const getHeaderIconPath = () => {
     if (isOpenAICompatible && providerInfo.apiType) {
-      return providerInfo.apiType === "responses" ? "/providers/oai-r.png" : "/providers/oai-cc.png";
+      return providerInfo.apiType === "responses" ? "/providers/oai-r.svg" : "/providers/oai-cc.svg";
     }
     if (isAnthropicCompatible) {
-      return "/providers/anthropic-m.png";
+      return "/providers/anthropic-m.svg";
     }
-    return `/providers/${providerInfo.id}.png`;
+    return `/providers/${providerInfo.id}.svg`;
   };
 
   return (

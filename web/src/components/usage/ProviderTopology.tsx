@@ -22,7 +22,7 @@ function getProviderConfig(providerId: string): ProviderConfig {
 
 // Use local provider images from /public/providers/
 function getProviderImageUrl(providerId: string): string {
-  return `/providers/${providerId}.png`;
+  return `/providers/${providerId}.svg`;
 }
 
 interface ProviderNodeData {

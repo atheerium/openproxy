@@ -7,7 +7,7 @@ import Card from "./Card";
 import OverviewCards from "@/components/usage/OverviewCards";
 import UsageTable, { fmt, fmtTime } from "@/components/usage/UsageTable";
 import ProviderTopology from "@/components/usage/ProviderTopologyWrapper";
-import ProviderBreakdownTable from "@/components/usage/ProviderBreakdownTable";
+
 import React from "react";
 
 interface UsageStatsProps {
@@ -264,20 +264,17 @@ export default function UsageStats({ period: periodProp, setPeriod: setPeriodPro
       });
   }, [period]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // SSE connection - real-time updates for activeRequests + recentRequests only
+  // SSE connection - real-time updates; reconnects when period changes
   useEffect(() => {
-    const es = new EventSource("/api/usage/stream");
+    const es = new EventSource(`/api/usage/stream?period=${period}`);
 
     es.onmessage = (e) => {
       try {
         const data = JSON.parse(e.data);
-        // Always merge only real-time fields, never overwrite full stats from REST
+        // Merge full payload so totals, byModel, byProvider etc. update in real-time
         setStats((prev) => ({
           ...(prev || {}),
-          activeRequests: data.activeRequests,
-          recentRequests: data.recentRequests,
-          errorProvider: data.errorProvider,
-          pending: data.pending,
+          ...data,
         }));
         setLoading(false);
       } catch (err) {
@@ -288,7 +285,7 @@ export default function UsageStats({ period: periodProp, setPeriod: setPeriodPro
     es.onerror = () => setLoading(false);
 
     return () => es.close();
-  }, []);
+  }, [period]);
 
   const toggleSort = useCallback((tableType: string, field: string) => {
     setSortBy((prev) => {
@@ -453,11 +450,6 @@ export default function UsageStats({ period: periodProp, setPeriod: setPeriodPro
 
       {/* Overview cards */}
       {loading ? spinner : <OverviewCards stats={stats} />}
-
-      {/* Provider breakdown */}
-      {loading ? spinner : (stats.byProvider && Object.keys(stats.byProvider).length > 0 ? (
-        <ProviderBreakdownTable byProvider={stats.byProvider} />
-      ) : null)}
 
       {/* Provider topology + Recent Requests */}
       {loading ? spinner : (

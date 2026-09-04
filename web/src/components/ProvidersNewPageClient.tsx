@@ -307,7 +307,7 @@ export default function ProvidersNewPageClient() {
                 }}
               >
                 <ProviderIcon
-                  src={`/providers/${selected.provider.id}.png`}
+                  src={`/providers/${selected.provider.id}.svg`}
                   alt={selected.provider.name}
                   size={28}
                   className="max-h-[28px] max-w-[28px] rounded-lg object-contain"

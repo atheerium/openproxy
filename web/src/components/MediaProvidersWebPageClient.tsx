@@ -31,7 +31,7 @@ function ProviderCard({ provider, kind, connections }: { provider: any; kind: st
             style={{ backgroundColor: `${(provider.color?.length > 7 ? provider.color : (provider.color ?? "#888"))}15` }}
           >
             <ProviderIcon
-              src={`/providers/${provider.id}.png`}
+              src={`/providers/${provider.id}.svg`}
               alt={provider.name}
               size={30}
               className="object-contain rounded-mini-lg max-w-[30px] max-h-[30px]"
@@ -81,7 +81,7 @@ function ComboList({ combos }: { combos: any[] }) {
                   return (
                     <div key={`${entry}-${i}`} title={p?.name || entry} className="size-5 rounded flex items-center justify-center" style={{ backgroundColor: `${(p?.color ?? "#888")}15` }}>
                       <ProviderIcon
-                        src={`/providers/${pid}.png`}
+                        src={`/providers/${pid}.svg`}
                         alt={p?.name || pid}
                         size={18}
                         className="object-contain rounded max-w-[18px] max-h-[18px]"

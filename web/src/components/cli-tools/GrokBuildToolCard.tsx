@@ -266,7 +266,7 @@ api_key = "${keyToUse}"
         <div className="flex min-w-0 items-center gap-3">
           <div className="size-8 flex items-center justify-center shrink-0">
             <img
-              src={tool.image || "/providers/grok-cli.png"}
+              src={tool.image || "/providers/grok-cli.svg"}
               alt={tool.name}
               width={32}
               height={32}

@@ -312,7 +312,7 @@ export default function DefaultToolCard({
     }
     return (
       <img
-        src={`/providers/${toolId}.png`}
+        src={`/providers/${toolId}.svg`}
         alt={tool.name}
         width={32}
         height={32}

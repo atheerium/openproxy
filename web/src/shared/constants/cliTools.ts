@@ -71,7 +71,7 @@ export const MITM_TOOLS: Record<string, MITMTool> = {
   antigravity: {
     id: "antigravity",
     name: "Antigravity",
-    image: "/providers/antigravity.png",
+    image: "/providers/antigravity.svg",
     color: "#4285F4",
     description: "Google Antigravity IDE with MITM",
     configType: "mitm",
@@ -102,7 +102,7 @@ export const MITM_TOOLS: Record<string, MITMTool> = {
   copilot: {
     id: "copilot",
     name: "GitHub Copilot",
-    image: "/providers/copilot.png",
+    image: "/providers/copilot.svg",
     color: "#1F6FEB",
     description: "GitHub Copilot IDE with MITM",
     configType: "mitm",
@@ -119,7 +119,7 @@ export const MITM_TOOLS: Record<string, MITMTool> = {
   kiro: {
     id: "kiro",
     name: "Kiro",
-    image: "/providers/kiro.png",
+    image: "/providers/kiro.svg",
     color: "#FF6B00",
     description: "Kiro IDE with MITM",
     configType: "mitm",
@@ -140,7 +140,7 @@ export const CLI_TOOLS: Record<string, CLITool> = {
   claude: {
     id: "claude",
     name: "Claude Code",
-    image: "/providers/claude.png",
+    image: "/providers/claude.svg",
     color: "#D97757",
     description: "Anthropic Claude Code CLI",
     configType: "env",
@@ -164,7 +164,7 @@ export const CLI_TOOLS: Record<string, CLITool> = {
   openclaw: {
     id: "openclaw",
     name: "Open Claw",
-    image: "/providers/openclaw.png",
+    image: "/providers/openclaw.svg",
     color: "#FF6B35",
     description: "Open Claw AI Assistant",
     configType: "custom",
@@ -172,7 +172,7 @@ export const CLI_TOOLS: Record<string, CLITool> = {
   codex: {
     id: "codex",
     name: "OpenAI Codex CLI / App",
-    image: "/providers/codex.png",
+    image: "/providers/codex.svg",
     color: "#10A37F",
     description: "OpenAI Codex CLI",
     configType: "custom",
@@ -180,7 +180,7 @@ export const CLI_TOOLS: Record<string, CLITool> = {
   opencode: {
     id: "opencode",
     name: "OpenCode",
-    image: "/providers/opencode.png",
+    image: "/providers/opencode.svg",
     color: "#E87040",
     description: "OpenCode AI Terminal Assistant",
     configType: "custom",
@@ -188,7 +188,7 @@ export const CLI_TOOLS: Record<string, CLITool> = {
   cowork: {
     id: "cowork",
     name: "Claude Cowork",
-    image: "/providers/claude.png",
+    image: "/providers/claude.svg",
     color: "#D97757",
     description: "Claude Desktop Cowork (third-party inference)",
     configType: "custom",
@@ -196,7 +196,7 @@ export const CLI_TOOLS: Record<string, CLITool> = {
   hermes: {
     id: "hermes",
     name: "Hermes Agent",
-    image: "/providers/hermes.png",
+    image: "/providers/hermes.svg",
     color: "#8B5CF6",
     description: "Nous Research self-improving AI agent",
     configType: "custom",
@@ -204,7 +204,7 @@ export const CLI_TOOLS: Record<string, CLITool> = {
   droid: {
     id: "droid",
     name: "Factory Droid",
-    image: "/providers/droid.png",
+    image: "/providers/droid.svg",
     color: "#00D4FF",
     description: "Factory Droid AI Assistant",
     configType: "custom",
@@ -212,7 +212,7 @@ export const CLI_TOOLS: Record<string, CLITool> = {
   cursor: {
     id: "cursor",
     name: "Cursor",
-    image: "/providers/cursor.png",
+    image: "/providers/cursor.svg",
     color: "#000000",
     description: "Cursor AI Code Editor",
     configType: "guide",
@@ -233,7 +233,7 @@ export const CLI_TOOLS: Record<string, CLITool> = {
   cline: {
     id: "cline",
     name: "Cline",
-    image: "/providers/cline.png",
+    image: "/providers/cline.svg",
     color: "#00D1B2",
     description: "Cline AI Coding Assistant",
     configType: "custom",
@@ -248,7 +248,7 @@ export const CLI_TOOLS: Record<string, CLITool> = {
   kilo: {
     id: "kilo",
     name: "Kilo Code",
-    image: "/providers/kilocode.png",
+    image: "/providers/kilocode.svg",
     color: "#FF6B6B",
     description: "Kilo Code AI Assistant",
     configType: "custom",
@@ -263,7 +263,7 @@ export const CLI_TOOLS: Record<string, CLITool> = {
   roo: {
     id: "roo",
     name: "Roo",
-    image: "/providers/roo.png",
+    image: "/providers/roo.svg",
     color: "#FF6B6B",
     description: "Roo AI Assistant",
     configType: "guide",
@@ -278,7 +278,7 @@ export const CLI_TOOLS: Record<string, CLITool> = {
   continue: {
     id: "continue",
     name: "Continue",
-    image: "/providers/continue.png",
+    image: "/providers/continue.svg",
     color: "#7C3AED",
     description: "Continue AI Assistant",
     configType: "guide",
@@ -302,7 +302,7 @@ export const CLI_TOOLS: Record<string, CLITool> = {
   amp: {
     id: "amp",
     name: "Amp CLI",
-    image: "/providers/amp.png",
+    image: "/providers/amp.svg",
     color: "#F97316",
     description: "Sourcegraph Amp coding assistant CLI",
     docsUrl: "/docs?section=cli-tools&tool=amp",
@@ -333,7 +333,7 @@ amp --model "{{model}}"
   qwen: {
     id: "qwen",
     name: "Qwen Code",
-    image: "/providers/qwen.png",
+    image: "/providers/qwen.svg",
     color: "#10B981",
     description: "Alibaba Qwen Code CLI — supports OpenAI, Anthropic & Gemini providers via CipherRoute",
     docsUrl: "https://qwenlm.github.io/qwen-code-docs/en/users/configuration/model-providers/",
@@ -391,7 +391,7 @@ amp --model "{{model}}"
   "deepseek-tui": {
     id: "deepseek-tui",
     name: "DeepSeek TUI",
-    image: "/providers/deepseek-tui.png",
+    image: "/providers/deepseek-tui.svg",
     color: "#4D6BFE",
     description: "DeepSeek Terminal Coding Agent (Rust TUI)",
     docsUrl: "https://github.com/DeepSeek-TUI/DeepSeek-TUI",
@@ -411,7 +411,7 @@ amp --model "{{model}}"
   jcode: {
     id: "jcode",
     name: "jcode",
-    image: "/providers/jcode.png",
+    image: "/providers/jcode.svg",
     color: "#FF6B35",
     description: "High-performance Rust-based coding agent harness",
     configType: "custom",
@@ -440,7 +440,7 @@ amp --model "{{model}}"
   "grok-build": {
     id: "grok-build",
     name: "Grok Build (Grok CLI)",
-    image: "/providers/grok-cli.png",
+    image: "/providers/grok-cli.svg",
     color: "#1DA1F2",
     description: "xAI Grok Build TUI coding agent",
     configType: "custom",

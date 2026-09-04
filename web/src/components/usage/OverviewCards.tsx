@@ -4,6 +4,7 @@ import Card from "@/shared/components/Card";
 
 interface Stats {
   totalRequests?: number;
+  totalFailedRequests?: number;
   totalPromptTokens?: number;
   totalCompletionTokens?: number;
   totalReasoningTokens?: number;
@@ -27,12 +28,16 @@ export default function OverviewCards({ stats }: OverviewCardsProps) {
     (stats.totalCompletionTokens || 0) +
     (stats.totalReasoningTokens || 0);
 
+  const total = stats.totalRequests || 0;
+  const failed = stats.totalFailedRequests || 0;
+  const successRate = total > 0 ? ((total - failed) / total * 100).toFixed(1) : "–";
+
   return (
-    <div className="grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-3">
+    <div className="grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-4">
       <Card className="flex min-w-0 flex-col gap-1 px-4 py-3">
         <span className="text-text-muted text-sm uppercase font-semibold">Total Tokens</span>
         <span className="truncate text-2xl font-bold">{fmt(totalTokens)}</span>
-        <span className="text-[11px] text-text-muted">{fmt(stats.totalRequests || 0)} Requests</span>
+        <span className="text-[11px] text-text-muted">{fmt(total)} Requests</span>
       </Card>
       <Card className="flex min-w-0 flex-col gap-1 px-4 py-3">
         <span className="text-text-muted text-sm uppercase font-semibold">Input Tokens</span>
@@ -41,6 +46,11 @@ export default function OverviewCards({ stats }: OverviewCardsProps) {
       <Card className="flex min-w-0 flex-col gap-1 px-4 py-3">
         <span className="text-text-muted text-sm uppercase font-semibold">Output Tokens</span>
         <span className="truncate text-2xl font-bold text-[color:var(--color-success)]">{fmt(stats.totalCompletionTokens || 0)}</span>
+      </Card>
+      <Card className="flex min-w-0 flex-col gap-1 px-4 py-3">
+        <span className="text-text-muted text-sm uppercase font-semibold">Success Rate</span>
+        <span className="truncate text-2xl font-bold">{successRate}%</span>
+        <span className="text-[11px] text-text-muted">{fmt(total - failed)} OK / {fmt(failed)} Failed</span>
       </Card>
     </div>
   );

@@ -131,7 +131,7 @@ function MediaProviderDetailPage({ kind, id }: { kind: string; id: string }) {
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4">
           <div className="size-12 rounded-mini-lg flex items-center justify-center shrink-0" style={{ backgroundColor: `${(provider as any).color}15` }}>
             <ProviderIcon
-              src={`/providers/${(provider as any).id}.png`}
+              src={`/providers/${(provider as any).id}.svg`}
               alt={(provider as any).name}
               size={48}
               className="object-contain rounded-mini-lg max-w-[48px] max-h-[48px]"

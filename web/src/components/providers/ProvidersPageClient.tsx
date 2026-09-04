@@ -863,13 +863,21 @@ export default function ProvidersPageClient() {
       </div>
       )}
 
-      {/* Web Cookie Providers — use browser subscription cookie instead of API key */}
+      {/* Web Cookie Providers — browser session / localStorage token (not API key). Distinct section for subscription-based web providers. */}
       {Object.entries(WEB_COOKIE_PROVIDERS).filter(([, info]) => !info.hidden && matchSearch(info.name)).length > 0 && (
-        <div className="flex flex-col gap-4">
-          <div className="flex items-center justify-between">
-            <h2 className="text-xl font-semibold flex items-center gap-2">
-              Web Cookie Providers{" "}
-            </h2>
+        <div className="flex flex-col gap-4 rounded-xl border border-amber-200/70 bg-amber-50/40 p-4 dark:border-amber-900/50 dark:bg-amber-950/20">
+          <div className="flex flex-col gap-1">
+            <div className="flex items-center gap-2">
+              <span className="material-symbols-outlined text-[20px] text-amber-600 dark:text-amber-400">cookie</span>
+              <h2 className="text-xl font-semibold flex items-center gap-2">
+                Web Session Providers
+              </h2>
+              <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-amber-700 dark:bg-amber-900 dark:text-amber-300">Beta</span>
+              <span className="text-xs text-text-secondary hidden sm:inline">— subscription accounts via browser session</span>
+            </div>
+            <p className="text-xs leading-relaxed text-text-secondary">
+              Easiest first: <span className="font-medium text-text-primary">Kimi</span> (kimi.ai) &amp; <span className="font-medium text-text-primary">DeepSeek</span> (chat.deepseek.com). Paste the token from DevTools → Application → Local Storage (<code className="rounded bg-black/5 px-1 py-0.5 dark:bg-white/10">access_token</code> / <code className="rounded bg-black/5 px-1 py-0.5 dark:bg-white/10">userToken</code>). No OAuth flow — token expires when your web session does. Harder providers (Cloudflare / CAPTCHA) coming later.
+            </p>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
             {Object.entries(WEB_COOKIE_PROVIDERS).filter(([, info]) => !info.hidden && matchSearch(info.name)).map(([key, info]) => (
@@ -1048,7 +1056,7 @@ function ProviderCard({ providerId, provider, stats, authType, onToggle }) {
               }}
             >
               <ProviderIcon
-                src={`/providers/${provider.id}.png`}
+                src={`/providers/${provider.id}.svg`}
                 alt={provider.name}
                 size={30}
                 className="object-contain rounded-lg max-w-[32px] max-h-[32px]"
@@ -1170,10 +1178,10 @@ function ApiKeyProviderCard({
   const getIconPath = () => {
     if (isCompatible)
       return provider.apiType === "responses"
-        ? "/providers/oai-r.png"
-        : "/providers/oai-cc.png";
-    if (isAnthropicCompatible) return "/providers/anthropic-m.png";
-    return `/providers/${provider.id}.png`;
+        ? "/providers/oai-r.svg"
+        : "/providers/oai-cc.svg";
+    if (isAnthropicCompatible) return "/providers/anthropic-m.svg";
+    return `/providers/${provider.id}.svg`;
   };
 
   return (

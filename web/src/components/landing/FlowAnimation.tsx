@@ -16,10 +16,10 @@ interface Provider {
 }
 
 const CLI_TOOLS: CliTool[] = [
-  { id: "claude", name: "Claude Code", image: "/providers/claude.png" },
-  { id: "codex", name: "OpenAI Codex", image: "/providers/codex.png" },
-  { id: "cline", name: "Cline", image: "/providers/cline.png" },
-  { id: "cursor", name: "Cursor", image: "/providers/cursor.png" },
+  { id: "claude", name: "Claude Code", image: "/providers/claude.svg" },
+  { id: "codex", name: "OpenAI Codex", image: "/providers/codex.svg" },
+  { id: "cline", name: "Cline", image: "/providers/cline.svg" },
+  { id: "cursor", name: "Cursor", image: "/providers/cursor.svg" },
 ];
 
 const PROVIDERS: Provider[] = [

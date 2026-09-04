@@ -310,7 +310,7 @@ export default function MediaProvidersComboIdPageClient() {
                 <div key={`${entry}-${idx}`} className="flex items-center gap-3 p-2 rounded-mini-lg bg-black/[0.02] dark:bg-white/[0.02]">
                   <span className="text-xs text-text-muted w-5 text-center">{idx + 1}</span>
                   <ProviderIcon
-                    src={`/providers/${providerId}.png`}
+                    src={`/providers/${providerId}.svg`}
                     alt={p?.name || providerId}
                     size={24}
                     className="object-contain rounded shrink-0"

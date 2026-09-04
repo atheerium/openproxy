@@ -222,7 +222,7 @@ export default function ClineToolCard({
         <div className="flex min-w-0 items-center gap-3">
           <div className="size-8 flex items-center justify-center shrink-0">
             <img
-              src="/providers/cline.png"
+              src="/providers/cline.svg"
               alt={tool.name}
               width={32}
               height={32}

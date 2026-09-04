@@ -44,7 +44,7 @@ const getPageInfo = (pathname: string): PageInfo => {
       breadcrumbs: [
         { label: "Media Providers", href: `/dashboard/media-providers/${kindId}` },
         { label: kindConfig?.label || kindId, href: `/dashboard/media-providers/${kindId}` },
-        { label: provider?.name || providerId, image: `/providers/${providerId}.png` },
+        { label: provider?.name || providerId, image: `/providers/${providerId}.svg` },
       ],
     };
   }
@@ -76,7 +76,7 @@ const getPageInfo = (pathname: string): PageInfo => {
           { label: "Providers", href: "/dashboard/providers" },
           {
             label: providerInfo.name,
-            image: `/providers/${providerInfo.id}.png`,
+            image: `/providers/${providerInfo.id}.svg`,
           },
         ],
       };
