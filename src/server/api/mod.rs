@@ -80,6 +80,7 @@ pub fn routes(state: AppState) -> Router<AppState> {
         .route("/health", get(health))
         .route("/api/health", get(api_health))
         .route("/api/catalog", get(api_catalog))
+        .route("/metrics", get(crate::server::metrics::metrics_handler))
         .route("/v1", get(v1_root))
         .route("/v1/health", get(health))
         .route("/v1/v1/health", get(health));
@@ -403,7 +404,12 @@ pub fn routes(state: AppState) -> Router<AppState> {
         .merge(pxpipe::routes());
 
     // ── Assemble ──
-    public.merge(protected).merge(admin).merge(remaining)
+    let router = public.merge(protected).merge(admin).merge(remaining);
+    // Outermost layer: HTTP request counter + latency + x-request-id.
+    // Apply before any auth so health/metrics scrapes are also counted.
+    router.layer(axum::middleware::from_fn(
+        crate::server::metrics::http_metrics_and_request_id,
+    ))
 }
 
 async fn v1_root() -> Response {
