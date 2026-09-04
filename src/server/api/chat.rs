@@ -657,7 +657,7 @@ async fn chat_completions_impl(
                         // (e.g. "custom/gpt-fail" -> provider "node-openai", model "gpt-fail").
                         let inner_snapshot = state.db.snapshot();
                         let combo_resolved = get_model_info(&combo_model, &inner_snapshot);
-                        tracing::warn!(
+                        tracing::debug!(
                             "COMBO model={} provider={:?} model_resolved={:?}",
                             combo_model,
                             combo_resolved.provider,
@@ -1144,15 +1144,6 @@ async fn execute_single_model(
         } else {
             "openai"
         };
-        if let Ok(body_str) = serde_json::to_string(&body) {
-            let est_tokens = body_str.len().div_ceil(4);
-            if est_tokens > 0 {
-                tracing::debug!(
-                    "headroom input ~{} tokens (estimated from body size)",
-                    est_tokens
-                );
-            }
-        }
         let mut headroom_diag = crate::core::rtk::headroom::HeadroomDiagnostics::default();
         if let Some(stats) = compress_with_headroom_diag(
             &mut body,
@@ -1264,6 +1255,19 @@ async fn forward_with_provider_fallback(
         Err(response) => return Ok(response),
     };
 
+    // Per-key daily budget + request-count kill-switch: block when today's
+    // spend or request count reaches the configured daily limits.
+    let (daily_budget_remaining, daily_requests_remaining) =
+        match crate::server::api::daily_quota_guard::enforce_daily_quota(state, api_key) {
+            Ok(remaining) => remaining,
+            Err(response) => return Ok(response),
+        };
+
+    // F4: capture request body length for token estimation when upstream omits usage
+    let request_body_len = serde_json::to_string(&request_body)
+        .map(|s| s.len())
+        .unwrap_or(0);
+
     // Extract tool name map from body (set by Claude cloaking).
     // Remove from body before dispatch to avoid serializing it upstream.
     let tool_name_map: Option<std::collections::BTreeMap<String, String>> = request_body
@@ -1366,7 +1370,16 @@ async fn forward_with_provider_fallback(
         let stream = plan.stream;
         if let Some(obj) = request_body.as_object_mut() {
             obj.insert("stream".into(), Value::Bool(stream));
+            // T1: OpenAI streaming must include usage in last chunk
+            if stream && !obj.contains_key("stream_options") {
+                obj.insert(
+                    "stream_options".into(),
+                    serde_json::json!({"include_usage": true}),
+                );
+            }
         }
+
+        let request_start = std::time::Instant::now();
 
         state
             .usage_live
@@ -1376,16 +1389,17 @@ async fn forward_with_provider_fallback(
         use crate::core::executor::{
             AntigravityExecutionRequest, AntigravityExecutor, AzureExecutionRequest, AzureExecutor,
             CodexExecutionRequest, CodexExecutor, CommandCodeExecutionRequest, CommandCodeExecutor,
-            CursorExecutionRequest, CursorExecutor, DefaultExecutor, DevinCliExecutor,
-            DevinExecutionRequest, ExecutionRequest, GeminiCliExecutionRequest, GeminiCliExecutor,
-            GithubExecutionRequest, GithubExecutor, GrokWebExecutionRequest, GrokWebExecutor,
-            IFlowExecutionRequest, IFlowExecutor, KimchiExecutor, KiroExecutionRequest,
-            KiroExecutor, KiroExecutorResponse, OpenCodeExecutionRequest, OpenCodeExecutor,
-            OpenCodeGoExecutionRequest, OpenCodeGoExecutor, PerplexityWebExecutionRequest,
-            PerplexityWebExecutor, ProviderExecutionRequest, ProviderExecutor,
-            QoderExecutionRequest, QoderExecutor, QwenExecutionRequest, QwenExecutor,
-            TraeExecutionRequest, TraeExecutor, VertexExecutionRequest, VertexExecutor,
-            WindsurfExecutionRequest, WindsurfExecutor,
+            CursorExecutionRequest, CursorExecutor, DeepSeekWebExecutionRequest,
+            DeepSeekWebExecutor, DefaultExecutor, DevinCliExecutor, DevinExecutionRequest,
+            ExecutionRequest, GeminiCliExecutionRequest, GeminiCliExecutor, GithubExecutionRequest,
+            GithubExecutor, GrokWebExecutionRequest, GrokWebExecutor, IFlowExecutionRequest,
+            IFlowExecutor, KimchiExecutor, KimiWebExecutionRequest, KimiWebExecutor,
+            KiroExecutionRequest, KiroExecutor, KiroExecutorResponse, OpenCodeExecutionRequest,
+            OpenCodeExecutor, OpenCodeGoExecutionRequest, OpenCodeGoExecutor,
+            PerplexityWebExecutionRequest, PerplexityWebExecutor, ProviderExecutionRequest,
+            ProviderExecutor, QoderExecutionRequest, QoderExecutor, QwenExecutionRequest,
+            QwenExecutor, TraeExecutionRequest, TraeExecutor, VertexExecutionRequest,
+            VertexExecutor, WindsurfExecutionRequest, WindsurfExecutor,
         };
 
         let is_codex_model = model.starts_with("codex/") || provider == "codex";
@@ -1855,6 +1869,54 @@ async fn forward_with_provider_fallback(
                     transformed_body: result.transformed_body,
                     transport: result.transport,
                 })
+            } else if provider == "deepseek-web" {
+                let executor = DeepSeekWebExecutor::new(state.client_pool.clone());
+                let result = executor
+                    .execute_request(DeepSeekWebExecutionRequest {
+                        model: model.to_string(),
+                        body: request_body.clone(),
+                        stream,
+                        credentials: connection.clone(),
+                        proxy,
+                    })
+                    .await
+                    .map_err(|e| ComboAttemptError {
+                        status: 500,
+                        message: format!("DeepSeekWeb execution failed: {:?}", e),
+                        retry_after: None,
+                        upstream_body: None,
+                    })?;
+                Ok(KiroExecutorResponse {
+                    response: result.response,
+                    url: result.url,
+                    headers: result.headers,
+                    transformed_body: result.transformed_body,
+                    transport: result.transport,
+                })
+            } else if provider == "kimi-web" {
+                let executor = KimiWebExecutor::new(state.client_pool.clone());
+                let result = executor
+                    .execute_request(KimiWebExecutionRequest {
+                        model: model.to_string(),
+                        body: request_body.clone(),
+                        stream,
+                        credentials: connection.clone(),
+                        proxy,
+                    })
+                    .await
+                    .map_err(|e| ComboAttemptError {
+                        status: 500,
+                        message: format!("KimiWeb execution failed: {:?}", e),
+                        retry_after: None,
+                        upstream_body: None,
+                    })?;
+                Ok(KiroExecutorResponse {
+                    response: result.response,
+                    url: result.url,
+                    headers: result.headers,
+                    transformed_body: result.transformed_body,
+                    transport: result.transport,
+                })
             } else if provider == "windsurf" || provider == "ws" {
                 let executor = WindsurfExecutor::new(state.client_pool.clone());
                 let result = executor
@@ -2184,12 +2246,20 @@ async fn forward_with_provider_fallback(
                             api_key,
                             endpoint,
                             compression.clone(),
+                            request_start,
+                            request_body_len,
                         )
                         .await;
-                        return Ok(crate::server::api::budget_guard::with_budget_header(
-                            response,
-                            budget_remaining,
-                        ));
+                        return Ok(
+                            crate::server::api::daily_quota_guard::with_daily_quota_headers(
+                                crate::server::api::budget_guard::with_budget_header(
+                                    response,
+                                    budget_remaining,
+                                ),
+                                daily_budget_remaining,
+                                daily_requests_remaining,
+                            ),
+                        );
                     }
                     // forceStream + client non-stream → collect SSE → JSON (9router)
                     if plan.sse_to_json {
@@ -2209,12 +2279,20 @@ async fn forward_with_provider_fallback(
                             endpoint,
                             plan,
                             compression.clone(),
+                            request_start,
+                            request_body_len,
                         )
                         .await;
-                        return Ok(crate::server::api::budget_guard::with_budget_header(
-                            response,
-                            budget_remaining,
-                        ));
+                        return Ok(
+                            crate::server::api::daily_quota_guard::with_daily_quota_headers(
+                                crate::server::api::budget_guard::with_budget_header(
+                                    response,
+                                    budget_remaining,
+                                ),
+                                daily_budget_remaining,
+                                daily_requests_remaining,
+                            ),
+                        );
                     }
                     if !stream {
                         let response = proxy_response_with_usage_tracking(
@@ -2228,12 +2306,20 @@ async fn forward_with_provider_fallback(
                             plan,
                             tool_name_map.as_ref(),
                             compression.clone(),
+                            request_start,
+                            request_body_len,
                         )
                         .await;
-                        return Ok(crate::server::api::budget_guard::with_budget_header(
-                            response,
-                            budget_remaining,
-                        ));
+                        return Ok(
+                            crate::server::api::daily_quota_guard::with_daily_quota_headers(
+                                crate::server::api::budget_guard::with_budget_header(
+                                    response,
+                                    budget_remaining,
+                                ),
+                                daily_budget_remaining,
+                                daily_requests_remaining,
+                            ),
+                        );
                     }
                     let normalize_for_dashboard =
                         endpoint == Some("/api/dashboard/chat/completions");
@@ -2249,12 +2335,20 @@ async fn forward_with_provider_fallback(
                         plan,
                         tool_name_map.as_ref(),
                         compression.clone(),
+                        request_start,
+                        request_body_len,
                     )
                     .await;
-                    return Ok(crate::server::api::budget_guard::with_budget_header(
-                        response,
-                        budget_remaining,
-                    ));
+                    return Ok(
+                        crate::server::api::daily_quota_guard::with_daily_quota_headers(
+                            crate::server::api::budget_guard::with_budget_header(
+                                response,
+                                budget_remaining,
+                            ),
+                            daily_budget_remaining,
+                            daily_requests_remaining,
+                        ),
+                    );
                 }
 
                 // 9router parity: retryAfter may come from the Retry-After header
@@ -2433,29 +2527,60 @@ async fn proxy_dashboard_sse_with_usage_tracking(
     api_key: Option<&str>,
     endpoint: Option<&str>,
     compression: Option<CompressionStats>,
+    request_start: std::time::Instant,
+    request_body_len: usize,
 ) -> Response {
     let status = response.status();
     let headers = response.headers().clone();
     let (body_bytes, body_complete) = collect_upstream_response_bytes(response).await;
 
+    // 500 diagnostics: log upstream error status + body snippet for debugging.
+    if !status.is_success() {
+        let body_snip = String::from_utf8_lossy(&body_bytes);
+        let body_snip = if body_snip.len() > 300 {
+            format!("{}…", &body_snip[..300])
+        } else {
+            body_snip.to_string()
+        };
+        tracing::warn!(
+            target: "cipherroute::chat",
+            "upstream_error status={} provider={} model={} body={}",
+            status.as_u16(),
+            provider,
+            model,
+            body_snip,
+        );
+    }
+
+    let latency_ms = request_start.elapsed().as_millis() as u64;
+    let usage_status: Option<&str> = if status.is_success() {
+        Some("success")
+    } else {
+        Some("error")
+    };
     let token_usage = if body_complete {
-        let usage = extract_token_usage_from_bytes(&body_bytes);
-        state
-            .usage_tracker()
-            .track_request(
-                provider,
-                model,
-                usage.as_ref(),
-                connection_id,
-                api_key,
-                endpoint,
-                compression,
-                None, // latency_ms
-                None, // ttft_ms
-                None, // status
-                None, // error_class
-            )
-            .await;
+        let usage = extract_token_usage_from_bytes(&body_bytes)
+            .map(|u| estimate_fill_missing(u, request_body_len, Some(body_bytes.len())))
+            .or_else(|| {
+                Some(estimate_missing_tokens(
+                    request_body_len,
+                    Some(body_bytes.len()),
+                ))
+            });
+        // P1: detached — dashboard response does not wait for SQLite.
+        state.usage_tracker().track_request_detached(
+            provider,
+            model,
+            usage.as_ref(),
+            connection_id,
+            api_key,
+            endpoint,
+            compression,
+            Some(latency_ms),
+            Some(latency_ms),
+            usage_status,
+            classify_status_error(status),
+        );
         state.usage_live.notify_update();
         usage
     } else {
@@ -2958,9 +3083,34 @@ async fn proxy_sse_to_json_response(
     endpoint: Option<&str>,
     plan: &RequestPlan,
     compression: Option<CompressionStats>,
+    request_start: std::time::Instant,
+    request_body_len: usize,
 ) -> Response {
     let status = response.status();
+    let usage_status: Option<&str> = if status.is_success() {
+        Some("success")
+    } else {
+        Some("error")
+    };
     let (body_bytes, body_complete) = collect_upstream_response_bytes(response).await;
+
+    // 500 diagnostics: log upstream error status + body snippet for debugging.
+    if !status.is_success() {
+        let body_snip = String::from_utf8_lossy(&body_bytes);
+        let body_snip = if body_snip.len() > 300 {
+            format!("{}…", &body_snip[..300])
+        } else {
+            body_snip.to_string()
+        };
+        tracing::warn!(
+            target: "cipherroute::chat",
+            "upstream_error status={} provider={} model={} body={}",
+            status.as_u16(),
+            provider,
+            model,
+            body_snip,
+        );
+    }
 
     let json_body =
         crate::core::media::responses::stream_to_json::sse_stream_to_json(&body_bytes, Some(model))
@@ -2979,24 +3129,26 @@ async fn proxy_sse_to_json_response(
 
     let out = Bytes::from(serde_json::to_vec(&json_body).unwrap_or_default());
 
+    let latency_ms = request_start.elapsed().as_millis() as u64;
     if body_complete {
-        let usage = extract_token_usage_from_bytes(&out);
-        state
-            .usage_tracker()
-            .track_request(
-                provider,
-                model,
-                usage.as_ref(),
-                connection_id,
-                api_key,
-                endpoint,
-                compression,
-                None, // latency_ms
-                None, // ttft_ms
-                None, // status
-                None, // error_class
-            )
-            .await;
+        let usage = extract_token_usage_from_bytes(&out)
+            .map(|u| estimate_fill_missing(u, request_body_len, Some(out.len())))
+            .or_else(|| Some(estimate_missing_tokens(request_body_len, Some(out.len()))));
+        // P1: detached — non-streaming response doesn't wait for SQLite.
+        state.usage_tracker().track_request_detached(
+            provider,
+            model,
+            usage.as_ref(),
+            connection_id,
+            api_key,
+            endpoint,
+            compression,
+            Some(latency_ms),
+            Some(latency_ms),
+            usage_status,
+            classify_status_error(status),
+        );
+        state.usage_live.notify_update();
     }
     state
         .usage_live
@@ -3029,10 +3181,35 @@ async fn proxy_response_with_usage_tracking(
     plan: &RequestPlan,
     tool_name_map: Option<&std::collections::BTreeMap<String, String>>,
     compression: Option<CompressionStats>,
+    request_start: std::time::Instant,
+    request_body_len: usize,
 ) -> Response {
     let status = response.status();
+    let usage_status: Option<&str> = if status.is_success() {
+        Some("success")
+    } else {
+        Some("error")
+    };
     let headers = response.headers().clone();
     let (body_bytes, body_complete) = collect_upstream_response_bytes(response).await;
+
+    // 500 diagnostics: log upstream error status + body snippet for debugging.
+    if !status.is_success() {
+        let body_snip = String::from_utf8_lossy(&body_bytes);
+        let body_snip = if body_snip.len() > 300 {
+            format!("{}…", &body_snip[..300])
+        } else {
+            body_snip.to_string()
+        };
+        tracing::warn!(
+            target: "cipherroute::chat",
+            "upstream_error status={} provider={} model={} body={}",
+            status.as_u16(),
+            provider,
+            model,
+            body_snip,
+        );
+    }
 
     // 9router parity: decloak tool names when Claude cloaking was applied.
     let decloaked_body = if let Some(map) = tool_name_map {
@@ -3055,24 +3232,30 @@ async fn proxy_response_with_usage_tracking(
         body_bytes.clone()
     };
 
+    let latency_ms = request_start.elapsed().as_millis() as u64;
     let final_body = if body_complete {
-        let token_usage = extract_token_usage_from_bytes(&body_bytes);
-        state
-            .usage_tracker()
-            .track_request(
-                provider,
-                model,
-                token_usage.as_ref(),
-                connection_id,
-                api_key,
-                endpoint,
-                compression,
-                None, // latency_ms
-                None, // ttft_ms
-                None, // status
-                None, // error_class
-            )
-            .await;
+        let token_usage = extract_token_usage_from_bytes(&body_bytes)
+            .map(|u| estimate_fill_missing(u, request_body_len, Some(body_bytes.len())))
+            .or_else(|| {
+                Some(estimate_missing_tokens(
+                    request_body_len,
+                    Some(body_bytes.len()),
+                ))
+            });
+        // P1: detached — non-streaming response does not wait for SQLite.
+        state.usage_tracker().track_request_detached(
+            provider,
+            model,
+            token_usage.as_ref(),
+            connection_id,
+            api_key,
+            endpoint,
+            compression,
+            Some(latency_ms),
+            Some(latency_ms),
+            usage_status,
+            classify_status_error(status),
+        );
         state.usage_live.notify_update();
 
         // 9router parity: translate non-streaming response body when source
@@ -3218,6 +3401,8 @@ async fn proxy_response_with_pending_tracking(
     plan: &RequestPlan,
     tool_name_map: Option<&std::collections::BTreeMap<String, String>>,
     compression: Option<CompressionStats>,
+    request_start: std::time::Instant,
+    request_body_len: usize,
 ) -> Response {
     // Capture an owned copy of api_key for usage recording inside the stream
     // (the SSE stream requires 'static lifetimes; &str borrows can't escape).
@@ -3227,6 +3412,12 @@ async fn proxy_response_with_pending_tracking(
     let stream_source_format = plan.source_format;
     let stream_target_format = plan.target_format;
     let status = response.status();
+    let usage_status: Option<&str> = if status.is_success() {
+        Some("success")
+    } else {
+        Some("error")
+    };
+    let error_class = classify_status_error(status);
     let headers = response.headers().clone();
 
     // 9router streamingHandler: reject non-SSE content-types when client expects stream
@@ -3275,6 +3466,17 @@ async fn proxy_response_with_pending_tracking(
         );
     }
 
+    // 500 diagnostics: log upstream error status + body snippet for debugging.
+    if !status.is_success() {
+        tracing::warn!(
+            target: "cipherroute::chat",
+            "upstream_error status={} provider={} model={}",
+            status.as_u16(),
+            provider,
+            model,
+        );
+    }
+
     let transformer = normalize_for_dashboard
         .then(|| transformer_for_provider(&provider))
         .flatten();
@@ -3302,10 +3504,10 @@ async fn proxy_response_with_pending_tracking(
                 } else {
                     None
                 };
-                // Accumulate the last data frame for best-effort `usage` extraction
-                // at stream end. Streaming SSE responses usually lack a usage field,
-                // so most requests record with tokens=None (request count only).
-                let mut last_data: Option<Bytes> = None;
+                // T2: accumulate usage across ALL SSE frames (not just last)
+                let mut accumulated_usage: Option<TokenUsage> = None;
+                let mut ttft_ms: Option<u64> = None;
+                let mut response_bytes: usize = 0;
                 loop {
                     let next = tokio::time::timeout(SSE_STALL_TIMEOUT, upstream.try_next()).await;
                     match next {
@@ -3318,8 +3520,9 @@ async fn proxy_response_with_pending_tracking(
                                 model = %model,
                                 "SSE stalled, closing stream"
                             );
+                            let latency_ms = Some(request_start.elapsed().as_millis() as u64);
                             record_streaming_usage(&state, &provider, &model,
-                                connection_id.as_deref(), api_key.as_deref(), endpoint, &last_data, compression.clone()).await;
+                                connection_id.as_deref(), api_key.as_deref(), endpoint, &accumulated_usage, compression.clone(), latency_ms, ttft_ms, request_body_len, Some(response_bytes), usage_status, error_class).await;
                             state
                                 .usage_live
                                 .finish_request(&model, &provider, connection_id.as_deref(), true)
@@ -3331,7 +3534,11 @@ async fn proxy_response_with_pending_tracking(
                             return;
                         }
                         Ok(Ok(Some(chunk))) => {
-                            last_data = Some(chunk.clone());
+                            if ttft_ms.is_none() {
+                                ttft_ms = Some(request_start.elapsed().as_millis() as u64);
+                            }
+                            response_bytes += chunk.len();
+                            accumulate_usage_from_bytes(&chunk, &mut accumulated_usage);
                             if qoder_sse_unwrap {
                                 for line in qoder_unwrap_sse_chunk(
                                     &chunk,
@@ -3343,6 +3550,7 @@ async fn proxy_response_with_pending_tracking(
                                 }
                             } else if let Some(transformer) = transformer.as_mut() {
                                 for line in transform_dashboard_sse_chunk(&chunk, transformer.as_mut(), &mut pending_text) {
+                                    accumulate_usage_from_bytes(line.as_bytes(), &mut accumulated_usage);
                                     if let Some(frame) = sse_frame_for_dashboard(&line) {
                                         yield Ok::<Bytes, std::io::Error>(frame);
                                     }
@@ -3356,6 +3564,9 @@ async fn proxy_response_with_pending_tracking(
                                             &chunk,
                                             t_state,
                                         );
+                                    for line in &chunks {
+                                        accumulate_usage_from_bytes(line.as_bytes(), &mut accumulated_usage);
+                                    }
                                     for line in chunks {
                                         if let Some(frame) = sse_frame_for_dashboard(&line) {
                                             yield Ok::<Bytes, std::io::Error>(frame);
@@ -3370,8 +3581,9 @@ async fn proxy_response_with_pending_tracking(
                         }
                         Ok(Ok(None)) => break,
                         Ok(Err(_)) => {
+                            let latency_ms = Some(request_start.elapsed().as_millis() as u64);
                             record_streaming_usage(&state, &provider, &model,
-                                connection_id.as_deref(), api_key.as_deref(), endpoint, &last_data, compression.clone()).await;
+                                connection_id.as_deref(), api_key.as_deref(), endpoint, &accumulated_usage, compression.clone(), latency_ms, ttft_ms, request_body_len, Some(response_bytes), usage_status, error_class).await;
                             state
                                 .usage_live
                                 .finish_request(&model, &provider, connection_id.as_deref(), true)
@@ -3399,13 +3611,16 @@ async fn proxy_response_with_pending_tracking(
                         stream_target_format,
                         t_state,
                     ) {
+                        // F1: accumulate usage from finish_stream (kiro metricsEvent)
+                        accumulate_usage_from_bytes(line.as_bytes(), &mut accumulated_usage);
                         if let Some(frame) = sse_frame_for_dashboard(&line) {
                             yield Ok::<Bytes, std::io::Error>(frame);
                         }
                     }
                 }
+                let latency_ms = Some(request_start.elapsed().as_millis() as u64);
                 record_streaming_usage(&state, &provider, &model,
-                    connection_id.as_deref(), api_key.as_deref(), endpoint, &last_data, compression.clone()).await;
+                    connection_id.as_deref(), api_key.as_deref(), endpoint, &accumulated_usage, compression.clone(), latency_ms, ttft_ms, request_body_len, Some(response_bytes), usage_status, error_class).await;
                 state
                     .usage_live
                     .finish_request(&model, &provider, connection_id.as_deref(), false)
@@ -3430,9 +3645,10 @@ async fn proxy_response_with_pending_tracking(
                 } else {
                     None
                 };
-                // Accumulate the last data frame for best-effort `usage` extraction
-                // at stream end (streaming SSE responses usually lack a usage field).
-                let mut last_data: Option<Bytes> = None;
+                // T2: accumulate usage across all frames
+                let mut accumulated_usage: Option<TokenUsage> = None;
+                let mut ttft_ms: Option<u64> = None;
+                let mut response_bytes: usize = 0;
                 loop {
                     let next = tokio::time::timeout(SSE_STALL_TIMEOUT, body.frame()).await;
                     let frame_result = match next {
@@ -3443,8 +3659,9 @@ async fn proxy_response_with_pending_tracking(
                                 model = %model,
                                 "SSE stalled, closing stream"
                             );
+                            let latency_ms = Some(request_start.elapsed().as_millis() as u64);
                             record_streaming_usage(&state, &provider, &model,
-                                connection_id.as_deref(), api_key.as_deref(), endpoint, &last_data, compression.clone()).await;
+                                connection_id.as_deref(), api_key.as_deref(), endpoint, &accumulated_usage, compression.clone(), latency_ms, ttft_ms, request_body_len, Some(response_bytes), usage_status, error_class).await;
                             state
                                 .usage_live
                                 .finish_request(&model, &provider, connection_id.as_deref(), true)
@@ -3461,9 +3678,14 @@ async fn proxy_response_with_pending_tracking(
                     match frame_result {
                         Ok(frame) => {
                             if let Ok(data) = frame.into_data() {
-                                last_data = Some(data.clone());
+                                if ttft_ms.is_none() {
+                                    ttft_ms = Some(request_start.elapsed().as_millis() as u64);
+                                }
+                                response_bytes += data.len();
+                                accumulate_usage_from_bytes(&data, &mut accumulated_usage);
                                 if let Some(transformer) = transformer.as_mut() {
                                     for line in transform_dashboard_sse_chunk(&data, transformer.as_mut(), &mut pending_text) {
+                                        accumulate_usage_from_bytes(line.as_bytes(), &mut accumulated_usage);
                                         if let Some(frame) = sse_frame_for_dashboard(&line) {
                                             yield Ok::<Bytes, std::io::Error>(frame);
                                         }
@@ -3477,6 +3699,9 @@ async fn proxy_response_with_pending_tracking(
                                                 &data,
                                                 t_state,
                                             );
+                                        for line in &chunks {
+                                            accumulate_usage_from_bytes(line.as_bytes(), &mut accumulated_usage);
+                                        }
                                         for line in chunks {
                                             if let Some(frame) = sse_frame_for_dashboard(&line) {
                                                 yield Ok::<Bytes, std::io::Error>(frame);
@@ -3491,8 +3716,9 @@ async fn proxy_response_with_pending_tracking(
                             }
                         }
                         Err(_) => {
+                            let latency_ms = Some(request_start.elapsed().as_millis() as u64);
                             record_streaming_usage(&state, &provider, &model,
-                                connection_id.as_deref(), api_key.as_deref(), endpoint, &last_data, compression.clone()).await;
+                                connection_id.as_deref(), api_key.as_deref(), endpoint, &accumulated_usage, compression.clone(), latency_ms, ttft_ms, request_body_len, Some(response_bytes), usage_status, error_class).await;
                             state
                                 .usage_live
                                 .finish_request(&model, &provider, connection_id.as_deref(), true)
@@ -3520,13 +3746,16 @@ async fn proxy_response_with_pending_tracking(
                         stream_target_format,
                         t_state,
                     ) {
+                        // F1: accumulate usage from finish_stream (kiro metricsEvent)
+                        accumulate_usage_from_bytes(line.as_bytes(), &mut accumulated_usage);
                         if let Some(frame) = sse_frame_for_dashboard(&line) {
                             yield Ok::<Bytes, std::io::Error>(frame);
                         }
                     }
                 }
+                let latency_ms = Some(request_start.elapsed().as_millis() as u64);
                 record_streaming_usage(&state, &provider, &model,
-                    connection_id.as_deref(), api_key.as_deref(), endpoint, &last_data, compression.clone()).await;
+                    connection_id.as_deref(), api_key.as_deref(), endpoint, &accumulated_usage, compression.clone(), latency_ms, ttft_ms, request_body_len, Some(response_bytes), usage_status, error_class).await;
                 state
                     .usage_live
                     .finish_request(&model, &provider, connection_id.as_deref(), false)
@@ -3554,12 +3783,8 @@ async fn proxy_response_with_pending_tracking(
     response
 }
 
-/// Record usage for a streaming SSE request at stream end.
-///
-/// Streaming SSE responses from most providers do not contain a `usage` field,
-/// so we record the request with `tokens = None` (which still increments the
-/// request count and captures provider/model/endpoint). If the provider emits a
-/// final SSE data frame containing a Chat Completions `usage` block, extract it.
+/// Record usage for a streaming SSE request at stream end — now uses
+/// accumulated usage across all SSE frames (T2) plus elapsed latency.
 async fn record_streaming_usage(
     state: &AppState,
     provider: &str,
@@ -3567,28 +3792,37 @@ async fn record_streaming_usage(
     connection_id: Option<&str>,
     api_key: Option<&str>,
     endpoint: Option<&'static str>,
-    last_data: &Option<Bytes>,
+    accumulated_usage: &Option<TokenUsage>,
     compression: Option<CompressionStats>,
+    latency_ms: Option<u64>,
+    ttft_ms: Option<u64>,
+    request_body_len: usize,
+    response_body_len: Option<usize>,
+    status: Option<&str>,
+    error_class: Option<&str>,
 ) {
-    let usage = last_data
-        .as_ref()
-        .and_then(|b| extract_token_usage_from_bytes(b));
-    state
-        .usage_tracker()
-        .track_request(
-            provider,
-            model,
-            usage.as_ref(),
-            connection_id,
-            api_key,
-            endpoint,
-            compression,
-            None, // latency_ms
-            None, // ttft_ms
-            None, // status
-            None, // error_class
-        )
-        .await;
+    // F4: estimate when upstream omitted usage data (per-field fill for partial usage)
+    let usage = match accumulated_usage {
+        Some(u) if u.prompt_tokens.is_some() || u.completion_tokens.is_some() => Some(
+            estimate_fill_missing(u.clone(), request_body_len, response_body_len),
+        ),
+        _ => Some(estimate_missing_tokens(request_body_len, response_body_len)),
+    };
+    // P1: use detached tracking — fire-and-forget on a blocking thread.
+    // Streaming clients should get [DONE] ASAP without waiting for SQLite.
+    state.usage_tracker().track_request_detached(
+        provider,
+        model,
+        usage.as_ref(),
+        connection_id,
+        api_key,
+        endpoint,
+        compression,
+        latency_ms,
+        ttft_ms,
+        status,
+        error_class,
+    );
 }
 
 fn sse_frame_for_dashboard(line: &str) -> Option<Bytes> {
@@ -3903,7 +4137,39 @@ fn strip_sse_data_prefix(body: &[u8]) -> &[u8] {
     body
 }
 
+/// Classify an upstream HTTP status into a compact error category for usage tracking.
+/// Returns None for successful responses (2xx), Some(category) for errors.
+fn classify_status_error(status: StatusCode) -> Option<&'static str> {
+    if status.is_success() {
+        return None;
+    }
+    Some(match status.as_u16() {
+        400 => "bad_request",
+        401 => "auth_error",
+        403 => "forbidden",
+        404 => "not_found",
+        408 => "timeout",
+        409 => "conflict",
+        413 => "payload_too_large",
+        422 => "unprocessable",
+        429 => "rate_limited",
+        481 => "overloaded",    // Anthropic overloaded
+        499 => "client_closed", // nginx client closed
+        500 => "server_error",
+        502 => "bad_gateway",
+        503 => "service_unavailable",
+        504 => "gateway_timeout",
+        _ => "unknown_error",
+    })
+}
+
 fn extract_token_usage_from_bytes(body: &[u8]) -> Option<TokenUsage> {
+    // P2: quick byte-scan prefilter — skip JSON parse for chunks that can't
+    // possibly contain a usage block. This avoids ~50+ allocations per chunk
+    // in a streaming response (typical chunk is 60–120 bytes).
+    if !body.windows(5).any(|w| w == b"usage") && !body.windows(13).any(|w| w == b"usageMetadata") {
+        return None;
+    }
     let body = strip_sse_data_prefix(body);
     let value = serde_json::from_slice::<Value>(body).ok()?;
 
@@ -3921,31 +4187,142 @@ fn extract_token_usage_from_bytes(body: &[u8]) -> Option<TokenUsage> {
                 .get("result")
                 .and_then(|d| d.get("usage"))
                 .and_then(Value::as_object)
+        })
+        .or_else(|| {
+            value
+                .get("payload")
+                .and_then(|d| d.get("usage"))
+                .and_then(Value::as_object)
         });
+
+    // Gemini streaming: check usageMetadata at top-level, under data, result, payload,
+    // or inside candidates[0] — handles all known Gemini SSE shapes.
+    let usage_meta = if usage_obj.is_none() {
+        value
+            .get("usageMetadata")
+            .and_then(Value::as_object)
+            .or_else(|| {
+                value
+                    .get("data")
+                    .and_then(|d| d.get("usageMetadata"))
+                    .and_then(Value::as_object)
+            })
+            .or_else(|| {
+                value
+                    .get("result")
+                    .and_then(|d| d.get("usageMetadata"))
+                    .and_then(Value::as_object)
+            })
+            .or_else(|| {
+                value
+                    .get("payload")
+                    .and_then(|d| d.get("usageMetadata"))
+                    .and_then(Value::as_object)
+            })
+            .or_else(|| {
+                value
+                    .get("candidates")
+                    .and_then(Value::as_array)
+                    .and_then(|arr| arr.first())
+                    .and_then(|c| c.get("usageMetadata"))
+                    .and_then(Value::as_object)
+            })
+    } else {
+        None
+    };
+
+    if let Some(meta) = usage_meta {
+        let prompt = extract_u64(meta, "promptTokenCount")
+            .or_else(|| extract_u64(meta, "prompt_token_count"))
+            .unwrap_or(0);
+        let completion = extract_u64(meta, "candidatesTokenCount")
+            .or_else(|| extract_u64(meta, "candidates_token_count"))
+            .unwrap_or(0);
+        let total = extract_u64(meta, "totalTokenCount")
+            .or_else(|| extract_u64(meta, "total_token_count"))
+            .unwrap_or(0);
+        let cached = extract_u64(meta, "cachedContentTokenCount")
+            .or_else(|| extract_u64(meta, "cached_content_token_count"))
+            .unwrap_or(0);
+        if prompt + completion + total + cached > 0 {
+            return Some(TokenUsage {
+                prompt_tokens: opt(prompt),
+                input_tokens: None,
+                completion_tokens: opt(completion),
+                output_tokens: None,
+                total_tokens: opt(total),
+                reasoning_tokens: None,
+                cached_tokens: opt(cached),
+                cache_read_input_tokens: opt(cached),
+                cache_creation_input_tokens: None,
+                extra: meta
+                    .iter()
+                    .filter(|(k, _)| {
+                        ![
+                            "promptTokenCount",
+                            "candidatesTokenCount",
+                            "totalTokenCount",
+                            "cachedContentTokenCount",
+                            "prompt_token_count",
+                            "candidates_token_count",
+                            "total_token_count",
+                            "cached_content_token_count",
+                        ]
+                        .contains(&k.as_str())
+                    })
+                    .map(|(k, v)| (k.clone(), v.clone()))
+                    .collect::<BTreeMap<_, _>>(),
+            });
+        }
+    }
 
     let known_fields = [
         "prompt_tokens",
+        "promptTokens",
         "input_tokens",
+        "inputTokens",
         "completion_tokens",
+        "completionTokens",
         "output_tokens",
+        "outputTokens",
         "total_tokens",
+        "totalTokens",
         "reasoning_tokens",
+        "reasoningTokens",
         "cached_tokens",
+        "cachedTokens",
         "cache_read_input_tokens",
+        "cacheReadInputTokens",
         "cache_creation_input_tokens",
+        "cacheCreationInputTokens",
     ];
 
     if let Some(usage) = usage_obj {
+        // Try snake_case first, then camelCase fallback
+        let pt = extract_u64(usage, "prompt_tokens").or_else(|| extract_u64(usage, "promptTokens"));
+        let it = extract_u64(usage, "input_tokens").or_else(|| extract_u64(usage, "inputTokens"));
+        let ct = extract_u64(usage, "completion_tokens")
+            .or_else(|| extract_u64(usage, "completionTokens"));
+        let ot = extract_u64(usage, "output_tokens").or_else(|| extract_u64(usage, "outputTokens"));
+        let tt = extract_u64(usage, "total_tokens").or_else(|| extract_u64(usage, "totalTokens"));
+        let rt = extract_u64(usage, "reasoning_tokens")
+            .or_else(|| extract_u64(usage, "reasoningTokens"));
+        let cat =
+            extract_u64(usage, "cached_tokens").or_else(|| extract_u64(usage, "cachedTokens"));
+        let cri = extract_u64(usage, "cache_read_input_tokens")
+            .or_else(|| extract_u64(usage, "cacheReadInputTokens"));
+        let cci = extract_u64(usage, "cache_creation_input_tokens")
+            .or_else(|| extract_u64(usage, "cacheCreationInputTokens"));
         return Some(TokenUsage {
-            prompt_tokens: extract_u64(usage, "prompt_tokens"),
-            input_tokens: extract_u64(usage, "input_tokens"),
-            completion_tokens: extract_u64(usage, "completion_tokens"),
-            output_tokens: extract_u64(usage, "output_tokens"),
-            total_tokens: extract_u64(usage, "total_tokens"),
-            reasoning_tokens: extract_u64(usage, "reasoning_tokens"),
-            cached_tokens: extract_u64(usage, "cached_tokens"),
-            cache_read_input_tokens: extract_u64(usage, "cache_read_input_tokens"),
-            cache_creation_input_tokens: extract_u64(usage, "cache_creation_input_tokens"),
+            prompt_tokens: pt,
+            input_tokens: it,
+            completion_tokens: ct,
+            output_tokens: ot,
+            total_tokens: tt,
+            reasoning_tokens: rt,
+            cached_tokens: cat,
+            cache_read_input_tokens: cri,
+            cache_creation_input_tokens: cci,
             extra: usage
                 .iter()
                 .filter(|(key, _)| !known_fields.contains(&key.as_str()))
@@ -3958,11 +4335,16 @@ fn extract_token_usage_from_bytes(body: &[u8]) -> Option<TokenUsage> {
     // top level (e.g. Anthropic, some proxies). Only use this when at least
     // one token field is present to avoid creating a zero-filled entry for
     // responses that have no usage data at all.
-    let input = extract_u64_from_value(&value, "input_tokens");
-    let prompt = extract_u64_from_value(&value, "prompt_tokens");
-    let output = extract_u64_from_value(&value, "output_tokens");
-    let completion = extract_u64_from_value(&value, "completion_tokens");
-    let total = extract_u64_from_value(&value, "total_tokens");
+    let input = extract_u64_from_value(&value, "input_tokens")
+        .max(extract_u64_from_value(&value, "inputTokens"));
+    let prompt = extract_u64_from_value(&value, "prompt_tokens")
+        .max(extract_u64_from_value(&value, "promptTokens"));
+    let output = extract_u64_from_value(&value, "output_tokens")
+        .max(extract_u64_from_value(&value, "outputTokens"));
+    let completion = extract_u64_from_value(&value, "completion_tokens")
+        .max(extract_u64_from_value(&value, "completionTokens"));
+    let total = extract_u64_from_value(&value, "total_tokens")
+        .max(extract_u64_from_value(&value, "totalTokens"));
     if input + prompt + output + completion + total > 0 {
         return Some(TokenUsage {
             prompt_tokens: opt(prompt).or(opt(input)),
@@ -3970,18 +4352,81 @@ fn extract_token_usage_from_bytes(body: &[u8]) -> Option<TokenUsage> {
             completion_tokens: opt(completion).or(opt(output)),
             output_tokens: opt(output).filter(|_| completion == 0),
             total_tokens: opt(total),
-            reasoning_tokens: opt(extract_u64_from_value(&value, "reasoning_tokens")),
-            cached_tokens: opt(extract_u64_from_value(&value, "cached_tokens")),
-            cache_read_input_tokens: opt(extract_u64_from_value(&value, "cache_read_input_tokens")),
+            reasoning_tokens: opt(extract_u64_from_value(&value, "reasoning_tokens"))
+                .or_else(|| opt(extract_u64_from_value(&value, "reasoningTokens"))),
+            cached_tokens: opt(extract_u64_from_value(&value, "cached_tokens"))
+                .or_else(|| opt(extract_u64_from_value(&value, "cachedTokens"))),
+            cache_read_input_tokens: opt(extract_u64_from_value(&value, "cache_read_input_tokens"))
+                .or_else(|| opt(extract_u64_from_value(&value, "cacheReadInputTokens"))),
             cache_creation_input_tokens: opt(extract_u64_from_value(
                 &value,
                 "cache_creation_input_tokens",
-            )),
+            ))
+            .or_else(|| opt(extract_u64_from_value(&value, "cacheCreationInputTokens"))),
             extra: BTreeMap::new(),
         });
     }
 
     None
+}
+
+/// F4: Estimate token counts from body byte lengths when upstream omits usage.
+/// Uses the chars/4 heuristic already in the codebase (chat.rs:1148, compat.rs:98).
+/// Sets `extra["estimated"] = true` so UI can distinguish from real provider data.
+fn estimate_missing_tokens(
+    request_body_len: usize,
+    response_body_len: Option<usize>,
+) -> TokenUsage {
+    let prompt_tokens = Some(request_body_len.div_ceil(4) as u64);
+    let completion_tokens = response_body_len.map(|l| l.div_ceil(4) as u64);
+    let total = prompt_tokens
+        .unwrap_or(0)
+        .saturating_add(completion_tokens.unwrap_or(0));
+    let mut extra = std::collections::BTreeMap::new();
+    extra.insert("estimated".into(), Value::Bool(true));
+    TokenUsage {
+        prompt_tokens,
+        input_tokens: None,
+        completion_tokens,
+        output_tokens: None,
+        total_tokens: if total > 0 { Some(total) } else { None },
+        reasoning_tokens: None,
+        cached_tokens: None,
+        cache_read_input_tokens: None,
+        cache_creation_input_tokens: None,
+        extra,
+    }
+}
+
+/// Fill missing fields of a partially-reported TokenUsage using chars/4 heuristic.
+/// Does not overwrite real provider values — only fills `None` fields.
+fn estimate_fill_missing(
+    mut usage: TokenUsage,
+    request_body_len: usize,
+    response_body_len: Option<usize>,
+) -> TokenUsage {
+    let mut estimated = usage
+        .extra
+        .get("estimated")
+        .and_then(|v| v.as_bool())
+        .unwrap_or(false);
+    if usage.prompt_tokens.is_none() && usage.input_tokens.is_none() {
+        usage.prompt_tokens = Some(request_body_len.div_ceil(4) as u64);
+        estimated = true;
+    }
+    if usage.completion_tokens.is_none() && usage.output_tokens.is_none() {
+        if let Some(resp_len) = response_body_len {
+            usage.completion_tokens = Some(resp_len.div_ceil(4) as u64);
+            estimated = true;
+        }
+    }
+    if estimated {
+        let total = usage.prompt_tokens.or(usage.input_tokens).unwrap_or(0)
+            + usage.completion_tokens.or(usage.output_tokens).unwrap_or(0);
+        usage.total_tokens = Some(total);
+        usage.extra.insert("estimated".into(), Value::Bool(true));
+    }
+    usage
 }
 
 fn extract_u64(obj: &serde_json::Map<String, Value>, key: &str) -> Option<u64> {
@@ -4008,6 +4453,51 @@ fn opt(v: u64) -> Option<u64> {
         Some(v)
     } else {
         None
+    }
+}
+
+fn merge_token_usage(existing: Option<TokenUsage>, incoming: TokenUsage) -> Option<TokenUsage> {
+    let Some(mut base) = existing else {
+        return Some(incoming);
+    };
+    // Prefer incoming Some values, fall back to base
+    base.prompt_tokens = incoming.prompt_tokens.or(base.prompt_tokens);
+    base.input_tokens = incoming.input_tokens.or(base.input_tokens);
+    base.completion_tokens = incoming.completion_tokens.or(base.completion_tokens);
+    base.output_tokens = incoming.output_tokens.or(base.output_tokens);
+    base.total_tokens = incoming.total_tokens.or(base.total_tokens);
+    base.reasoning_tokens = incoming.reasoning_tokens.or(base.reasoning_tokens);
+    base.cached_tokens = incoming.cached_tokens.or(base.cached_tokens);
+    base.cache_read_input_tokens = incoming
+        .cache_read_input_tokens
+        .or(base.cache_read_input_tokens);
+    base.cache_creation_input_tokens = incoming
+        .cache_creation_input_tokens
+        .or(base.cache_creation_input_tokens);
+    for (k, v) in incoming.extra {
+        base.extra.entry(k).or_insert(v);
+    }
+    Some(base)
+}
+
+fn accumulate_usage_from_bytes(bytes: &[u8], acc: &mut Option<TokenUsage>) {
+    // F3: If a TCP chunk coalesces multiple SSE frames (data: ...\n\ndata: ...\n\n),
+    // try each frame separately. Non-SSE or single-frame chunks fall through to
+    // the direct extraction path.
+    if let Ok(text) = std::str::from_utf8(bytes) {
+        if text.contains("\n\n") {
+            for frame in text.split("\n\n") {
+                if let Some(u) = extract_token_usage_from_bytes(frame.as_bytes()) {
+                    let cur = acc.take();
+                    *acc = merge_token_usage(cur, u);
+                }
+            }
+            return;
+        }
+    }
+    if let Some(u) = extract_token_usage_from_bytes(bytes) {
+        let cur = acc.take();
+        *acc = merge_token_usage(cur, u);
     }
 }
 
