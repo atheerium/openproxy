@@ -76,6 +76,7 @@ interface Combo {
   name: string;
   models: string[];
   disabledModels?: string[];
+  thinkingLevel?: string;
   kind?: string;
 }
 
@@ -179,7 +180,7 @@ export default function CombosPage() {
     }
   };
 
-  const handleCreate = async (data: { name: string; models: string[] }) => {
+  const handleCreate = async (data: { name: string; models: string[]; thinkingLevel?: string }) => {
     try {
       const res = await fetch("/api/combos", {
         method: "POST",
@@ -202,7 +203,7 @@ export default function CombosPage() {
 
   const handleUpdate = async (
     id: string,
-    data: { name: string; models: string[]; disabledModels?: string[] },
+    data: { name: string; models: string[]; disabledModels?: string[]; thinkingLevel?: string },
   ) => {
     try {
       const res = await fetch(`/api/combos/${id}`, {
@@ -470,6 +471,11 @@ function ComboCard({
           </div>
           <div className="min-w-0 flex-1">
             <code className="block truncate font-mono text-sm font-medium">{combo.name}</code>
+            {combo.thinkingLevel && (
+              <span className="ml-1.5 inline-flex items-center rounded bg-violet-500/10 px-1 py-0.5 text-[9px] font-medium text-violet-600 dark:text-violet-400" title={`Thinking: ${combo.thinkingLevel}`}>
+                {combo.thinkingLevel}
+              </span>
+            )}
             <div className="mt-1 flex min-w-0 flex-wrap items-center gap-1">
               {combo.models.length === 0 ? (
                 <span className="text-xs text-text-muted italic">No models</span>
@@ -576,6 +582,26 @@ function ComboCard({
               selectClassName="py-1.5 text-xs"
             />
           </div>
+
+          {/* TTFT slow-fallback timeout — shown when strategy != fusion */}
+          {!isFusion && (
+            <div className="flex items-center gap-1" title="Time-to-first-token timeout (ms). If the first model is slow to start streaming, fall back to the next member. 0 = off.">
+              <span className="material-symbols-outlined text-[13px] text-text-muted">timer</span>
+              <input
+                type="number"
+                min={0}
+                step={1000}
+                placeholder="0"
+                value={strategy.ttftTimeoutMs ?? ""}
+                onChange={(e) => {
+                  const v = parseInt(e.target.value, 10);
+                  onSetStrategy({ ttftTimeoutMs: isNaN(v) || v <= 0 ? undefined : v });
+                }}
+                className="w-16 rounded border border-border bg-background px-1.5 py-1 font-mono text-[11px] text-text placeholder:text-text-muted/50 focus:border-primary focus:outline-none"
+              />
+              <span className="text-[10px] text-text-muted">ms</span>
+            </div>
+          )}
 
           <div className="grid grid-cols-3 gap-1 sm:flex">
             <button
@@ -834,7 +860,7 @@ interface ComboFormModalProps {
   isOpen: boolean;
   combo?: Combo | null;
   onClose: () => void;
-  onSave: (data: { name: string; models: string[]; disabledModels?: string[] }) => void;
+  onSave: (data: { name: string; models: string[]; disabledModels?: string[]; thinkingLevel?: string }) => void;
   activeProviders: Provider[];
   kindFilter?: string | null;
 }
@@ -844,6 +870,7 @@ function ComboFormModal({ isOpen, combo, onClose, onSave, activeProviders, kindF
   const [name, setName] = useState<string>(combo?.name || "");
   const [models, setModels] = useState<string[]>(combo?.models || []);
   const [disabledModels, setDisabledModels] = useState<string[]>(combo?.disabledModels || []);
+  const [thinkingLevel, setThinkingLevel] = useState<string>(combo?.thinkingLevel || "");
   const [showModelSelect, setShowModelSelect] = useState<boolean>(false);
   const [saving, setSaving] = useState<boolean>(false);
   const [nameError, setNameError] = useState<string>("");
@@ -989,7 +1016,7 @@ function ComboFormModal({ isOpen, combo, onClose, onSave, activeProviders, kindF
     // configured list — anything removed via the trash icon shouldn't
     // linger in the disabled set on disk.
     const cleanedDisabled = disabledModels.filter((m) => models.includes(m));
-    await onSave({ name: name.trim(), models, disabledModels: cleanedDisabled });
+    await onSave({ name: name.trim(), models, disabledModels: cleanedDisabled, thinkingLevel: thinkingLevel || undefined });
     setSaving(false);
   };
 
@@ -1016,6 +1043,28 @@ function ComboFormModal({ isOpen, combo, onClose, onSave, activeProviders, kindF
             />
             <p className="text-[10px] text-text-muted mt-0.5">
               Only letters, numbers, -, _ and . allowed
+            </p>
+          </div>
+
+          {/* Thinking Level */}
+          <div>
+            <label className="text-sm font-medium block mb-1">Thinking Level</label>
+            <select
+              value={thinkingLevel}
+              onChange={(e) => setThinkingLevel(e.target.value)}
+              className="w-full text-sm px-3 py-1.5 border border-border rounded-md bg-background focus:outline-none focus:border-primary"
+            >
+              <option value="">None (default)</option>
+              <option value="none">None</option>
+              <option value="minimal">Minimal</option>
+              <option value="low">Low</option>
+              <option value="medium">Medium</option>
+              <option value="high">High</option>
+              <option value="xhigh">Extra High</option>
+              <option value="max">Max</option>
+            </select>
+            <p className="text-[10px] text-text-muted mt-0.5">
+              Appends a (level) suffix to each model — ignored if the model already has one.
             </p>
           </div>
 

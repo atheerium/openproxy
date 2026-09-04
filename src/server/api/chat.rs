@@ -9,6 +9,7 @@ use axum::response::{IntoResponse, Response};
 use axum::Json;
 use bytes::Bytes;
 use chrono::{DateTime, Duration as ChronoDuration, Utc};
+use futures_util::StreamExt;
 use futures_util::TryStreamExt;
 use http_body_util::BodyExt;
 use serde_json::{json, Value};
@@ -26,7 +27,7 @@ use crate::core::combo::{
     check_fallback_error, detect_required_capabilities, execute_combo_strategy_full,
     get_combo_models_from_data, get_disabled_members_for_combo, mark_combo_member_quarantined,
     strategy_for_combo, ComboAttemptError, ComboExecutionError, ComboStrategy, FusionConfig,
-    ModelCapacity,
+    ModelCapacity, TtftConfig,
 };
 use crate::core::executor::UpstreamResponse;
 use crate::core::model::{get_model_info, ModelRouteKind};
@@ -103,11 +104,31 @@ fn strip_forwarding_headers(headers: &mut HeaderMap) {
     }
 }
 
-/// Maximum time we'll wait for the next byte from an upstream SSE stream before
-/// considering the connection stalled. 3 minutes matches what most providers
-/// use for their keep-alive heartbeats (OpenAI sends a comment every ~30s,
-/// Anthropic every ~60s, Gemini every ~30s — 180s is well past any of them).
-const SSE_STALL_TIMEOUT: Duration = Duration::from_secs(180);
+/// Default stall timeout: 3 minutes matches what most providers use for their
+/// keep-alive heartbeats (OpenAI ~30s, Anthropic ~60s, Gemini ~30s).
+const SSE_STALL_TIMEOUT_DEFAULT: Duration = Duration::from_secs(180);
+
+/// Extended stall timeout for reasoning models that can "think" for minutes
+/// between output chunks (DeepSeek R1/V4, o1/o3, etc.).
+const SSE_STALL_TIMEOUT_REASONING: Duration = Duration::from_secs(600);
+
+/// Pick stall timeout based on model name heuristic. Reasoning models produce
+/// long thinking chains with no output tokens for minutes.
+fn sse_stall_timeout(model: &str) -> Duration {
+    let m = model.to_ascii_lowercase();
+    if m.contains("deepseek")
+        || m.contains("r1")
+        || m.contains("reason")
+        || m.contains("think")
+        || m.starts_with("o1")
+        || m.starts_with("o3")
+        || m.starts_with("o4")
+    {
+        SSE_STALL_TIMEOUT_REASONING
+    } else {
+        SSE_STALL_TIMEOUT_DEFAULT
+    }
+}
 
 /// Maximum number of concurrent in-flight requests per provider account.
 ///
@@ -453,6 +474,28 @@ async fn chat_completions_impl(
                 };
             }
             let sticky_limit = snapshot.settings.combo_sticky_round_robin_limit.max(1);
+            // Per-combo slow-member TTFT fallback (opt-in). Resolved once per
+            // combo: settings.combo_strategies[name].ttftTimeoutMs overrides
+            // the combo's own extra. Only meaningful for streaming requests.
+            let ttft_config = {
+                let combo_extra = snapshot
+                    .combos
+                    .iter()
+                    .find(|c| c.name == combo_name)
+                    .map(|c| c.extra.clone())
+                    .unwrap_or_default();
+                let settings_timeout = snapshot
+                    .settings
+                    .combo_strategies
+                    .get(&combo_name)
+                    .and_then(|e| e.ttft_timeout_ms());
+                TtftConfig::resolve(&combo_extra, settings_timeout)
+            };
+            let combo_thinking_level: Option<String> = snapshot
+                .combos
+                .iter()
+                .find(|c| c.name == combo_name)
+                .and_then(|c| c.thinking_level.clone());
             let combo_body = body.clone();
             let combo_state = state.clone();
             let combo_api_key = presented_api_key.clone();
@@ -470,6 +513,10 @@ async fn chat_completions_impl(
             let attempted_members: std::sync::Arc<parking_lot::Mutex<Vec<String>>> =
                 std::sync::Arc::new(parking_lot::Mutex::new(Vec::new()));
             let combo_name_for_quarantine = combo_name.clone();
+            let ttft_for_combo = ttft_config;
+            // Clone for the combo closure: the closure is `move`, but the outer
+            // scope needs the original afterwards for the auto-quarantine pass.
+            let combo_name_for_ttft = combo_name_for_quarantine.clone();
             let client_tool_for_combo = client_tool;
             let result = if strategy == ComboStrategy::Fusion {
                 let f_state = state.clone();
@@ -624,6 +671,7 @@ async fn chat_completions_impl(
             } else {
                 let attempted_members = attempted_members.clone();
                 let combo_headers = headers_map.clone();
+                let combo_tl = combo_thinking_level.clone();
                 execute_combo_strategy_full(
                     &augmented_models,
                     Some(&combo_name),
@@ -639,6 +687,23 @@ async fn chat_completions_impl(
                         let combo_model = combo_model.to_string();
                         let api_key = combo_api_key.clone();
                         let headers = combo_headers.clone();
+                        // Apply combo-level thinking suffix to each member model.
+                        // The RequestPlan / thinking_suffix pipeline will strip it
+                        // and route to the correct provider-specific parameter.
+                        let combo_model = if let Some(ref tl) = combo_tl {
+                            if crate::core::utils::thinking_suffix::strip_thinking_suffix(
+                                &combo_model,
+                            )
+                            .1
+                            .is_some()
+                            {
+                                combo_model
+                            } else {
+                                format!("{combo_model}({tl})")
+                            }
+                        } else {
+                            combo_model
+                        };
                         // 9router parity: history stripping applies ONLY to
                         // models the capacity adapter added — never to the
                         // original combo members.
@@ -682,8 +747,10 @@ async fn chat_completions_impl(
                             None,
                         );
                         let plan_for_combo = combo_plan.clone();
+                        let combo_name_for_ttft = combo_name_for_ttft.clone();
+                        let ttft_cfg = ttft_for_combo;
                         async move {
-                            execute_single_model(
+                            let response = execute_single_model(
                                 &state,
                                 &body,
                                 &resolved_model,
@@ -693,7 +760,55 @@ async fn chat_completions_impl(
                                 client_tool_for_combo,
                                 Some(&headers),
                             )
-                            .await
+                            .await?;
+
+                            // Slow-member TTFT fallback (streaming only, opt-in).
+                            // The first token arrives DURING streaming — after
+                            // upstream headers — so a header time-out would never
+                            // catch a slow first chunk. Peek the first body chunk
+                            // under a timeout instead; on timeout, abort this
+                            // member and fall through to the next combo member.
+                            if plan_for_combo.stream && ttft_cfg.is_enabled() {
+                                let (parts, body) = response.into_parts();
+                                let mut stream = body.into_data_stream();
+                                let first = tokio::time::timeout(
+                                    Duration::from_millis(ttft_cfg.timeout_ms),
+                                    stream.next(),
+                                )
+                                .await;
+                                match first {
+                                    Ok(Some(Ok(first_bytes))) => {
+                                        let mut rest = stream;
+                                        let replayed = async_stream::stream! {
+                                            yield Ok(first_bytes);
+                                            while let Some(chunk) = rest.next().await {
+                                                yield chunk;
+                                            }
+                                        };
+                                        Ok(Response::from_parts(parts, Body::from_stream(replayed)))
+                                    }
+                                    _ => {
+                                        // Timeout (or empty / errored first chunk)
+                                        // => slow member. Abort + fall through to
+                                        // the next member, quarantining the slow
+                                        // one so we don't reroll it immediately.
+                                        drop(stream);
+                                        if ttft_cfg.quarantine_secs > 0 {
+                                            mark_combo_member_quarantined(
+                                                &combo_name_for_ttft,
+                                                &combo_model,
+                                                Duration::from_secs(ttft_cfg.quarantine_secs),
+                                            );
+                                        }
+                                        Err(ComboAttemptError::ttft_timeout(
+                                            &combo_model,
+                                            ttft_cfg.timeout_ms,
+                                        ))
+                                    }
+                                }
+                            } else {
+                                Ok(response)
+                            }
                         }
                     },
                 )
@@ -1292,8 +1407,14 @@ async fn forward_with_provider_fallback(
                 status: if retry_after.is_some() { 503 } else { 400 },
                 message: if retry_after.is_some() {
                     format!("All accounts for {provider}/{model} are cooling down")
+                } else if is_no_auth_provider(provider) {
+                    format!(
+                        "No credentials for provider: {provider} — no virtual connection available (excluded={{noauth}} or stale binary). Restart the server (./scripts/dev.sh --fast detach) and retry; free/no-auth providers should not require a stored key."
+                    )
                 } else {
-                    format!("No credentials for provider: {provider}")
+                    format!(
+                        "No credentials for provider: {provider} — add a connection at /dashboard/providers/{provider}"
+                    )
                 },
                 retry_after,
                 upstream_body: None,
@@ -2785,7 +2906,7 @@ fn virtual_no_auth_connection(provider: &str) -> ProviderConnection {
 /// OmniRoute parity `isPremiumOpencodeModel` (open-sse/executors/opencode.ts:125).
 /// - `opencode-go`: every model requires a key.
 /// - `opencode` / `opencode-zen`: free if endsWith `-free` OR in the 6-model free set.
-/// Unknown models are premium (fail-safe).
+///   Unknown models are premium (fail-safe).
 fn is_premium_opencode_model(model: &str, provider: &str) -> bool {
     if provider == "opencode-go" {
         return true;
@@ -3509,10 +3630,11 @@ async fn proxy_response_with_pending_tracking(
                 let mut ttft_ms: Option<u64> = None;
                 let mut response_bytes: usize = 0;
                 loop {
-                    let next = tokio::time::timeout(SSE_STALL_TIMEOUT, upstream.try_next()).await;
+                    let stall_timeout = sse_stall_timeout(&model);
+                    let next = tokio::time::timeout(stall_timeout, upstream.try_next()).await;
                     match next {
                         Err(_elapsed) => {
-                            // Upstream went silent for SSE_STALL_TIMEOUT; treat
+                            // Upstream went silent past stall timeout; treat
                             // as an error so the client can retry.
                             tracing::warn!(
                                 target: "cipherroute::chat::stream",
@@ -3650,7 +3772,8 @@ async fn proxy_response_with_pending_tracking(
                 let mut ttft_ms: Option<u64> = None;
                 let mut response_bytes: usize = 0;
                 loop {
-                    let next = tokio::time::timeout(SSE_STALL_TIMEOUT, body.frame()).await;
+                    let stall_timeout = sse_stall_timeout(&model);
+                    let next = tokio::time::timeout(stall_timeout, body.frame()).await;
                     let frame_result = match next {
                         Err(_elapsed) => {
                             tracing::warn!(
@@ -4377,11 +4500,10 @@ fn estimate_missing_tokens(
     request_body_len: usize,
     response_body_len: Option<usize>,
 ) -> TokenUsage {
-    let prompt_tokens = Some(request_body_len.div_ceil(4) as u64);
+    let prompt_tokens_val = request_body_len.div_ceil(4) as u64;
+    let prompt_tokens = Some(prompt_tokens_val);
     let completion_tokens = response_body_len.map(|l| l.div_ceil(4) as u64);
-    let total = prompt_tokens
-        .unwrap_or(0)
-        .saturating_add(completion_tokens.unwrap_or(0));
+    let total = prompt_tokens_val.saturating_add(completion_tokens.unwrap_or(0));
     let mut extra = std::collections::BTreeMap::new();
     extra.insert("estimated".into(), Value::Bool(true));
     TokenUsage {
@@ -5161,6 +5283,67 @@ mod tests {
             selected.is_none(),
             "should return None when no connections exist"
         );
+    }
+
+    #[test]
+    fn select_connection_returns_virtual_for_opencode_zen_with_no_connections() {
+        // Hardening for stale-binary symptom "HTTP 400: No credentials for provider: opencode-zen"
+        // opencode-zen is a noAuth provider — with zero stored connections select_connection
+        // must synthesize a virtual "noauth" connection so test/chat can route without manual setup.
+        // Regression introduced 2026-08-31 (de6a226f) when opencode-zen was added to
+        // is_no_auth_provider; a stale binary without that entry returns 400 instead.
+        let snapshot = AppDb::default();
+
+        let selected = select_connection(
+            &snapshot,
+            "opencode-zen",
+            "big-pickle",
+            &HashSet::new(),
+            None,
+        )
+        .expect("opencode-zen with no stored connections should return virtual noauth");
+
+        assert_eq!(selected.id, "noauth");
+        assert_eq!(selected.provider, "opencode-zen");
+        assert_eq!(selected.access_token.as_deref(), Some("public"));
+    }
+
+    #[test]
+    fn select_connection_virtual_blocked_when_noauth_excluded() {
+        let snapshot = AppDb::default();
+        let excluded = HashSet::from(["noauth".to_string()]);
+
+        let selected = select_connection(&snapshot, "opencode-zen", "big-pickle", &excluded, None);
+        assert!(
+            selected.is_none(),
+            "when 'noauth' is excluded the virtual connection must not be returned"
+        );
+    }
+
+    #[test]
+    fn select_connection_returns_virtual_for_all_noauth_providers() {
+        // Ensure every is_no_auth_provider entry gets the same virtual fallback.
+        // Covers the invariant that any noAuth free provider can route without stored creds.
+        let providers = [
+            "opencode",
+            "opencode-zen",
+            "opencode-go",
+            "edge-tts",
+            "google-tts",
+            "ollama-local",
+            "grok-web",
+            "perplexity-web",
+        ];
+        for provider in providers {
+            let snapshot = AppDb::default();
+            let selected =
+                select_connection(&snapshot, provider, "any-model", &HashSet::new(), None);
+            assert!(
+                selected.is_some(),
+                "noAuth provider '{provider}' should return virtual connection with no stored accounts"
+            );
+            assert_eq!(selected.unwrap().id, "noauth");
+        }
     }
 
     #[test]

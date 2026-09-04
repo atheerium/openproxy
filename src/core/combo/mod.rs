@@ -88,6 +88,62 @@ impl FusionConfig {
     }
 }
 
+/// Tunable knobs for the per-combo time-to-first-token (TTFT) slow-member
+/// fallback. When enabled, a streaming member that does not emit its first
+/// chunk within `timeout_ms` is aborted and the combo falls through to the
+/// next member (and the slow member is temporarily quarantined).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct TtftConfig {
+    /// Each member is aborted if the first streaming chunk takes longer than
+    /// this. `0` / absent means the feature is off.
+    pub timeout_ms: u64,
+    /// How long to quarantine a member after a TTFT timeout. `0` means no
+    /// quarantine (just skip to the next member). Default 60s.
+    pub quarantine_secs: u64,
+}
+
+impl Default for TtftConfig {
+    fn default() -> Self {
+        Self {
+            timeout_ms: 0,
+            quarantine_secs: 60,
+        }
+    }
+}
+
+impl TtftConfig {
+    /// Disabled unless `ttftTimeoutMs` is present and > 0.
+    pub fn is_enabled(&self) -> bool {
+        self.timeout_ms > 0
+    }
+
+    /// Read `ttftTimeoutMs` / `ttftQuarantineSecs` from a JSON map (either a
+    /// combo's `extra` or a settings entry's flattened extra).
+    pub fn from_value(extra: &std::collections::BTreeMap<String, Value>) -> Self {
+        let mut s = Self::default();
+        if let Some(v) = extra.get("ttftTimeoutMs") {
+            s.timeout_ms = v.as_u64().unwrap_or(0).min(u64::from(u32::MAX));
+        }
+        if let Some(v) = extra.get("ttftQuarantineSecs") {
+            s.quarantine_secs = v.as_u64().unwrap_or(60);
+        }
+        s
+    }
+
+    /// Merge a per-combo settings override on top of the combo's own `extra`
+    /// (settings wins when both set). Mirrors `fusion_config_for`.
+    pub fn resolve(
+        combo_extra: &std::collections::BTreeMap<String, Value>,
+        settings_value: Option<u64>,
+    ) -> Self {
+        let mut cfg = Self::from_value(combo_extra);
+        if let Some(v) = settings_value {
+            cfg.timeout_ms = v;
+        }
+        cfg
+    }
+}
+
 /// Result from one panel model in a fusion execution.
 #[derive(Debug, Clone)]
 pub struct FusionPanelResult {
@@ -208,6 +264,20 @@ impl ComboAttemptError {
             retry_after: None,
             upstream_body: None,
         }
+    }
+
+    /// Error signalling a TTFT slow-member timeout. Uses a synthetic 508 so
+    /// `check_fallback_error` → `classify_error` lands on `NoMatch`
+    /// (`should_fallback: true`, transient cooldown) and — because 508 is not
+    /// in the 502–504 range — no additional transient-wait sleep is applied
+    /// on top of the time the slow member already burned.
+    pub fn ttft_timeout(model: &str, timeout_ms: u64) -> Self {
+        Self::new(
+            508,
+            format!(
+                "TTFT timeout: {model} did not emit a first chunk within {timeout_ms}ms; falling back to next combo member"
+            ),
+        )
     }
 }
 
@@ -1331,6 +1401,93 @@ mod tests {
             attempted.first().map(|s| s.as_str()),
             Some("anthropic/claude-3-sonnet"),
             "quality strategy must try the vision-capable model first"
+        );
+    }
+
+    #[test]
+    fn ttft_config_disabled_by_default() {
+        let cfg = TtftConfig::default();
+        assert_eq!(cfg.timeout_ms, 0);
+        assert_eq!(cfg.quarantine_secs, 60);
+        assert!(!cfg.is_enabled(), "no timeout => feature off");
+    }
+
+    #[test]
+    fn ttft_config_parses_from_combo_extra() {
+        let mut extra = std::collections::BTreeMap::new();
+        extra.insert("ttftTimeoutMs".to_string(), Value::from(5000));
+        extra.insert("ttftQuarantineSecs".to_string(), Value::from(30));
+        let cfg = TtftConfig::from_value(&extra);
+        assert_eq!(cfg.timeout_ms, 5000);
+        assert_eq!(cfg.quarantine_secs, 30);
+        assert!(cfg.is_enabled());
+    }
+
+    #[test]
+    fn ttft_config_resolve_settings_overrides_combo_extra() {
+        let mut combo_extra = std::collections::BTreeMap::new();
+        combo_extra.insert("ttftTimeoutMs".to_string(), Value::from(9000));
+        // Per-combo settings override wins over the combo's own extra.
+        let cfg = TtftConfig::resolve(&combo_extra, Some(4500));
+        assert_eq!(cfg.timeout_ms, 4500);
+        // Absent settings value falls back to the combo's own extra.
+        let cfg2 = TtftConfig::resolve(&combo_extra, None);
+        assert_eq!(cfg2.timeout_ms, 9000);
+    }
+
+    #[tokio::test]
+    async fn ttft_timeout_error_falls_through_to_next_member() {
+        // A member that reports a TTFT timeout (synthetic 508) must NOT
+        // terminate the combo — the strategy falls through to the next member.
+        let models = vec![
+            "openai/gpt-4o".to_string(),
+            "anthropic/claude-3-haiku".to_string(),
+        ];
+        let attempted = Arc::new(Mutex::new(Vec::new()));
+        let attempted_clone = attempted.clone();
+        let result = execute_combo_strategy_full(
+            &models,
+            None,
+            ComboStrategy::Fallback,
+            &[],
+            1,
+            None,
+            &PricingTable::new(),
+            |_| ModelCapacity::Available,
+            move |model: &str| {
+                let attempted_clone = attempted_clone.clone();
+                let owned = model.to_string();
+                async move {
+                    attempted_clone.lock().push(owned.clone());
+                    if owned.contains("gpt-4o") {
+                        // First (slow) member times out: synthetic 508.
+                        Err::<String, _>(ComboAttemptError::ttft_timeout(&owned, 5000))
+                    } else {
+                        Ok(owned)
+                    }
+                }
+            },
+        )
+        .await;
+        assert!(result.is_ok(), "fallback after TTFT timeout should succeed");
+        let order = attempted.lock().clone();
+        assert_eq!(order.len(), 2, "both members tried before success");
+        assert!(order[0].contains("gpt-4o"));
+        assert!(order[1].contains("claude-3-haiku"));
+    }
+
+    #[test]
+    fn ttft_timeout_error_quarantines_slow_member() {
+        // After a TTFT-timeout fallthrough, the slow member is quarantined so
+        // the next request pre-gates it out of the member list.
+        let combo_name = "ttft-quarantine-combo";
+        let member = "openai/gpt-4o";
+        // Precondition: not quarantined yet.
+        assert!(!quarantined_members(combo_name).contains(member));
+        mark_combo_member_quarantined(combo_name, member, Duration::from_secs(60));
+        assert!(
+            quarantined_members(combo_name).contains(member),
+            "slow member must be quarantined"
         );
     }
 }

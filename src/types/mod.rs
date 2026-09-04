@@ -375,6 +375,25 @@ impl ComboStrategyEntry {
             Self::Name(_) => None,
         }
     }
+
+    /// Slow-member time-to-first-token timeout override (ms) from the
+    /// per-combo settings entry. `Some(0)` means explicitly disabled;
+    /// `None` means "not set here" (fall back to the combo's own extra).
+    pub fn ttft_timeout_ms(&self) -> Option<u64> {
+        match self {
+            Self::Config(c) => c
+                .extra
+                .get("ttftTimeoutMs")
+                .and_then(Value::as_u64)
+                .or_else(|| {
+                    c.extra
+                        .get("ttftTimeoutMs")
+                        .and_then(Value::as_i64)
+                        .map(|v| v.max(0) as u64)
+                }),
+            Self::Name(_) => None,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
@@ -404,6 +423,12 @@ pub struct Combo {
     /// default.
     #[serde(default, deserialize_with = "deserialize_null_default")]
     pub disabled_models: Vec<String>,
+    /// Global thinking level applied to every member of this combo.
+    /// When set, a `(level)` suffix is appended to each model name before
+    /// execution so the thinking_suffix pipeline routes it to the correct
+    /// provider-specific parameter (budget_tokens, reasoning_effort, etc.).
+    #[serde(default)]
+    pub thinking_level: Option<String>,
     #[serde(default)]
     pub kind: Option<String>,
     #[serde(default)]

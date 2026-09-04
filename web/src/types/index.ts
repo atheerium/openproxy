@@ -249,6 +249,7 @@ export interface ComboStrategyConfig {
   fallbackStrategy?: ComboStrategyName | string;
   judgeModel?: string;
   fusionTuning?: Record<string, unknown>;
+  ttftTimeoutMs?: number;
   [key: string]: unknown;
 }
 
